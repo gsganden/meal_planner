@@ -52,6 +52,8 @@ jobs:
           pyright
 
       - name: Run Pytest with Coverage
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           source .venv/bin/activate
           pytest --cov=meal_planner --runslow
