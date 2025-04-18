@@ -34,7 +34,6 @@ recipes = {
 }
 
 
-# TODO: Give tests their own key for cost tracking
 @pytest.mark.slow
 @pytest.mark.anyio
 @pytest.mark.parametrize("path, expected_recipe", recipes.items())
