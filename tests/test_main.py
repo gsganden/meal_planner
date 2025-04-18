@@ -8,8 +8,8 @@ from pytest_httpx import HTTPXMock
 from meal_planner.main import (
     _check_api_key,
     app,
-    fetch_page_text,
     clean_html,
+    fetch_page_text,
 )
 
 TRANSPORT = ASGITransport(app=app)
