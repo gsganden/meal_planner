@@ -73,7 +73,7 @@ def with_layout(content):
 
 
 class Recipe(BaseModel):
-    title: str = Field(..., description="The title of the recipe")
+    name: str = Field(..., description="The name of the dish")
 
 
 @rt("/recipes/extract")
@@ -139,7 +139,7 @@ async def fetch_page_text(recipe_url: str):
 async def call_llm(prompt: str, response_model: BaseModel):
     return instructor.from_gemini(
         client=genai.GenerativeModel(
-            model_name=f"models/{MODEL_NAME}",  # model defaults to "gemini-pro"
+            model_name=f"models/{MODEL_NAME}",
         ),
         mode=instructor.Mode.GEMINI_JSON,
     ).chat.completions.create(

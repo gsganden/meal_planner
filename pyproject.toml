@@ -17,6 +17,7 @@ dependencies = [
 dev = [
     "coverage",
     "httpx",
+    "jupyter",
     "pyright",
     "pytest",
     "pytest-cov",
