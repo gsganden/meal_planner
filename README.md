@@ -11,5 +11,5 @@ uv sync
 ## Commands
 
 ```bash
-uv run 
+uv run python meal_planner/main.py
 ```
