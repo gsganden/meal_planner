@@ -17,13 +17,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-try:
-    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])  # type: ignore
-except KeyError as e:
-    logger.error("GOOGLE_API_KEY environment variable not set.")
-    # Handle the error appropriately - exit or raise
-    raise SystemExit("GOOGLE_API_KEY environment variable not set.") from e
 
+def _check_api_key():
+    try:
+        genai.configure(api_key=os.environ["GOOGLE_API_KEY"])  # type: ignore
+    except KeyError as e:
+        logger.error("GOOGLE_API_KEY environment variable not set.")
+        raise SystemExit("GOOGLE_API_KEY environment variable not set.") from e
+
+
+_check_api_key()
 
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
@@ -33,8 +36,7 @@ MODEL_NAME = "gemini-2.0-flash"
 
 @rt("/")
 def get():
-    main_content = mu.Titled("Home")
-    return with_layout(main_content)
+    return with_layout(mu.Titled("Home"))
 
 
 def sidebar():

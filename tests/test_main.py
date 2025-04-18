@@ -5,7 +5,12 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from pytest_httpx import HTTPXMock
 
-from meal_planner.main import app, fetch_page_text
+from meal_planner.main import (
+    _check_api_key,
+    app,
+    fetch_page_text,
+    clean_html,
+)
 
 TRANSPORT = ASGITransport(app=app)
 CLIENT = AsyncClient(transport=TRANSPORT, base_url="http://test")
@@ -31,6 +36,18 @@ async def test_smoke_post_extract_recipe_run(anyio_backend):
         data={"recipe_url": "http://example.com"},
     )
     assert response.status_code == 200
+
+
+@patch("meal_planner.main.os.environ", {})
+def test_configure_genai_exits_if_no_api_key():
+    """
+    Test that _check_api_key() raises SystemExit if GOOGLE_API_KEY is not set,
+    using unittest.mock.patch.
+    """
+    with pytest.raises(SystemExit) as excinfo:
+        _check_api_key()
+
+    assert "GOOGLE_API_KEY environment variable not set" in str(excinfo.value)
 
 
 @pytest.mark.anyio
@@ -87,3 +104,53 @@ async def test_post_extract_response_contains_only_result(
     assert response.status_code == 200
     mock_fetch.assert_called_once_with("http://example.com")
     assert expected_llm_result in response.text
+
+
+def test_clean_html_with_main_tag():
+    """
+    Test clean_html when a <main> tag is present.
+    It should extract text only from the <main> tag, removing other tags.
+    """
+    html_input = """
+    <html>
+    <head><title>Test Page</title><style>body { color: red; }</style></head>
+    <body>
+        <header>Site Header</header>
+        <nav>Navigation</nav>
+        <main>
+            <h1>Main Title</h1>
+            <p>This is the main content.</p>
+            <script>alert('hello');</script>
+        </main>
+        <aside>Sidebar</aside>
+        <footer>Site Footer</footer>
+    </body>
+    </html>
+    """
+    # Expected output is the text from <main>, stripped, with space separator
+    expected_output = "Main Title This is the main content."
+
+    actual_output = clean_html(html_input)
+
+    assert actual_output == expected_output
+
+
+def test_clean_html_no_main_no_body():
+    """
+    Test clean_html when neither <main> nor <body> tags are found.
+    It should return the original HTML string.
+    """
+    # Input HTML that lacks standard body structure
+    html_input = "<head><title>Just a head</title></head>"
+    # In this case, the original input should be returned
+    expected_output = html_input
+
+    actual_output = clean_html(html_input)
+
+    assert actual_output == expected_output
+
+    # Another example: plain text shouldn't have main or body either
+    html_input_plain = "Just some plain text."
+    expected_output_plain = html_input_plain
+    actual_output_plain = clean_html(html_input_plain)
+    assert actual_output_plain == expected_output_plain
