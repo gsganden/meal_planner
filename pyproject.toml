@@ -24,7 +24,8 @@ dev = [
 package = true
 
 [tool.ruff]
-lint.select = ["E", "F", "W", "I"]
+lint.select = ["E", "F", "W", "I", "B", "C4", "SIM", "S"]
+lint.per-file-ignores = {"tests/**/*.py" = ["S101"]}  # allow `assert` in tests
 
 [tool.ruff.lint.isort]
 known-first-party = ["meal_planner"]
