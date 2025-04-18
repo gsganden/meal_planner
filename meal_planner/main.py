@@ -1,11 +1,11 @@
 import logging
 
-from bs4 import BeautifulSoup
 import fasthtml.common as fh
+import google.generativeai as genai
 import httpx
 import instructor
 import monsterui.all as mu
-import google.generativeai as genai
+from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
 
 logging.basicConfig(
