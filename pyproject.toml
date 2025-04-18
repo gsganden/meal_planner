@@ -5,6 +5,7 @@ description = "A meal planner"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "beautifulsoup4>=4.13.4",
     "google-generativeai",
     "httpx",
     "instructor",

@@ -1232,6 +1232,7 @@ name = "meal-planner"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "beautifulsoup4" },
     { name = "google-generativeai" },
     { name = "httpx" },
     { name = "instructor" },
@@ -1255,6 +1256,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.13.4" },
     { name = "coverage", marker = "extra == 'dev'" },
     { name = "google-generativeai" },
     { name = "httpx" },

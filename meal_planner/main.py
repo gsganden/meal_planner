@@ -1,5 +1,6 @@
 import logging
 
+from bs4 import BeautifulSoup
 import fasthtml.common as fh
 import httpx
 import instructor
@@ -107,7 +108,7 @@ def get():
 @rt("/recipes/extract/run")
 async def post(recipe_url: str):
     try:
-        page_text = await fetch_page_text(recipe_url)
+        page_text = clean_html(await fetch_page_text(recipe_url))
         logger.info("Successfully extracted recipe from: %s", recipe_url)
     except Exception as e:
         logger.error(
@@ -134,6 +135,20 @@ async def fetch_page_text(recipe_url: str):
         response = await client.get(recipe_url)
     response.raise_for_status()
     return response.text
+
+
+def clean_html(html: str):
+    soup = BeautifulSoup(html, "html.parser")
+    for tag_name in ["script", "style", "nav", "header", "footer", "aside"]:
+        for tag in soup.find_all(tag_name):
+            tag.decompose()
+
+    main_content = soup.find("main")
+    return (
+        main_content.get_text(separator=" ", strip=True)
+        if main_content
+        else soup.body.get_text(separator=" ", strip=True)
+    )
 
 
 async def call_llm(prompt: str, response_model: BaseModel):

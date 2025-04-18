@@ -73,7 +73,7 @@ async def test_post_extract_recipe_run_generic_exception(mock_fetch, anyio_backe
 async def test_post_extract_response_contains_only_result(
     mock_fetch, mock_llm, anyio_backend
 ):
-    fetched_page_content = "Raw Page Content"
+    fetched_page_content = "<html><body>Raw Page Content</body></html>"
     mock_fetch.return_value = fetched_page_content
 
     expected_llm_result = "Processed Recipe from LLM"
