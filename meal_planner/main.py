@@ -1,9 +1,11 @@
 import logging
 
 import fasthtml.common as fh
-from google import genai
 import httpx
+import instructor
 import monsterui.all as mu
+import google.generativeai as genai
+from pydantic import BaseModel, Field
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,10 +58,22 @@ def sidebar():
 
 
 def with_layout(content):
-    return fh.Title("Meal Planner"), fh.Div(cls="flex flex-col md:flex-row w-full")(
-        fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
-        fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
+    indicator_style = fh.Style("""
+        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+        .htmx-indicator.htmx-request { opacity: 1; }
+    """)
+    return (
+        fh.Title("Meal Planner"),
+        indicator_style,
+        fh.Div(cls="flex flex-col md:flex-row w-full")(
+            fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
+            fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
+        ),
     )
+
+
+class Recipe(BaseModel):
+    title: str = Field(..., description="The title of the recipe")
 
 
 @rt("/recipes/extract")
@@ -71,10 +85,17 @@ def get():
             type="url",
             placeholder="Enter Recipe URL",
         ),
-        mu.Button("Extract Recipe"),
+        fh.Div(
+            mu.Button("Extract Recipe"),
+            mu.Loading(
+                id="extract-indicator",
+                cls="htmx-indicator ml-2",
+            ),
+        ),
         hx_post="/recipes/extract/run",
         hx_target="#recipe-results",
         hx_swap="innerHTML",
+        hx_indicator="#extract-indicator",
         id="extract-form",
     )
     results_div = fh.Div(id="recipe-results")
@@ -96,8 +117,9 @@ async def post(recipe_url: str):
 
     try:
         logging.info(f"Calling model {MODEL_NAME}")
-        extracted_recipe = await call_llm(
-            f"Extract the recipe from the following HTML content: {page_text}"
+        extracted_recipe: Recipe = await call_llm(
+            prompt=f"Extract the recipe from the following HTML content: {page_text}",
+            response_model=Recipe,
         )
         logging.info(f"Call to model {MODEL_NAME} successful")
     except Exception as e:
@@ -114,9 +136,17 @@ async def fetch_page_text(recipe_url: str):
     return response.text
 
 
-async def call_llm(prompt):
-    return (
-        genai.Client().models.generate_content(model=MODEL_NAME, contents=prompt).text
+async def call_llm(prompt: str, response_model: BaseModel):
+    return instructor.from_gemini(
+        client=genai.GenerativeModel(
+            model_name=f"models/{MODEL_NAME}",  # model defaults to "gemini-pro"
+        ),
+        mode=instructor.Mode.GEMINI_JSON,
+    ).chat.completions.create(
+        messages=[
+            {"role": "user", "content": prompt},
+        ],
+        response_model=response_model,
     )
 
 
