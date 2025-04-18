@@ -61,18 +61,23 @@ def with_layout(content):
 
 @rt("/recipes/extract")
 def recipes_extract():
-    url_input = mu.Input(
-        id="recipe_url", name="recipe_url", type="url", placeholder="Enter Recipe URL"
-    )
-    submit_button = mu.Button("Extract Recipe")
     initial_form = mu.Form(
-        url_input,
-        submit_button,
+        mu.Input(
+            id="recipe_url",
+            name="recipe_url",
+            type="url",
+            placeholder="Enter Recipe URL",
+        ),
+        mu.Button("Extract Recipe"),
         hx_post="/recipes/extract/run",
-        hx_target="#content",
+        hx_target="#recipe-results",
         hx_swap="innerHTML",
+        id="extract-form",
     )
-    return with_layout(mu.Titled("Extract Recipe", fh.Div(initial_form, id="content")))
+    results_div = fh.Div(id="recipe-results")
+    return with_layout(
+        mu.Titled("Extract Recipe", fh.Div(initial_form, results_div), id="content")
+    )
 
 
 @rt("/recipes/extract/run")
