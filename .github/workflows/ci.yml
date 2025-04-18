@@ -1,0 +1,52 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read .python-version
+        id: python-version
+        run: echo "version=$(cat .python-version)" >> $GITHUB_OUTPUT
+
+      - name: Set up Python ${{ steps.python-version.outputs.version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ steps.python-version.outputs.version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-${{ steps.python-version.outputs.version }}-uv-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ steps.python-version.outputs.version }}-uv-
+
+      - name: Install dependencies
+        run: uv sync --frozen --compile-bytecode --all-extras
+
+      - name: Run Ruff Formatter Check
+        run: |
+          source .venv/bin/activate
+          ruff format --check .
+
+      - name: Run Ruff Linter
+        run: |
+          source .venv/bin/activate
+          ruff check .
+
+      - name: Run Pytest with Coverage
+        run: |
+          source .venv/bin/activate
+          pytest --cov=meal_planner 
