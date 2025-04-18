@@ -1,0 +1,22 @@
+[project]
+name = "meal_planner"
+version = "0.1.0"
+description = "A meal planner"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "monsterui>=1.0.19",
+    "python-fasthtml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "httpx",
+    "uv",
+    "coverage",
+    "pytest-cov",
+]
+
+[tool.uv]
+package = true
