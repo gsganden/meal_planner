@@ -54,4 +54,4 @@ jobs:
       - name: Run Pytest with Coverage
         run: |
           source .venv/bin/activate
-          pytest --cov=meal_planner 
+          pytest --cov=meal_planner --runslow

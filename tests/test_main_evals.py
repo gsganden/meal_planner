@@ -15,6 +15,13 @@ recipes = {
 }
 
 
+# TODO: Deal with rate limits
+# TODO: Remove some HTML boilerplate before passing to LLM?
+# TODO: Add tests for other recipes
+# TODO: Mark these tests as slow or whatever so they don't run with every test,
+# decide how to handle in CI
+# TODO: Use harvest
+@pytest.mark.slow
 @pytest.mark.anyio
 @pytest.mark.parametrize("path, expected_name", recipes.items())
 async def test_call_llm_returns_recipe(path, expected_name, anyio_backend):
