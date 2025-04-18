@@ -10,7 +10,6 @@ import monsterui.all as mu
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
