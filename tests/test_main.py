@@ -65,3 +65,25 @@ async def test_post_extract_recipe_run_generic_exception(mock_fetch, anyio_backe
         "Recipe extraction failed. Please check the URL and try again." in response.text
     )
     mock_fetch.assert_called_once_with("http://example.com/fails")
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main.call_llm")
+@patch("meal_planner.main.fetch_page_text")
+async def test_post_extract_response_contains_only_result(
+    mock_fetch, mock_llm, anyio_backend
+):
+    fetched_page_content = "Raw Page Content"
+    mock_fetch.return_value = fetched_page_content
+
+    expected_llm_result = "Processed Recipe from LLM"
+    mock_llm.return_value = expected_llm_result
+
+    response = await CLIENT.post(
+        "/recipes/extract/run",
+        data={"recipe_url": "http://example.com"},
+    )
+
+    assert response.status_code == 200
+    mock_fetch.assert_called_once_with("http://example.com")
+    assert expected_llm_result in response.text

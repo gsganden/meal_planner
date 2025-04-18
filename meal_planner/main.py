@@ -1,6 +1,7 @@
 import logging
 
 import fasthtml.common as fh
+from google import genai
 import httpx
 import monsterui.all as mu
 
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
+
+MODEL_NAME = "gemini-2.0-flash"
 
 
 @rt("/")
@@ -60,7 +63,7 @@ def with_layout(content):
 
 
 @rt("/recipes/extract")
-def recipes_extract():
+def get():
     initial_form = mu.Form(
         mu.Input(
             id="recipe_url",
@@ -85,12 +88,23 @@ async def post(recipe_url: str):
     try:
         page_text = await fetch_page_text(recipe_url)
         logger.info("Successfully extracted recipe from: %s", recipe_url)
-        return fh.Div(page_text)
     except Exception as e:
         logger.error(
             "Error extracting recipe from %s: %s", recipe_url, e, exc_info=True
         )
         return fh.Div("Recipe extraction failed. Please check the URL and try again.")
+
+    try:
+        logging.info(f"Calling model {MODEL_NAME}")
+        extracted_recipe = await call_llm(
+            f"Extract the recipe from the following HTML content: {page_text}"
+        )
+        logging.info(f"Call to model {MODEL_NAME} successful")
+    except Exception as e:
+        logging.error("Error calling model {MODEL_NAME}: %s", e)
+        return fh.Div(f"Error communicating with model {MODEL_NAME}")
+
+    return fh.Div(extracted_recipe)
 
 
 async def fetch_page_text(recipe_url: str):
@@ -98,6 +112,12 @@ async def fetch_page_text(recipe_url: str):
         response = await client.get(recipe_url)
     response.raise_for_status()
     return response.text
+
+
+async def call_llm(prompt):
+    return (
+        genai.Client().models.generate_content(model=MODEL_NAME, contents=prompt).text
+    )
 
 
 fh.serve()
