@@ -1,8 +1,25 @@
+import logging
+
 import fasthtml.common as fh
+import httpx
 import monsterui.all as mu
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+logger = logging.getLogger(__name__)
+
 
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
+
+
+@rt("/")
+def get():
+    main_content = mu.Titled("Home")
+    return with_layout(main_content)
 
 
 def sidebar():
@@ -42,12 +59,6 @@ def with_layout(content):
     )
 
 
-@rt("/")
-def get():
-    main_content = mu.Titled("Home")
-    return with_layout(main_content)
-
-
 @rt("/recipes/extract")
 def recipes_extract():
     url_input = mu.Input(
@@ -57,11 +68,31 @@ def recipes_extract():
     initial_form = mu.Form(
         url_input,
         submit_button,
-        hx_post="/extract",
+        hx_post="/recipes/extract/run",
         hx_target="#content",
         hx_swap="innerHTML",
     )
     return with_layout(mu.Titled("Extract Recipe", fh.Div(initial_form, id="content")))
+
+
+@rt("/recipes/extract/run")
+async def post(recipe_url: str):
+    try:
+        page_text = await fetch_page_text(recipe_url)
+        logger.info("Successfully extracted recipe from: %s", recipe_url)
+        return fh.Div(page_text)
+    except Exception as e:
+        logger.error(
+            "Error extracting recipe from %s: %s", recipe_url, e, exc_info=True
+        )
+        return fh.Div("Recipe extraction failed. Please check the URL and try again.")
+
+
+async def fetch_page_text(recipe_url: str):
+    async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+        response = await client.get(recipe_url)
+    response.raise_for_status()
+    return response.text
 
 
 fh.serve()
