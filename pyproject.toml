@@ -11,14 +11,20 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "httpx",
-    "uv",
     "coverage",
+    "httpx",
+    "pyright",
+    "pytest",
     "pytest-cov",
     "ruff",
-    "pyright",
+    "uv",
 ]
 
 [tool.uv]
 package = true
+
+[tool.ruff]
+lint.select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["meal_planner"]

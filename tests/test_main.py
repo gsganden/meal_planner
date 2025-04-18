@@ -1,7 +1,7 @@
-from httpx import AsyncClient, ASGITransport
+import pytest
+from httpx import ASGITransport, AsyncClient
 
 from meal_planner.main import app
-import pytest
 
 
 @pytest.mark.anyio
