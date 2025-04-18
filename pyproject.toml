@@ -17,6 +17,7 @@ dev = [
     "coverage",
     "pytest-cov",
     "ruff",
+    "pyright",
 ]
 
 [tool.uv]

@@ -6,7 +6,7 @@ rt = app.route
 
 
 def sidebar():
-    return mu.NavContainer(
+    nav = mu.NavContainer(
         fh.Li(
             fh.A(
                 mu.DivFullySpaced("Home"),
@@ -30,8 +30,9 @@ def sidebar():
             ),
         ),
         uk_nav=True,
-        cls=(mu.NavT.primary, "space-y-4 p-4 w-full md:w-full"),
+        cls=mu.NavT.primary,
     )
+    return fh.Div(nav, cls="space-y-4 p-4 w-full md:w-full")
 
 
 def with_layout(content):
