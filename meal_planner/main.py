@@ -1,4 +1,6 @@
 import logging
+import os
+from typing import TypeVar
 
 import fasthtml.common as fh
 import google.generativeai as genai
@@ -7,6 +9,7 @@ import instructor
 import monsterui.all as mu
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -137,27 +140,32 @@ async def fetch_page_text(recipe_url: str):
     return response.text
 
 
-def clean_html(html: str):
+def clean_html(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     for tag_name in ["script", "style", "nav", "header", "footer", "aside"]:
         for tag in soup.find_all(tag_name):
             tag.decompose()
 
     main_content = soup.find("main")
-    return (
-        main_content.get_text(separator=" ", strip=True)
-        if main_content
-        else soup.body.get_text(separator=" ", strip=True)
-    )
+    if main_content is not None:
+        return main_content.get_text(separator=" ", strip=True)
+    if soup.body is not None:
+        return soup.body.get_text(separator=" ", strip=True)
+    else:
+        return html
 
 
-async def call_llm(prompt: str, response_model: BaseModel):
-    return instructor.from_gemini(
-        client=genai.GenerativeModel(
+T = TypeVar("T", bound=BaseModel)
+
+
+async def call_llm(prompt: str, response_model: type[T]) -> T:
+    client = instructor.from_gemini(
+        client=genai.GenerativeModel(  # type: ignore
             model_name=f"models/{MODEL_NAME}",
         ),
         mode=instructor.Mode.GEMINI_JSON,
-    ).chat.completions.create(
+    )
+    return client.chat.completions.create(  # type: ignore
         messages=[
             {"role": "user", "content": prompt},
         ],
