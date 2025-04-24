@@ -91,7 +91,9 @@ def with_layout(content):
 
 
 class Recipe(BaseModel):
-    name: str = Field(..., description="The name of the dish")
+    name: str = Field(
+        ..., description='The name of the dish. Should not include the word "recipe"'
+    )
 
 
 @rt("/recipes/extract")
