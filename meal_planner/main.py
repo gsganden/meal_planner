@@ -195,6 +195,12 @@ async def call_llm(prompt: str, response_model: type[T]) -> T:
     return response
 
 
+class NoRecipeFoundError(Exception):
+    """Custom exception raised when a URL does not contain a recipe."""
+
+    pass
+
+
 async def extract_recipe_from_url(recipe_url: str) -> Recipe:
     """Fetches, cleans, extracts, and post-processes a recipe from a URL."""
     try:
@@ -209,7 +215,19 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
             exc_info=True,
         )
         raise
-
+    try:
+        contains_recipe = await page_contains_recipe(page_text)
+        if not contains_recipe:
+            logger.warning(f"LLM determined no recipe found at URL: {recipe_url}")
+            raise NoRecipeFoundError(
+                "The provided URL does not appear to contain a recipe."
+            )
+        logger.info(f"LLM confirmed recipe content exists at URL: {recipe_url}")
+    except Exception as e:
+        logger.error(
+            f"Error during recipe check for URL {recipe_url}: {e}", exc_info=True
+        )
+        raise
     try:
         logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
         prompt = f"""Please extract the recipe from the following HTML content.
@@ -230,7 +248,6 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
 
         processed_recipe = postprocess_recipe(extracted_recipe)
         return processed_recipe
-
     except Exception as e:
         logger.error(
             f"Error calling model {MODEL_NAME} or postprocessing for URL {recipe_url}: "
@@ -266,10 +283,11 @@ def postprocess_recipe(recipe: Recipe) -> Recipe:
 @rt("/recipes/extract/run")
 async def post(recipe_url: str):
     try:
-        # Call the helper function
         processed_recipe = await extract_recipe_from_url(recipe_url)
-        # Render the successful result
         return fh.Div(processed_recipe)
+    except NoRecipeFoundError as e:
+        logger.warning(f"No recipe found for URL {recipe_url}: {e}")
+        return fh.Div(str(e))
     except httpx.RequestError as e:
         logger.error(
             "HTTP Request Error extracting recipe from %s: %s",

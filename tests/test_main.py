@@ -86,16 +86,22 @@ async def test_post_extract_recipe_run_generic_exception(mock_fetch, anyio_backe
 
 
 @pytest.mark.anyio
+@patch("meal_planner.main.page_contains_recipe")
 @patch("meal_planner.main.call_llm")
 @patch("meal_planner.main.fetch_page_text")
 async def test_post_extract_response_contains_only_result(
-    mock_fetch, mock_llm, anyio_backend
+    mock_fetch,
+    mock_llm,
+    mock_contains_recipe,
+    anyio_backend,
 ):
-    fetched_page_content = "<html><body>Raw Page Content</body></html>"
+    fetched_page_content = (
+        "<html><body><h1>Mock Recipe Name</h1><p>Ingredients...</p></body></html>"
+    )
     mock_fetch.return_value = fetched_page_content
+    mock_contains_recipe.return_value = True
 
-    expected_llm_result = Recipe(name="Mock Recipe Name")
-    mock_llm.return_value = expected_llm_result
+    mock_llm.return_value = Recipe(name="Mock Name")
 
     response = await CLIENT.post(
         "/recipes/extract/run",
@@ -104,7 +110,9 @@ async def test_post_extract_response_contains_only_result(
 
     assert response.status_code == 200
     mock_fetch.assert_called_once_with("http://example.com")
-    assert "<div>name='Mock  Name'</div>" in response.text
+    mock_contains_recipe.assert_called_once()
+
+    assert """<div>name=\'Mock Name\'</div>""" in response.text
 
 
 def test_clean_html_with_main_tag():
