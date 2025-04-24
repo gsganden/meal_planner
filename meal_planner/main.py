@@ -156,17 +156,68 @@ async def fetch_page_text(recipe_url: str):
 
 def clean_html(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
-    for tag_name in ["script", "style", "nav", "header", "footer", "aside"]:
+
+    head = soup.find("head")
+
+    tags_to_remove = ["script", "style", "nav", "footer", "aside"]
+    for tag_name in tags_to_remove:
         for tag in soup.find_all(tag_name):
             tag.decompose()
 
-    main_content = soup.find("main")
-    if main_content is not None:
-        return main_content.get_text(separator=" ", strip=True)
-    if soup.body is not None:
-        return soup.body.get_text(separator=" ", strip=True)
+    for ad_selector in [".ad", "#ads", "[class*=advert]", "[id*=banner]"]:
+        try:
+            for tag in soup.select(ad_selector):
+                tag.decompose()
+        except Exception as e:
+            logger.warning(f"CSS selector failed: {ad_selector} - {e}")
+
+    body_content = soup.find("body")
+
+    new_html = "<html>"
+    if head:
+        new_html += str(head)
+    if body_content:
+        new_html += str(body_content)
     else:
-        return html
+        temp_soup_str = str(soup)
+        if temp_soup_str.startswith("<html>"):
+            temp_soup_str = temp_soup_str[len("<html>") :]
+        if temp_soup_str.endswith("</html>"):
+            temp_soup_str = temp_soup_str[: -len("</html>")]
+        new_html += temp_soup_str
+
+    new_html += "</html>"
+
+    return new_html
+
+
+class ContainsRecipe(BaseModel):
+    contains_recipe: bool = Field(
+        ..., description="Whether the provided text contains a recipe (True or False)"
+    )
+
+
+async def page_contains_recipe(page_text: str) -> bool:
+    """
+    Uses an LLM to determine if the given text contains a recipe.
+    """
+    prompt = f"""Analyze the following text and determine if it represents a food recipe.
+        Look for elements like ingredients lists, cooking instructions, serving sizes, etc.
+        Respond with only True or False.
+
+        Text:
+        ---
+        {page_text[:999999]} # Limit text size to avoid excessive token usage
+        ---
+        Does the text contain a recipe?
+        """
+    try:
+        response = await call_llm(prompt=prompt, response_model=ContainsRecipe)
+        logger.info(f"LLM determined contains_recipe: {response.contains_recipe}")
+        return response.contains_recipe
+    except Exception as e:
+        logger.error(f"Error calling LLM in page_contains_recipe: {e}", exc_info=True)
+        return False
 
 
 T = TypeVar("T", bound=BaseModel)
