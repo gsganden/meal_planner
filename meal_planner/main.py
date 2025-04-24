@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import TypeVar
+from pathlib import Path
 
 import fasthtml.common as fh
 import httpx
@@ -91,7 +92,11 @@ def with_layout(content):
 
 class Recipe(BaseModel):
     name: str = Field(
-        ..., description='The name of the dish. Should not include the word "recipe"'
+        ...,
+        description="""
+            The exact name of the dish as found in the text, including all punctuation.
+            Should NOT include the word "recipe".
+            """,
     )
 
 
@@ -121,30 +126,6 @@ def get():
     return with_layout(
         mu.Titled("Extract Recipe", fh.Div(initial_form, results_div), id="content")
     )
-
-
-@rt("/recipes/extract/run")
-async def post(recipe_url: str):
-    try:
-        page_text = clean_html(await fetch_page_text(recipe_url))
-        logger.info("Successfully extracted recipe from: %s", recipe_url)
-    except Exception as e:
-        logger.error(
-            "Error extracting recipe from %s: %s", recipe_url, e, exc_info=True
-        )
-        return fh.Div("Recipe extraction failed. Please check the URL and try again.")
-
-    try:
-        logging.info(f"Calling model {MODEL_NAME}")
-        extracted_recipe: Recipe = await call_llm(
-            prompt=f"Extract the recipe from the following HTML content: {page_text}",
-            response_model=Recipe,
-        )
-        logging.info(f"Call to model {MODEL_NAME} successful")
-    except Exception as e:
-        logging.error(f"Error calling model {MODEL_NAME}: %s", e, exc_info=True)
-
-    return fh.Div(extracted_recipe)
 
 
 async def fetch_page_text(recipe_url: str):
@@ -232,6 +213,99 @@ async def call_llm(prompt: str, response_model: type[T]) -> T:
         response_model=response_model,
     )
     return response
+
+
+async def extract_recipe_from_url(recipe_url: str) -> Recipe:
+    """Fetches, cleans, extracts, and post-processes a recipe from a URL."""
+    try:
+        raw_text = await fetch_page_text(recipe_url)
+        page_text = clean_html(raw_text)
+        logger.info("Successfully fetched and cleaned text from: %s", recipe_url)
+    except Exception as e:
+        logger.error(
+            "Error fetching or cleaning page text from %s: %s",
+            recipe_url,
+            e,
+            exc_info=True,
+        )
+        raise
+
+    try:
+        logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
+        prompt = f"""Please extract the recipe from the following HTML content. The
+        recipe name MUST be extracted exactly as it appears.
+
+        HTML Content:
+        {page_text}
+        """
+        extracted_recipe: Recipe = await call_llm(
+            prompt=prompt,
+            response_model=Recipe,
+        )
+        logging.info(f"Call to model {MODEL_NAME} successful for URL: {recipe_url}")
+
+        processed_recipe = postprocess_recipe(extracted_recipe)
+        return processed_recipe
+
+    except Exception as e:
+        logger.error(
+            f"Error calling model {MODEL_NAME} or postprocessing for URL {recipe_url}: %s",
+            e,
+            exc_info=True,
+        )
+        raise
+
+
+def postprocess_recipe(recipe: Recipe) -> Recipe:
+    """Post-processes the extracted recipe data."""
+    if recipe.name:
+        name_lower = recipe.name.lower()
+        if "recipe" in name_lower:
+            recipe_index = name_lower.find("recipe")
+            original_case_recipe = recipe.name[
+                recipe_index : recipe_index + len("recipe")
+            ]
+            recipe.name = recipe.name.replace(original_case_recipe, "").strip()
+            logger.info(
+                f"Removed 'recipe' from name. Before title casing: {recipe.name}"
+            )
+
+        recipe.name = recipe.name.title()
+        logger.info(f"Applied title case. Final name: {recipe.name}")
+
+    return recipe
+
+
+@rt("/recipes/extract/run")
+async def post(recipe_url: str):
+    try:
+        # Call the helper function
+        processed_recipe = await extract_recipe_from_url(recipe_url)
+        # Render the successful result
+        return fh.Div(processed_recipe)
+    except httpx.RequestError as e:
+        logger.error(
+            "HTTP Request Error extracting recipe from %s: %s",
+            recipe_url,
+            e,
+            exc_info=True,
+        )
+        return fh.Div(f"Error fetching URL: {e}. Please check the URL and try again.")
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "HTTP Status Error extracting recipe from %s: %s",
+            recipe_url,
+            e,
+            exc_info=True,
+        )
+        return fh.Div(
+            f"Error fetching URL: Received status {e.response.status_code}. Please check the URL."
+        )
+    except Exception as e:
+        logger.error(
+            "Generic error processing recipe from %s: %s", recipe_url, e, exc_info=True
+        )
+        return fh.Div("Recipe extraction failed. An unexpected error occurred.")
 
 
 fh.serve()
