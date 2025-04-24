@@ -6,51 +6,63 @@ import time
 from pathlib import Path
 
 import pytest
-from thefuzz import fuzz
 
 from meal_planner.main import Recipe, call_llm
 
 recipes = {
-    "data/classic-deviled-eggs-recipe-1911032.html": Recipe(
-        name="Classic Deviled Eggs"
-    ),
-    "data/good-old-fashioned-pancakes.html": Recipe(name="Good Old Fashioned Pancakes"),
-    "data/skillet-chicken-parmesan-with-gnocchi.html": Recipe(
-        name="Skillet Chicken Parmesan with Gnocchi"
-    ),
-    "data/gochujang-sloppy-joes.html": Recipe(name="Gochujang Sloppy Joes"),
-    "data/mushroom-pasta-creamy.html": Recipe(
-        name="Pasta ai Funghi (Creamy Pasta With Mushrooms)"
-    ),
-    "data/easy-bok-choy-recipe_.html": Recipe(name="Easy Bok Choy"),
-    "data/sunshine-sauce-recipe-23706247.html": Recipe(name="Sunshine Sauce"),
-    "data/quick-healthy-dinner-20-minute-honey-garlic-shrimp_.html": Recipe(
-        name="20 Minute Honey Garlic Shrimp"
-    ),
-    "data/prawn-salmon-burgers-spicy-mayo.html": Recipe(
-        name="Prawn & Salmon Burgers with Spicy Mayo"
-    ),
-    "data/easy-homemade-falafel-recipe_.html": Recipe(name="Easy Homemade Falafel"),
+    Path("data/classic-deviled-eggs-recipe-1911032.html"): {
+        "expected_names": ["Classic Deviled Eggs"]
+    },
+    Path("data/good-old-fashioned-pancakes.html"): {
+        "expected_names": [
+            "Good Old Fashioned Pancakes",
+            "Good Old-Fashioned Pancakes",
+            "Old-Fashioned Pancakes",
+        ]
+    },
+    Path("data/skillet-chicken-parmesan-with-gnocchi.html"): {
+        "expected_names": ["Skillet Chicken Parmesan with Gnocchi"]
+    },
+    Path("data/gochujang-sloppy-joes.html"): {
+        "expected_names": ["Gochujang Sloppy Joes"]
+    },
+    Path("data/mushroom-pasta-creamy.html"): {
+        "expected_names": [
+            "Pasta ai Funghi",
+            "Pasta ai Funghi (Creamy Pasta With Mushrooms)",
+            "Creamy Pasta With Mushrooms",
+        ]
+    },
+    Path("data/easy-bok-choy-recipe_.html"): {"expected_names": ["Easy Bok Choy"]},
+    Path("data/sunshine-sauce-recipe-23706247.html"): {
+        "expected_names": ["Sunshine Sauce"]
+    },
+    Path("data/quick-healthy-dinner-20-minute-honey-garlic-shrimp_.html"): {
+        "expected_names": ["20 Minute Honey Garlic Shrimp", "Honey Garlic Shrimp"]
+    },
+    Path("data/prawn-salmon-burgers-spicy-mayo.html"): {
+        "expected_names": ["Prawn & Salmon Burgers with Spicy Mayo"]
+    },
+    Path("data/easy-homemade-falafel-recipe_.html"): {
+        "expected_names": ["Easy Homemade Falafel", "Homemade Falafel"]
+    },
 }
 
 
 @pytest.mark.slow
 @pytest.mark.anyio
-@pytest.mark.parametrize("path, expected_recipe", recipes.items())
-async def test_call_llm_returns_recipe(path, expected_recipe, anyio_backend):
+@pytest.mark.parametrize("path, expected_data", recipes.items())
+async def test_call_llm_returns_recipe(path: Path, expected_data: dict, anyio_backend):
     print(f"Testing {path}")
     text = (Path(__file__).resolve().parent / path).read_text()
     actual_recipe = await call_llm(
         f"Extract the recipe from the following HTML content: {text}", Recipe
     )
 
-    score = fuzz.token_sort_ratio(
-        actual_recipe.name.strip().lower(), expected_recipe.name.strip().lower()
-    )
-
-    similarity_threshold = 90
-    assert score >= similarity_threshold, (
-        f"Recipe name similarity score {score} below threshold {similarity_threshold}. "
-        f"Expected: '{expected_recipe.name}', Got: '{actual_recipe.name}'"
+    actual_name = actual_recipe.name.strip().lower()
+    expected_names = [name.strip().lower() for name in expected_data["expected_names"]]
+    assert actual_name in expected_names, (
+        f"Extracted recipe name '{actual_name}' not found in expected names {expected_names}. "
+        f"Expected one of: {expected_names}, Got: '{actual_name}'"
     )
     time.sleep(8)

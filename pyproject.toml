@@ -24,7 +24,6 @@ dev = [
     "pytest-cov",
     "pytest-httpx",
     "ruff",
-    "thefuzz",
     "uv",
 ]
 
