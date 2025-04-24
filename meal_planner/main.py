@@ -195,12 +195,6 @@ async def call_llm(prompt: str, response_model: type[T]) -> T:
     return response
 
 
-class NoRecipeFoundError(Exception):
-    """Custom exception raised when a URL does not contain a recipe."""
-
-    pass
-
-
 async def extract_recipe_from_url(recipe_url: str) -> Recipe:
     """Fetches, cleans, extracts, and post-processes a recipe from a URL."""
     try:
@@ -213,19 +207,6 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
             recipe_url,
             e,
             exc_info=True,
-        )
-        raise
-    try:
-        contains_recipe = await page_contains_recipe(page_text)
-        if not contains_recipe:
-            logger.warning(f"LLM determined no recipe found at URL: {recipe_url}")
-            raise NoRecipeFoundError(
-                "The provided URL does not appear to contain a recipe."
-            )
-        logger.info(f"LLM confirmed recipe content exists at URL: {recipe_url}")
-    except Exception as e:
-        logger.error(
-            f"Error during recipe check for URL {recipe_url}: {e}", exc_info=True
         )
         raise
     try:
@@ -285,9 +266,6 @@ async def post(recipe_url: str):
     try:
         processed_recipe = await extract_recipe_from_url(recipe_url)
         return fh.Div(processed_recipe)
-    except NoRecipeFoundError as e:
-        logger.warning(f"No recipe found for URL {recipe_url}: {e}")
-        return fh.Div(str(e))
     except httpx.RequestError as e:
         logger.error(
             "HTTP Request Error extracting recipe from %s: %s",
