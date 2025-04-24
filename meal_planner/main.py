@@ -1,7 +1,6 @@
 import logging
 import os
 from typing import TypeVar
-from pathlib import Path
 
 import fasthtml.common as fh
 import httpx
@@ -182,9 +181,9 @@ async def page_contains_recipe(page_text: str) -> bool:
     """
     Uses an LLM to determine if the given text contains a recipe.
     """
-    prompt = f"""Analyze the following text and determine if it represents a food recipe.
-        Look for elements like ingredients lists, cooking instructions, serving sizes, etc.
-        Respond with only True or False.
+    prompt = f"""Analyze the following text and determine if it represents a food
+        recipe. Look for elements like ingredients lists, cooking instructions, serving
+        sizes, etc. Respond with only True or False.
 
         Text:
         ---
@@ -249,7 +248,8 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
 
     except Exception as e:
         logger.error(
-            f"Error calling model {MODEL_NAME} or postprocessing for URL {recipe_url}: %s",
+            f"Error calling model {MODEL_NAME} or postprocessing for URL {recipe_url}: "
+            "%s",
             e,
             exc_info=True,
         )
@@ -299,7 +299,8 @@ async def post(recipe_url: str):
             exc_info=True,
         )
         return fh.Div(
-            f"Error fetching URL: Received status {e.response.status_code}. Please check the URL."
+            f"Error fetching URL: Received status {e.response.status_code}. Please "
+            "check the URL."
         )
     except Exception as e:
         logger.error(

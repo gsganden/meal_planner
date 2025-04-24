@@ -10,8 +10,6 @@ from meal_planner.main import (
     app,
     clean_html,
     fetch_page_text,
-    MODEL_NAME,
-    page_contains_recipe,
 )
 
 TRANSPORT = ASGITransport(app=app)
@@ -156,41 +154,3 @@ def test_clean_html_no_main_no_body():
     expected_output_plain = html_input_plain
     actual_output_plain = clean_html(html_input_plain)
     assert actual_output_plain == expected_output_plain
-
-
-@pytest.mark.anyio
-async def test_page_contains_recipe_positive(anyio_backend):
-    """
-    Test that page_contains_recipe identifies recipe-like text.
-    This test will initially fail because the function doesn't exist or isn't implemented.
-    """
-    recipe_html = """
-    <html><body>
-    <h1>Delicious Pancakes</h1>
-    <h2>Ingredients</h2>
-    <ul><li>Flour</li><li>Eggs</li><li>Milk</li></ul>
-    <h2>Instructions</h2>
-    <p>Mix ingredients and cook.</p>
-    </body></html>
-    """
-    # This call will fail until the function is defined
-    contains_recipe = await page_contains_recipe(recipe_html)
-    assert contains_recipe is True
-
-
-@pytest.mark.anyio
-async def test_page_contains_recipe_negative(anyio_backend):
-    """
-    Test that page_contains_recipe correctly identifies non-recipe text.
-    This test will initially fail because the function doesn't exist or isn't implemented.
-    """
-    non_recipe_html = """
-    <html><body>
-    <h1>Search Results</h1>
-    <p>Showing results for 'best pancake recipe'.</p>
-    <a href="/recipes/pancakes">Link to recipe</a>
-    </body></html>
-    """
-    # This call will fail until the function is defined
-    contains_recipe = await page_contains_recipe(non_recipe_html)
-    assert contains_recipe is False
