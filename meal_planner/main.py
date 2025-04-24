@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 from typing import TypeVar
 
 import fasthtml.common as fh

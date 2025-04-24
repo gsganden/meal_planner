@@ -7,13 +7,13 @@ from httpx import ASGITransport, AsyncClient
 from pytest_httpx import HTTPXMock
 
 from meal_planner.main import (
+    MODEL_NAME,
     Recipe,
     _check_api_key,
     app,
     clean_html,
-    fetch_page_text,
     extract_recipe_from_url,
-    MODEL_NAME,
+    fetch_page_text,
     postprocess_recipe,
 )
 
