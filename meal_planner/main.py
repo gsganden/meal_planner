@@ -3,11 +3,11 @@ import os
 from typing import TypeVar
 
 import fasthtml.common as fh
-import google.generativeai as genai
 import httpx
 import instructor
 import monsterui.all as mu
 from bs4 import BeautifulSoup
+from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 logging.basicConfig(
@@ -19,14 +19,20 @@ logger = logging.getLogger(__name__)
 
 
 def _check_api_key():
-    try:
-        genai.configure(api_key=os.environ["GOOGLE_API_KEY"])  # type: ignore
-    except KeyError as e:
+    if "GOOGLE_API_KEY" not in os.environ:
         logger.error("GOOGLE_API_KEY environment variable not set.")
-        raise SystemExit("GOOGLE_API_KEY environment variable not set.") from e
+        raise SystemExit("GOOGLE_API_KEY environment variable not set.")
 
 
 _check_api_key()
+
+openai_client = AsyncOpenAI(
+    api_key=os.environ["GOOGLE_API_KEY"],
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+)
+
+# Create an instructor client *from* the AsyncOpenAI client
+aclient = instructor.from_openai(openai_client)
 
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
@@ -167,18 +173,14 @@ T = TypeVar("T", bound=BaseModel)
 
 
 async def call_llm(prompt: str, response_model: type[T]) -> T:
-    client = instructor.from_gemini(
-        client=genai.GenerativeModel(  # type: ignore
-            model_name=f"models/{MODEL_NAME}",
-        ),
-        mode=instructor.Mode.GEMINI_JSON,
-    )
-    return client.chat.completions.create(  # type: ignore
+    response = await aclient.chat.completions.create(
+        model=MODEL_NAME,
         messages=[
             {"role": "user", "content": prompt},
         ],
         response_model=response_model,
     )
+    return response
 
 
 fh.serve()

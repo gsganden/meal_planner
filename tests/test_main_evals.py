@@ -62,7 +62,7 @@ async def test_call_llm_returns_recipe(path: Path, expected_data: dict, anyio_ba
     actual_name = actual_recipe.name.strip().lower()
     expected_names = [name.strip().lower() for name in expected_data["expected_names"]]
     assert actual_name in expected_names, (
-        f"Extracted recipe name '{actual_name}' not found in expected names {expected_names}. "
+        f"Extracted recipe name '{actual_name}' not found in expected names {expected_names}. "  # noqa: E501
         f"Expected one of: {expected_names}, Got: '{actual_name}'"
     )
     time.sleep(8)

@@ -5,8 +5,9 @@ description = "A meal planner"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "anyio",
     "beautifulsoup4>=4.13.4",
-    "google-generativeai",
+    "openai",
     "httpx",
     "instructor",
     "monsterui",
@@ -21,6 +22,7 @@ dev = [
     "jupyter",
     "pyright",
     "pytest",
+    "pytest-asyncio",
     "pytest-cov",
     "pytest-httpx",
     "ruff",
