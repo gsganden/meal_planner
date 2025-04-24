@@ -2,16 +2,16 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+from bs4 import BeautifulSoup
 from httpx import ASGITransport, AsyncClient
 from pytest_httpx import HTTPXMock
-from bs4 import BeautifulSoup
 
 from meal_planner.main import (
+    Recipe,
     _check_api_key,
     app,
     clean_html,
     fetch_page_text,
-    Recipe,
 )
 
 TRANSPORT = ASGITransport(app=app)

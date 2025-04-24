@@ -8,6 +8,10 @@ uv sync
 
 [Get a Gemini API key](https://aistudio.google.com/apikey) and assign its value to a `GOOGLE_API_KEY` environment variable.
 
+```bash
+pre-commit install --hook-type pre-push -f
+```
+
 ## Commands
 
 ```bash

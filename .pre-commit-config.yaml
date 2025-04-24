@@ -1,0 +1,42 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: check-yaml
+        stages: [pre-push]
+    -   id: check-toml
+        stages: [pre-push]
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+    -   id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        stages: [pre-push]
+    -   id: ruff-format
+        stages: [pre-push]
+-   repo: local
+    hooks:
+    -   id: pyright
+        name: Run pyright type checker
+        entry: uv run pyright
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+    -   id: pytest
+        name: Run non-slow pytest tests
+        entry: uv run pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+    -   id: pytest
+        name: Run all pytest tests and check coverage
+        entry: uv run pytest --cov=meal_planner --runslow --cov-fail-under=100
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

@@ -87,6 +87,6 @@ async def test_page_contains_recipe_for_curated_recipes(path: Path, anyio_backen
 
     contains_recipe = await page_contains_recipe(page_text=cleaned_text)
 
-    assert contains_recipe is True, (
-        f"Expected page_contains_recipe to return True for {path}"
-    )
+    assert (
+        contains_recipe is True
+    ), f"Expected page_contains_recipe to return True for {path}"
