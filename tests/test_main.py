@@ -4,12 +4,14 @@ import httpx
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pytest_httpx import HTTPXMock
+from bs4 import BeautifulSoup
 
 from meal_planner.main import (
     _check_api_key,
     app,
     clean_html,
     fetch_page_text,
+    Recipe,
 )
 
 TRANSPORT = ASGITransport(app=app)
@@ -68,7 +70,7 @@ async def test_fetch_page_text_http_error(httpx_mock: HTTPXMock):
 
 
 @pytest.mark.anyio
-@patch("meal_planner.main.fetch_page_text")  # Target the function to mock
+@patch("meal_planner.main.fetch_page_text")
 async def test_post_extract_recipe_run_generic_exception(mock_fetch, anyio_backend):
     mock_fetch.side_effect = Exception("Something went wrong!")
 
@@ -78,9 +80,8 @@ async def test_post_extract_recipe_run_generic_exception(mock_fetch, anyio_backe
     )
 
     assert response.status_code == 200
-    assert (
-        "Recipe extraction failed. Please check the URL and try again." in response.text
-    )
+    expected_error_msg = "Recipe extraction failed. An unexpected error occurred."
+    assert expected_error_msg in response.text
     mock_fetch.assert_called_once_with("http://example.com/fails")
 
 
@@ -93,7 +94,7 @@ async def test_post_extract_response_contains_only_result(
     fetched_page_content = "<html><body>Raw Page Content</body></html>"
     mock_fetch.return_value = fetched_page_content
 
-    expected_llm_result = "Processed Recipe from LLM"
+    expected_llm_result = Recipe(name="Mock Recipe Name")
     mock_llm.return_value = expected_llm_result
 
     response = await CLIENT.post(
@@ -103,13 +104,13 @@ async def test_post_extract_response_contains_only_result(
 
     assert response.status_code == 200
     mock_fetch.assert_called_once_with("http://example.com")
-    assert expected_llm_result in response.text
+    assert "<div>name='Mock  Name'</div>" in response.text
 
 
 def test_clean_html_with_main_tag():
     """
     Test clean_html when a <main> tag is present.
-    It should extract text only from the <main> tag, removing other tags.
+    It should return the HTML string with specified tags removed, keeping <header>.
     """
     html_input = """
     <html>
@@ -127,30 +128,43 @@ def test_clean_html_with_main_tag():
     </body>
     </html>
     """
-    # Expected output is the text from <main>, stripped, with space separator
-    expected_output = "Main Title This is the main content."
 
-    actual_output = clean_html(html_input)
+    expected_html_structure = """
+    <html>
+    <head><title>Test Page</title></head>
+    <body>
+        <header>Site Header</header>
+        <main>
+            <h1>Main Title</h1>
+            <p>This is the main content.</p>
+        </main>
+    </body>
+    </html>
+    """
+    expected_soup = BeautifulSoup(expected_html_structure, "html.parser")
 
-    assert actual_output == expected_output
+    actual_output_str = clean_html(html_input)
+    actual_soup = BeautifulSoup(actual_output_str, "html.parser")
+
+    assert actual_soup == expected_soup
 
 
 def test_clean_html_no_main_no_body():
     """
     Test clean_html when neither <main> nor <body> tags are found.
-    It should return the original HTML string.
+    It should return the string representation of the parsed HTML after cleaning
+    (which might involve BeautifulSoup adding <html>/<body> tags).
     """
-    # Input HTML that lacks standard body structure
     html_input = "<head><title>Just a head</title></head>"
-    # In this case, the original input should be returned
-    expected_output = html_input
+    expected_output_soup = BeautifulSoup(html_input, "html.parser")
+    expected_output = str(expected_output_soup)
 
     actual_output = clean_html(html_input)
-
     assert actual_output == expected_output
 
-    # Another example: plain text shouldn't have main or body either
     html_input_plain = "Just some plain text."
-    expected_output_plain = html_input_plain
+
+    expected_output_plain_soup = BeautifulSoup(html_input_plain, "html.parser")
+    expected_output_plain = str(expected_output_plain_soup)
     actual_output_plain = clean_html(html_input_plain)
     assert actual_output_plain == expected_output_plain

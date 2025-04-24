@@ -137,8 +137,6 @@ async def fetch_page_text(recipe_url: str):
 def clean_html(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
-    head = soup.find("head")
-
     tags_to_remove = ["script", "style", "nav", "footer", "aside"]
     for tag_name in tags_to_remove:
         for tag in soup.find_all(tag_name):
@@ -151,24 +149,7 @@ def clean_html(html: str) -> str:
         except Exception as e:
             logger.warning(f"CSS selector failed: {ad_selector} - {e}")
 
-    body_content = soup.find("body")
-
-    new_html = "<html>"
-    if head:
-        new_html += str(head)
-    if body_content:
-        new_html += str(body_content)
-    else:
-        temp_soup_str = str(soup)
-        if temp_soup_str.startswith("<html>"):
-            temp_soup_str = temp_soup_str[len("<html>") :]
-        if temp_soup_str.endswith("</html>"):
-            temp_soup_str = temp_soup_str[: -len("</html>")]
-        new_html += temp_soup_str
-
-    new_html += "</html>"
-
-    return new_html
+    return str(soup)
 
 
 class ContainsRecipe(BaseModel):
