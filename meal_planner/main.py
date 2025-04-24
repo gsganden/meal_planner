@@ -212,8 +212,12 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
 
     try:
         logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
-        prompt = f"""Please extract the recipe from the following HTML content. The
-        recipe name MUST be extracted exactly as it appears.
+        prompt = f"""Please extract the recipe from the following HTML content.
+        Focus on extracting the primary dish name itself. Avoid including
+        prefixes like 'Quick:', 'Easy:', 'Healthy Dinner:', etc., or numbers unless
+        they are part of the dish name (e.g., '5-Spice Chicken').
+        The recipe name MUST be extracted exactly as it appears in the core title,
+        after excluding any such prefixes.
 
         HTML Content:
         {page_text}
@@ -251,8 +255,10 @@ def postprocess_recipe(recipe: Recipe) -> Recipe:
                 f"Removed 'recipe' from name. Before title casing: {recipe.name}"
             )
 
-        recipe.name = recipe.name.title()
-        logger.info(f"Applied title case. Final name: {recipe.name}")
+        recipe.name = recipe.name.title().strip()
+        logger.info(
+            f"Applied title case and stripped whitespace. Final name: {recipe.name}"
+        )
 
     return recipe
 

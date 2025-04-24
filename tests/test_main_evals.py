@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from meal_planner.main import extract_recipe_from_url
+from meal_planner.main import clean_html, extract_recipe_from_url, page_contains_recipe
 
 recipes = {
     Path("data/classic-deviled-eggs-recipe-1911032.html"): {
@@ -66,7 +66,6 @@ async def test_extract_recipe_from_url_helper(
 
     actual_name = actual_recipe.name
 
-    # Get expected names list and process them (same logic as before)
     expected_names_list = expected_data["expected_names"]
 
     assert actual_name in expected_names_list, (
@@ -75,21 +74,19 @@ async def test_extract_recipe_from_url_helper(
     )
 
 
-# @pytest.mark.slow
-# @pytest.mark.anyio
-# @pytest.mark.parametrize("path", recipes.keys())
-# async def test_page_contains_recipe_for_curated_recipes(path: Path, anyio_backend):
-#     """
-#     Test that page_contains_recipe returns True for known recipe files.
-#     """
-#     print(f"Testing page_contains_recipe for {path}")
-#     raw_text = (Path(__file__).resolve().parent / path).read_text()
-#     cleaned_text = clean_html(raw_text)
+@pytest.mark.slow
+@pytest.mark.anyio
+@pytest.mark.parametrize("path", recipes.keys())
+async def test_page_contains_recipe_for_curated_recipes(path: Path, anyio_backend):
+    """
+    Test that page_contains_recipe returns True for known recipe files.
+    """
+    print(f"Testing page_contains_recipe for {path}")
+    raw_text = (Path(__file__).resolve().parent / path).read_text()
+    cleaned_text = clean_html(raw_text)
 
-#     contains_recipe = await page_contains_recipe(page_text=cleaned_text)
+    contains_recipe = await page_contains_recipe(page_text=cleaned_text)
 
-#     assert contains_recipe is True, (
-#         f"Expected page_contains_recipe to return True for {path}"
-#     )
-
-#     time.sleep(8)
+    assert contains_recipe is True, (
+        f"Expected page_contains_recipe to return True for {path}"
+    )
