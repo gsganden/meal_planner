@@ -10,6 +10,7 @@ from meal_planner.main import (
     app,
     clean_html,
     fetch_page_text,
+    MODEL_NAME,
 )
 
 TRANSPORT = ASGITransport(app=app)
@@ -154,3 +155,31 @@ def test_clean_html_no_main_no_body():
     expected_output_plain = html_input_plain
     actual_output_plain = clean_html(html_input_plain)
     assert actual_output_plain == expected_output_plain
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main.call_llm")  # Mock the LLM call
+@patch("meal_planner.main.fetch_page_text")  # Mock the page fetch
+async def test_post_extract_run_non_recipe_url(mock_fetch, mock_llm, anyio_backend):
+    """
+    Test that POST /recipes/extract/run returns an error message when the LLM fails
+    (simulating a non-recipe URL that was fetched successfully).
+    """
+    test_url = "https://google.com"
+    mock_fetch.return_value = "<html><body>Google Search</body></html>"
+
+    mock_llm.side_effect = Exception("LLM failed to extract recipe")
+
+    response = await CLIENT.post(
+        "/recipes/extract/run",
+        data={"recipe_url": test_url},
+    )
+
+    assert response.status_code == 200
+    assert (
+        "Could not extract a recipe from the provided URL. Please ensure it is a valid recipe page."
+        in response.text
+    )
+
+    mock_fetch.assert_called_once_with(test_url)
+    mock_llm.assert_called_once()

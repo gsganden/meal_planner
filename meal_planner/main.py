@@ -31,7 +31,6 @@ openai_client = AsyncOpenAI(
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 
-# Create an instructor client *from* the AsyncOpenAI client
 aclient = instructor.from_openai(openai_client)
 
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
@@ -143,8 +142,7 @@ async def post(recipe_url: str):
         )
         logging.info(f"Call to model {MODEL_NAME} successful")
     except Exception as e:
-        logging.error("Error calling model {MODEL_NAME}: %s", e)
-        return fh.Div(f"Error communicating with model {MODEL_NAME}")
+        logging.error(f"Error calling model {MODEL_NAME}: %s", e, exc_info=True)
 
     return fh.Div(extracted_recipe)
 
