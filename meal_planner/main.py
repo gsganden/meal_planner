@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from typing import TypeVar
 
 import fasthtml.common as fh
@@ -143,11 +144,8 @@ def clean_html(html: str) -> str:
             tag.decompose()
 
     for ad_selector in [".ad", "#ads", "[class*=advert]", "[id*=banner]"]:
-        try:
-            for tag in soup.select(ad_selector):
-                tag.decompose()
-        except Exception as e:
-            logger.warning(f"CSS selector failed: {ad_selector} - {e}")
+        for tag in soup.select(ad_selector):
+            tag.decompose()
 
     return str(soup)
 
@@ -156,29 +154,6 @@ class ContainsRecipe(BaseModel):
     contains_recipe: bool = Field(
         ..., description="Whether the provided text contains a recipe (True or False)"
     )
-
-
-async def page_contains_recipe(page_text: str) -> bool:
-    """
-    Uses an LLM to determine if the given text contains a recipe.
-    """
-    prompt = f"""Analyze the following text and determine if it represents a food
-        recipe. Look for elements like ingredients lists, cooking instructions, serving
-        sizes, etc. Respond with only True or False.
-
-        Text:
-        ---
-        {page_text[:999999]} # Limit text size to avoid excessive token usage
-        ---
-        Does the text contain a recipe?
-        """
-    try:
-        response = await call_llm(prompt=prompt, response_model=ContainsRecipe)
-        logger.info(f"LLM determined contains_recipe: {response.contains_recipe}")
-        return response.contains_recipe
-    except Exception as e:
-        logger.error(f"Error calling LLM in page_contains_recipe: {e}", exc_info=True)
-        return False
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -199,16 +174,16 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
     """Fetches, cleans, extracts, and post-processes a recipe from a URL."""
     try:
         raw_text = await fetch_page_text(recipe_url)
-        page_text = clean_html(raw_text)
-        logger.info("Successfully fetched and cleaned text from: %s", recipe_url)
+        logger.info("Successfully fetched text from: %s", recipe_url)
     except Exception as e:
         logger.error(
-            "Error fetching or cleaning page text from %s: %s",
+            "Error fetching page text from %s: %s",
             recipe_url,
             e,
             exc_info=True,
         )
         raise
+    page_text = clean_html(raw_text)
     try:
         logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
         prompt = f"""Please extract the recipe from the following HTML content.
@@ -226,36 +201,26 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
             response_model=Recipe,
         )
         logging.info(f"Call to model {MODEL_NAME} successful for URL: {recipe_url}")
-
-        processed_recipe = postprocess_recipe(extracted_recipe)
-        return processed_recipe
     except Exception as e:
         logger.error(
-            f"Error calling model {MODEL_NAME} or postprocessing for URL {recipe_url}: "
-            "%s",
+            f"Error calling model {MODEL_NAME} for URL {recipe_url}: %s",
             e,
             exc_info=True,
         )
         raise
+    processed_recipe = postprocess_recipe(extracted_recipe)
+    return processed_recipe
 
 
 def postprocess_recipe(recipe: Recipe) -> Recipe:
     """Post-processes the extracted recipe data."""
     if recipe.name:
-        name_lower = recipe.name.lower()
-        if "recipe" in name_lower:
-            recipe_index = name_lower.find("recipe")
-            original_case_recipe = recipe.name[
-                recipe_index : recipe_index + len("recipe")
-            ]
-            recipe.name = recipe.name.replace(original_case_recipe, "").strip()
-            logger.info(
-                f"Removed 'recipe' from name. Before title casing: {recipe.name}"
-            )
-
-        recipe.name = recipe.name.title().strip()
-        logger.info(
-            f"Applied title case and stripped whitespace. Final name: {recipe.name}"
+        recipe.name = (
+            recipe.name.strip()
+            .removesuffix("recipe")
+            .removesuffix("Recipe")
+            .title()
+            .strip()
         )
 
     return recipe

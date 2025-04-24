@@ -12,6 +12,9 @@ from meal_planner.main import (
     app,
     clean_html,
     fetch_page_text,
+    extract_recipe_from_url,
+    MODEL_NAME,
+    postprocess_recipe,
 )
 
 TRANSPORT = ASGITransport(app=app)
@@ -172,3 +175,139 @@ def test_clean_html_no_main_no_body():
     expected_output_plain = str(expected_output_plain_soup)
     actual_output_plain = clean_html(html_input_plain)
     assert actual_output_plain == expected_output_plain
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main.fetch_page_text")
+@patch("meal_planner.main.call_llm")
+@patch("meal_planner.main.logger.error")
+async def test_extract_recipe_from_url_llm_exception(
+    mock_logger_error,
+    mock_call_llm,
+    mock_fetch_page_text,
+    anyio_backend,
+):
+    """Test extract_recipe_from_url handles exceptions from call_llm."""
+    test_url = "http://example.com/llm_fail"
+    dummy_html = "<html><body>Some content</body></html>"
+    expected_error_message = "LLM processing failed"
+
+    mock_fetch_page_text.return_value = dummy_html
+    mock_call_llm.side_effect = Exception(expected_error_message)
+
+    with pytest.raises(Exception) as excinfo:
+        await extract_recipe_from_url(test_url)
+
+    # Check if the raised exception is the one we expect
+    assert str(excinfo.value) == expected_error_message
+
+    # Verify logger.error was called correctly
+    mock_logger_error.assert_called_once()
+    call_args, call_kwargs = mock_logger_error.call_args
+    log_format_string = call_args[0]
+    log_args = call_args[1:]
+    assert (
+        f"Error calling model {MODEL_NAME} for URL {test_url}: %s" in log_format_string
+    )
+    assert isinstance(log_args[0], Exception)
+    assert str(log_args[0]) == expected_error_message
+    assert call_kwargs.get("exc_info") is True
+
+
+def test_postprocess_recipe_removes_recipe_word():
+    """Test postprocess_recipe removes 'recipe' case-insensitively from the end of the
+    name and title-cases."""
+    # Case 1: "recipe" present, needs removal and title-casing
+    input_recipe1 = Recipe(name="  my awesome cake  ")
+    expected_name1 = "My Awesome Cake"
+    processed_recipe1 = postprocess_recipe(input_recipe1)
+    assert processed_recipe1.name == expected_name1
+
+    # Case 2: "Recipe" (capitalized) present
+    input_recipe2 = Recipe(name="Another Example Recipe ")
+    expected_name2 = "Another Example"
+    processed_recipe2 = postprocess_recipe(input_recipe2)
+    assert processed_recipe2.name == expected_name2
+
+    # Case 3: "recipe" not present, just title-casing and stripping
+    input_recipe3 = Recipe(name=" simple cake ")
+    expected_name3 = "Simple Cake"
+    processed_recipe3 = postprocess_recipe(input_recipe3)
+    assert processed_recipe3.name == expected_name3
+
+    input_recipe5 = Recipe(name="")
+    processed_recipe5 = postprocess_recipe(input_recipe5)
+    assert processed_recipe5.name == ""
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main.extract_recipe_from_url")
+@patch("meal_planner.main.logger.error")
+async def test_post_extract_recipe_run_request_error(
+    mock_logger_error,
+    mock_extract,
+    anyio_backend,
+):
+    """Test the POST /recipes/extract/run endpoint handles httpx.RequestError."""
+    test_url = "http://example.com/network_error"
+    error_message = "Network connection failed"
+    mock_extract.side_effect = httpx.RequestError(error_message, request=None)
+
+    response = await CLIENT.post("/recipes/extract/run", data={"recipe_url": test_url})
+
+    assert response.status_code == 200
+    # Check that the specific error message for RequestError is in the response
+    expected_response_text = (
+        f"Error fetching URL: {error_message}. Please check the URL and try again."
+    )
+    assert expected_response_text in response.text
+
+    # Verify logger call
+    mock_logger_error.assert_called_once()
+    call_args, call_kwargs = mock_logger_error.call_args
+    log_format_string = call_args[0]
+    log_args = call_args[1:]
+    assert "HTTP Request Error extracting recipe from %s: %s" in log_format_string
+    assert log_args[0] == test_url
+    assert isinstance(log_args[1], httpx.RequestError)
+    assert str(log_args[1]) == error_message
+    assert call_kwargs.get("exc_info") is True
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main.extract_recipe_from_url")
+@patch("meal_planner.main.logger.error")
+async def test_post_extract_recipe_run_status_error(
+    mock_logger_error,
+    mock_extract,
+    anyio_backend,
+):
+    """Test the POST /recipes/extract/run endpoint handles httpx.HTTPStatusError."""
+    test_url = "http://example.com/not_found"
+    status_code = 404
+    # Create a mock response and request needed for HTTPStatusError
+    mock_request = httpx.Request("GET", test_url)
+    mock_response = httpx.Response(status_code, request=mock_request)
+    mock_extract.side_effect = httpx.HTTPStatusError(
+        f"{status_code} Client Error", request=mock_request, response=mock_response
+    )
+
+    response = await CLIENT.post("/recipes/extract/run", data={"recipe_url": test_url})
+
+    assert response.status_code == 200
+    # Check that the specific error message for HTTPStatusError is in the response
+    expected_response_text = (
+        f"Error fetching URL: Received status {status_code}. Please check the URL."
+    )
+    assert expected_response_text in response.text
+
+    # Verify logger call
+    mock_logger_error.assert_called_once()
+    call_args, call_kwargs = mock_logger_error.call_args
+    log_format_string = call_args[0]
+    log_args = call_args[1:]
+    assert "HTTP Status Error extracting recipe from %s: %s" in log_format_string
+    assert log_args[0] == test_url
+    assert isinstance(log_args[1], httpx.HTTPStatusError)
+    assert log_args[1].response.status_code == status_code
+    assert call_kwargs.get("exc_info") is True
