@@ -11,6 +11,7 @@ from meal_planner.main import (
     clean_html,
     fetch_page_text,
     MODEL_NAME,
+    page_contains_recipe,
 )
 
 TRANSPORT = ASGITransport(app=app)
@@ -158,28 +159,38 @@ def test_clean_html_no_main_no_body():
 
 
 @pytest.mark.anyio
-@patch("meal_planner.main.call_llm")  # Mock the LLM call
-@patch("meal_planner.main.fetch_page_text")  # Mock the page fetch
-async def test_post_extract_run_non_recipe_url(mock_fetch, mock_llm, anyio_backend):
+async def test_page_contains_recipe_positive(anyio_backend):
     """
-    Test that POST /recipes/extract/run returns an error message when the LLM fails
-    (simulating a non-recipe URL that was fetched successfully).
+    Test that page_contains_recipe identifies recipe-like text.
+    This test will initially fail because the function doesn't exist or isn't implemented.
     """
-    test_url = "https://google.com"
-    mock_fetch.return_value = "<html><body>Google Search</body></html>"
+    recipe_html = """
+    <html><body>
+    <h1>Delicious Pancakes</h1>
+    <h2>Ingredients</h2>
+    <ul><li>Flour</li><li>Eggs</li><li>Milk</li></ul>
+    <h2>Instructions</h2>
+    <p>Mix ingredients and cook.</p>
+    </body></html>
+    """
+    # This call will fail until the function is defined
+    contains_recipe = await page_contains_recipe(recipe_html)
+    assert contains_recipe is True
 
-    mock_llm.side_effect = Exception("LLM failed to extract recipe")
 
-    response = await CLIENT.post(
-        "/recipes/extract/run",
-        data={"recipe_url": test_url},
-    )
-
-    assert response.status_code == 200
-    assert (
-        "Could not extract a recipe from the provided URL. Please ensure it is a valid recipe page."
-        in response.text
-    )
-
-    mock_fetch.assert_called_once_with(test_url)
-    mock_llm.assert_called_once()
+@pytest.mark.anyio
+async def test_page_contains_recipe_negative(anyio_backend):
+    """
+    Test that page_contains_recipe correctly identifies non-recipe text.
+    This test will initially fail because the function doesn't exist or isn't implemented.
+    """
+    non_recipe_html = """
+    <html><body>
+    <h1>Search Results</h1>
+    <p>Showing results for 'best pancake recipe'.</p>
+    <a href="/recipes/pancakes">Link to recipe</a>
+    </body></html>
+    """
+    # This call will fail until the function is defined
+    contains_recipe = await page_contains_recipe(non_recipe_html)
+    assert contains_recipe is False

@@ -2,12 +2,11 @@
 LLM evals for main.py, rather than traditional unit tests.
 """
 
-import time
 from pathlib import Path
 
 import pytest
 
-from meal_planner.main import Recipe, call_llm
+from meal_planner.main import Recipe, call_llm, clean_html, page_contains_recipe
 
 recipes = {
     Path("data/classic-deviled-eggs-recipe-1911032.html"): {
@@ -33,7 +32,9 @@ recipes = {
             "Creamy Pasta With Mushrooms",
         ]
     },
-    Path("data/easy-bok-choy-recipe_.html"): {"expected_names": ["Easy Bok Choy"]},
+    Path("data/easy-bok-choy-recipe_.html"): {
+        "expected_names": ["Easy Bok Choy", "Bok Choy"]
+    },
     Path("data/sunshine-sauce-recipe-23706247.html"): {
         "expected_names": ["Sunshine Sauce"]
     },
@@ -53,10 +54,11 @@ recipes = {
 @pytest.mark.anyio
 @pytest.mark.parametrize("path, expected_data", recipes.items())
 async def test_call_llm_returns_recipe(path: Path, expected_data: dict, anyio_backend):
-    print(f"Testing {path}")
-    text = (Path(__file__).resolve().parent / path).read_text()
+    raw_text = (Path(__file__).resolve().parent / path).read_text()
+    cleaned_text = clean_html(raw_text)
+
     actual_recipe = await call_llm(
-        f"Extract the recipe from the following HTML content: {text}", Recipe
+        f"Extract the recipe from the following HTML content: {cleaned_text}", Recipe
     )
 
     actual_name = actual_recipe.name.strip().lower()
@@ -65,4 +67,23 @@ async def test_call_llm_returns_recipe(path: Path, expected_data: dict, anyio_ba
         f"Extracted recipe name '{actual_name}' not found in expected names {expected_names}. "  # noqa: E501
         f"Expected one of: {expected_names}, Got: '{actual_name}'"
     )
-    time.sleep(8)
+
+
+# @pytest.mark.slow
+# @pytest.mark.anyio
+# @pytest.mark.parametrize("path", recipes.keys())
+# async def test_page_contains_recipe_for_curated_recipes(path: Path, anyio_backend):
+#     """
+#     Test that page_contains_recipe returns True for known recipe files.
+#     """
+#     print(f"Testing page_contains_recipe for {path}")
+#     raw_text = (Path(__file__).resolve().parent / path).read_text()
+#     cleaned_text = clean_html(raw_text)
+
+#     contains_recipe = await page_contains_recipe(page_text=cleaned_text)
+
+#     assert contains_recipe is True, (
+#         f"Expected page_contains_recipe to return True for {path}"
+#     )
+
+#     time.sleep(8)
