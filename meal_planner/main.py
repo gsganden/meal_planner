@@ -2,6 +2,8 @@ import logging
 import os
 import textwrap
 from typing import TypeVar
+from pathlib import Path
+import yaml
 
 import fasthtml.common as fh
 import html2text
@@ -38,6 +40,15 @@ app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
 
 MODEL_NAME = "gemini-2.0-flash"
+
+
+def load_latest_prompt(prompt_type: str) -> str:
+    prompt_dir = Path("prompt_templates") / prompt_type
+    prompt_files = sorted(prompt_dir.glob("*.txt"), reverse=True)
+    latest_prompt_file = prompt_files[0]
+    logger.info(f"Loading prompt from: {latest_prompt_file}")
+
+    return latest_prompt_file.read_text().split("---\n")[-1]
 
 
 def create_html_cleaner() -> html2text.HTML2Text:
@@ -185,26 +196,8 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
     page_text = HTML_CLEANER.handle(raw_text)
     try:
         logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
-        prompt = textwrap.dedent(f"""\
-            Please extract the recipe name and a list of ingredients from the
-            following HTML content.
-
-            Recipe Name Guidelines:
-            - Focus on extracting the primary dish name itself.
-            - Avoid including prefixes like 'Quick:', 'Easy:', 'Healthy Dinner:', etc.
-            - Avoid numbers unless part of the dish name (e.g., '5-Spice Chicken').
-            - The name MUST be extracted exactly as it appears in the core title,
-                after excluding any such prefixes.
-            - Do NOT include the word 'recipe' in the name.
-
-            Ingredients Guidelines:
-            - Extract each ingredient as a single string, including quantity and unit.
-            - Preserve original wording (e.g., "6 large eggs", "1/4 cup mayonnaise",
-                "Salt and freshly ground black pepper", "Paprika, for garnish").
-
-            HTML Content:
-            {page_text}
-            """)
+        prompt_template = load_latest_prompt("recipe_extraction")
+        prompt = prompt_template.format(page_text=page_text)
         extracted_recipe: Recipe = await call_llm(
             prompt=prompt,
             response_model=Recipe,

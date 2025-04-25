@@ -14,6 +14,7 @@ dependencies = [
     "pydantic",
     "python-fasthtml",
     "html2text",
+    "pyyaml>=6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +34,9 @@ dev = [
 
 [tool.uv]
 package = true
+
+[tool.setuptools]
+packages = ["meal_planner"]
 
 [tool.ruff]
 lint.select = ["E", "F", "W", "I", "B", "C4", "SIM", "S"]

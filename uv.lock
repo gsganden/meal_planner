@@ -1124,6 +1124,7 @@ dependencies = [
     { name = "openai" },
     { name = "pydantic" },
     { name = "python-fasthtml" },
+    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
@@ -1161,6 +1162,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "pytest-httpx", marker = "extra == 'dev'" },
     { name = "python-fasthtml" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "uv", marker = "extra == 'dev'" },
 ]
