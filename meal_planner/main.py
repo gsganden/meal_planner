@@ -11,6 +11,11 @@ import monsterui.all as mu
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
+MODEL_NAME = "gemini-2.0-flash"
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250425_202009__initial.txt"
+
+PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -36,17 +41,6 @@ aclient = instructor.from_openai(openai_client)
 
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
-
-MODEL_NAME = "gemini-2.0-flash"
-
-
-def load_latest_prompt(prompt_type: str) -> str:
-    prompt_dir = Path("prompt_templates") / prompt_type
-    prompt_files = sorted(prompt_dir.glob("*.txt"), reverse=True)
-    latest_prompt_file = prompt_files[0]
-    logger.info(f"Loading prompt from: {latest_prompt_file}")
-
-    return latest_prompt_file.read_text()
 
 
 def create_html_cleaner() -> html2text.HTML2Text:
@@ -194,10 +188,12 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
     page_text = HTML_CLEANER.handle(raw_text)
     try:
         logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
-        prompt_template = load_latest_prompt("recipe_extraction")
-        prompt = prompt_template.format(page_text=page_text)
         extracted_recipe: Recipe = await call_llm(
-            prompt=prompt,
+            prompt=(
+                PROMPT_DIR / "recipe_extraction" / ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
+            )
+            .read_text()
+            .format(page_text=page_text),
             response_model=Recipe,
         )
         logging.info(f"Call to model {MODEL_NAME} successful for URL: {recipe_url}")
