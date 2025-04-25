@@ -11,7 +11,6 @@ from meal_planner.main import (
     Recipe,
     _check_api_key,
     app,
-    clean_html,
     extract_recipe_from_url,
     fetch_page_text,
     postprocess_recipe,
@@ -101,7 +100,7 @@ async def test_post_extract_response_contains_only_result(
     )
     mock_fetch.return_value = fetched_page_content
 
-    mock_llm.return_value = Recipe(name="Mock Name")
+    mock_llm.return_value = Recipe(name="Mock Name", ingredients=[])
 
     response = await CLIENT.post(
         "/recipes/extract/run",
@@ -111,70 +110,7 @@ async def test_post_extract_response_contains_only_result(
     assert response.status_code == 200
     mock_fetch.assert_called_once_with("http://example.com")
 
-    assert """<div>name=\'Mock Name\'</div>""" in response.text
-
-
-def test_clean_html_with_main_tag():
-    """
-    Test clean_html when a <main> tag is present.
-    It should return the HTML string with specified tags removed, keeping <header>.
-    """
-    html_input = """
-    <html>
-    <head><title>Test Page</title><style>body { color: red; }</style></head>
-    <body>
-        <header>Site Header</header>
-        <nav>Navigation</nav>
-        <main>
-            <h1>Main Title</h1>
-            <p>This is the main content.</p>
-            <script>alert('hello');</script>
-        </main>
-        <aside>Sidebar</aside>
-        <footer>Site Footer</footer>
-    </body>
-    </html>
-    """
-
-    expected_html_structure = """
-    <html>
-    <head><title>Test Page</title></head>
-    <body>
-        <header>Site Header</header>
-        <main>
-            <h1>Main Title</h1>
-            <p>This is the main content.</p>
-        </main>
-    </body>
-    </html>
-    """
-    expected_soup = BeautifulSoup(expected_html_structure, "html.parser")
-
-    actual_output_str = clean_html(html_input)
-    actual_soup = BeautifulSoup(actual_output_str, "html.parser")
-
-    assert actual_soup == expected_soup
-
-
-def test_clean_html_no_main_no_body():
-    """
-    Test clean_html when neither <main> nor <body> tags are found.
-    It should return the string representation of the parsed HTML after cleaning
-    (which might involve BeautifulSoup adding <html>/<body> tags).
-    """
-    html_input = "<head><title>Just a head</title></head>"
-    expected_output_soup = BeautifulSoup(html_input, "html.parser")
-    expected_output = str(expected_output_soup)
-
-    actual_output = clean_html(html_input)
-    assert actual_output == expected_output
-
-    html_input_plain = "Just some plain text."
-
-    expected_output_plain_soup = BeautifulSoup(html_input_plain, "html.parser")
-    expected_output_plain = str(expected_output_plain_soup)
-    actual_output_plain = clean_html(html_input_plain)
-    assert actual_output_plain == expected_output_plain
+    assert """<div>name=\'Mock Name\' ingredients=[]</div>""" in response.text
 
 
 @pytest.mark.anyio
@@ -218,24 +154,24 @@ def test_postprocess_recipe_removes_recipe_word():
     """Test postprocess_recipe removes 'recipe' case-insensitively from the end of the
     name and title-cases."""
     # Case 1: "recipe" present, needs removal and title-casing
-    input_recipe1 = Recipe(name="  my awesome cake  ")
+    input_recipe1 = Recipe(name="  my awesome cake  ", ingredients=[])
     expected_name1 = "My Awesome Cake"
     processed_recipe1 = postprocess_recipe(input_recipe1)
     assert processed_recipe1.name == expected_name1
 
     # Case 2: "Recipe" (capitalized) present
-    input_recipe2 = Recipe(name="Another Example Recipe ")
+    input_recipe2 = Recipe(name="Another Example Recipe ", ingredients=[])
     expected_name2 = "Another Example"
     processed_recipe2 = postprocess_recipe(input_recipe2)
     assert processed_recipe2.name == expected_name2
 
     # Case 3: "recipe" not present, just title-casing and stripping
-    input_recipe3 = Recipe(name=" simple cake ")
+    input_recipe3 = Recipe(name=" simple cake ", ingredients=[])
     expected_name3 = "Simple Cake"
     processed_recipe3 = postprocess_recipe(input_recipe3)
     assert processed_recipe3.name == expected_name3
 
-    input_recipe5 = Recipe(name="")
+    input_recipe5 = Recipe(name="", ingredients=[])
     processed_recipe5 = postprocess_recipe(input_recipe5)
     assert processed_recipe5.name == ""
 

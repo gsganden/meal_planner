@@ -40,7 +40,7 @@ rt = app.route
 MODEL_NAME = "gemini-2.0-flash"
 
 
-def create_html_cleaner() -> str:
+def create_html_cleaner() -> html2text.HTML2Text:
     h = html2text.HTML2Text()
     h.ignore_links = True
     h.ignore_images = True
