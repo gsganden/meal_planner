@@ -1,14 +1,13 @@
 import logging
 import os
-from typing import TypeVar
 import textwrap
+from typing import TypeVar
 
 import fasthtml.common as fh
+import html2text
 import httpx
 import instructor
 import monsterui.all as mu
-from bs4 import BeautifulSoup
-import html2text
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
