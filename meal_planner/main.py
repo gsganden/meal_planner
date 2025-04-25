@@ -97,6 +97,9 @@ class Recipe(BaseModel):
             Should NOT include the word "recipe".
             """,
     )
+    ingredients: list[str] = Field(
+        description="List of ingredients for the recipe, as raw strings.",
+    )
 
 
 @rt("/recipes/extract")
@@ -185,12 +188,21 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
     page_text = clean_html(raw_text)
     try:
         logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
-        prompt = f"""Please extract the recipe from the following HTML content.
-        Focus on extracting the primary dish name itself. Avoid including
-        prefixes like 'Quick:', 'Easy:', 'Healthy Dinner:', etc., or numbers unless
-        they are part of the dish name (e.g., '5-Spice Chicken').
-        The recipe name MUST be extracted exactly as it appears in the core title,
-        after excluding any such prefixes.
+        prompt = f"""Please extract the recipe name and a list of ingredients from the
+        following HTML content.
+
+        Recipe Name Guidelines:
+        - Focus on extracting the primary dish name itself.
+        - Avoid including prefixes like 'Quick:', 'Easy:', 'Healthy Dinner:', etc.
+        - Avoid numbers unless part of the dish name (e.g., '5-Spice Chicken').
+        - The name MUST be extracted exactly as it appears in the core title,
+          after excluding any such prefixes.
+        - Do NOT include the word 'recipe' in the name.
+
+        Ingredients Guidelines:
+        - Extract each ingredient as a single string, including quantity and unit.
+        - Preserve original wording (e.g., "6 large eggs", "1/4 cup mayonnaise",
+          "Salt and freshly ground black pepper", "Paprika, for garnish").
 
         HTML Content:
         {page_text}
