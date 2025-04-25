@@ -77,13 +77,32 @@ recipes = {
             "Kosher dill spears and potato chips (for serving; optional)",
         ],
     },
-    # Path("data/mushroom-pasta-creamy.html"): {
-    #     "expected_names": [
-    #         "Pasta Ai Funghi",
-    #         "Pasta Ai Funghi (Creamy Pasta With Mushrooms)",
-    #         "Creamy Pasta With Mushrooms",
-    #     ]
-    # },
+    Path("data/mushroom-pasta-creamy.html"): {
+        "expected_names": [
+            "Pasta Ai Funghi",
+            "Pasta Ai Funghi (Creamy Pasta With Mushrooms)",
+            "Creamy Pasta With Mushrooms",
+        ],
+        "expected_ingredients": [
+            "1 cup (240 ml) homemade or store-bought low-sodium chicken stock (see note)",
+            "1 1/2 teaspoons (4 g) powdered gelatin, such as Knox",
+            "2 tablespoons (30 ml) extra-virgin olive oil",
+            "1 1/2 pounds (675 g) mixed mushrooms (such as shiitake, oyster, maitake, "
+            "beech, cremini, and chanterelles), cleaned, trimmed, and thinly sliced or "
+            "torn by hand (see note)",
+            "Kosher salt and freshly ground black pepper",
+            "3 medium shallots, finely minced (about 3/4 cup; 120 g)",
+            "2 medium (10 g) garlic cloves, minced",
+            "2 tablespoons (4 g) chopped fresh thyme leaves",
+            "1/2 cup (120 ml) dry white wine or 1/4 cup (60 ml) dry sherry",
+            "1 teaspoon (5 ml) fish sauce (optional)",
+            "1 pound (450 g) short dried pasta (such as casarecce or gemelli) or long "
+            "fresh egg-dough pasta (such as tagliatelle or fettuccine)",
+            "6 tablespoons unsalted butter (3 ounces; 85 g)",
+            "3 ounces grated Parmigiano-Reggiano (1 cup; 85 g)",
+            "1/4 cup (10 g) chopped fresh flat-leaf parsley leaves",
+        ],
+    },
     Path("data/easy-bok-choy-recipe_.html"): {
         "expected_names": ["Easy Bok Choy", "Bok Choy"],
         "expected_ingredients": [
@@ -96,15 +115,47 @@ recipes = {
             "1/2 tsp. toasted sesame oil",
         ],
     },
-    # Path("data/sunshine-sauce-recipe-23706247.html"): {
-    #     "expected_names": ["Sunshine Sauce"]
-    # },
-    # Path("data/quick-healthy-dinner-20-minute-honey-garlic-shrimp_.html"): {
-    #     "expected_names": ["20 Minute Honey Garlic Shrimp", "Honey Garlic Shrimp"]
-    # },
-    # Path("data/prawn-salmon-burgers-spicy-mayo.html"): {
-    #     "expected_names": ["Prawn & Salmon Burgers With Spicy Mayo"]
-    # },
+    Path("data/sunshine-sauce-recipe-23706247.html"): {
+        "expected_names": ["Sunshine Sauce"],
+        "expected_ingredients": [
+            "1 teaspoon finely grated lemon zest",
+            "1 tablespoon plus 1 teaspoon freshly squeezed lemon juice",
+            "1 tablespoon water",
+            "8 tablespoons (1 stick) cold unsalted butter, preferably European-style such as Kerrygold, cut into 8 pieces",
+            "1 tablespoon coarsely chopped fresh parsley leaves (from about 3 sprigs)",
+            "1 clove garlic, minced",
+            "1/4 teaspoon kosher salt, plus more as needed",
+            "1/4 teaspoon freshly ground black pepper, plus more as needed",
+        ],
+    },
+    Path("data/quick-healthy-dinner-20-minute-honey-garlic-shrimp_.html"): {
+        "expected_names": ["20 Minute Honey Garlic Shrimp", "Honey Garlic Shrimp"],
+        "expected_ingredients": [
+            "1/3 cup honey",
+            "1/4 cup soy sauce (we usually use reduced sodium)",
+            "2 garlic cloves, minced (or 1 teaspoon jarred minced garlic)",
+            "optional: 1 teaspoon minced fresh ginger",
+            "1 lb medium uncooked shrimp, peeled & deveined",
+            "2 teaspoons olive oil",
+            "optional for garnish: chopped green onion",
+        ],
+    },
+    Path("data/prawn-salmon-burgers-spicy-mayo.html"): {
+        "expected_names": ["Prawn & Salmon Burgers With Spicy Mayo"],
+        "expected_ingredients": [
+            "180g pack peeled raw prawns roughly chopped",
+            "4 skinless salmon fillets, chopped into small chunks",
+            "3 spring onions roughly chopped",
+            "1 lemon zested and juiced",
+            "small pack coriander",
+            "60g mayonnaise or Greek yogurt",
+            "4 tsp chilli sauce (we used sriracha)",
+            "2 Little Gem lettuces shredded",
+            "1 cucumber peeled into ribbons",
+            "1 tbsp olive oil",
+            "4 seeded burger buns toasted, to serve",
+        ],
+    },
     Path("data/easy-homemade-falafel-recipe_.html"): {
         "expected_names": ["Easy Homemade Falafel", "Homemade Falafel"],
         "expected_ingredients": [

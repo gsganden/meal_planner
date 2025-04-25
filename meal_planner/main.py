@@ -218,6 +218,13 @@ def postprocess_recipe(recipe: Recipe) -> Recipe:
             .title()
             .strip()
         )
+    if recipe.ingredients:
+        recipe.ingredients = [
+            # one site has ingredients styled as e.g. "1 cucumber\n\npeeled into ribbons"
+            # another gave "1 lb medium uncooked shrimp , peeled & deveined"
+            " ".join(ingredient.split()).strip().replace(" ,", ",")
+            for ingredient in recipe.ingredients
+        ]
 
     return recipe
 
