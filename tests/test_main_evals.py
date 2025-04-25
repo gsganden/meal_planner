@@ -10,36 +10,50 @@ import pytest
 from meal_planner.main import Recipe, extract_recipe_from_url
 
 recipes = {
-    # Path("data/classic-deviled-eggs-recipe-1911032.html"): {
-    #     "expected_names": ["Classic Deviled Eggs"],
-    #     "expected_ingredients": [
-    #         "6 eggs",
-    #         "1/4 cup mayonnaise",
-    #         "1 teaspoon white vinegar",
-    #         "1 teaspoon yellow mustard",
-    #         "1/8 teaspoon salt",
-    #         "Freshly ground black pepper",
-    #         "Smoked Spanish paprika, for garnish",
-    #     ],
-    # },
-    # Path("data/good-old-fashioned-pancakes.html"): {
-    #     "expected_names": [
-    #         "Good Old Fashioned Pancakes",
-    #         "Good Old-Fashioned Pancakes",
-    #         "Old-Fashioned Pancakes",
-    #     ],
-    #     "expected_ingredients": [
-    #         "1 ½ cups all-purpose flour",
-    #         "3 ½ teaspoons baking powder",
-    #         "1 tablespoon white sugar",
-    #         "¼ teaspoon salt, or more to taste",
-    #         "1 ¼ cups milk",
-    #         "3 tablespoons butter, melted",
-    #         "1 large egg",
-    #     ],
-    # },
+    Path("data/classic-deviled-eggs-recipe-1911032.html"): {
+        "expected_names": ["Classic Deviled Eggs"],
+        "expected_ingredients": [
+            "6 eggs",
+            "1/4 cup mayonnaise",
+            "1 teaspoon white vinegar",
+            "1 teaspoon yellow mustard",
+            "1/8 teaspoon salt",
+            "Freshly ground black pepper",
+            "Smoked Spanish paprika, for garnish",
+        ],
+    },
+    Path("data/good-old-fashioned-pancakes.html"): {
+        "expected_names": [
+            "Good Old Fashioned Pancakes",
+            "Good Old-Fashioned Pancakes",
+            "Old-Fashioned Pancakes",
+        ],
+        "expected_ingredients": [
+            "1 ½ cups all-purpose flour",
+            "3 ½ teaspoons baking powder",
+            "1 tablespoon white sugar",
+            "¼ teaspoon salt, or more to taste",
+            "1 ¼ cups milk",
+            "3 tablespoons butter, melted",
+            "1 large egg",
+        ],
+    },
     Path("data/skillet-chicken-parmesan-with-gnocchi.html"): {
-        "expected_names": ["Skillet Chicken Parmesan With Gnocchi"]
+        "expected_names": ["Skillet Chicken Parmesan With Gnocchi"],
+        "expected_ingredients": [
+            "2 medium skinless, boneless chicken breasts (about 1 lb.), patted dry",
+            "4¼ tsp. Diamond Crystal or 2½ tsp. Morton kosher salt, divided",
+            "¼ cup all-purpose flour",
+            "¼ cup (or more) extra-virgin olive oil",
+            "8 garlic cloves, finely chopped",
+            "½ tsp. crushed red pepper flakes",
+            "1 28-oz. can whole peeled tomatoes",
+            "1½ tsp. sugar",
+            "1 17.5-oz. package shelf-stable potato gnocchi",
+            "2 oz. Parmesan, finely grated",
+            '8 oz. part-skim mozzarella, sliced ¼" thick',
+            "Basil leaves (for serving; optional)",
+        ],
     },
     Path("data/gochujang-sloppy-joes.html"): {
         "expected_names": ["Gochujang Sloppy Joes"],
@@ -70,18 +84,18 @@ recipes = {
     #         "Creamy Pasta With Mushrooms",
     #     ]
     # },
-    # Path("data/easy-bok-choy-recipe_.html"): {
-    #     "expected_names": ["Easy Bok Choy", "Bok Choy"],
-    #     "expected_ingredients": [
-    #         "3 Tbsp. vegetable oil, divided",
-    #         "1 lb. baby bok choy, quartered lengthwise, washed, dried",
-    #         "2 garlic cloves, finely chopped",
-    #         '1 (1") piece ginger, peeled, finely chopped',
-    #         "1 tsp. kosher salt, divided",
-    #         "1 Tbsp. reduced-sodium soy sauce",
-    #         "1/2 tsp. toasted sesame oil",
-    #     ],
-    # },
+    Path("data/easy-bok-choy-recipe_.html"): {
+        "expected_names": ["Easy Bok Choy", "Bok Choy"],
+        "expected_ingredients": [
+            "3 Tbsp. vegetable oil, divided",
+            "1 lb. baby bok choy, quartered lengthwise, washed, dried",
+            "2 garlic cloves, finely chopped",
+            '1 (1") piece ginger, peeled, finely chopped',
+            "1 tsp. kosher salt, divided",
+            "1 Tbsp. reduced-sodium soy sauce",
+            "1/2 tsp. toasted sesame oil",
+        ],
+    },
     # Path("data/sunshine-sauce-recipe-23706247.html"): {
     #     "expected_names": ["Sunshine Sauce"]
     # },
@@ -91,23 +105,23 @@ recipes = {
     # Path("data/prawn-salmon-burgers-spicy-mayo.html"): {
     #     "expected_names": ["Prawn & Salmon Burgers With Spicy Mayo"]
     # },
-    # Path("data/easy-homemade-falafel-recipe_.html"): {
-    #     "expected_names": ["Easy Homemade Falafel", "Homemade Falafel"],
-    #     "expected_ingredients": [
-    #         "1 cup dried chickpeas",
-    #         "1/2 small white onion, coarsely chopped",
-    #         "4 garlic cloves, coarsely chopped",
-    #         "1/4 cup fresh cilantro, coarsely chopped",
-    #         "1/4 cup fresh parsley, coarsely chopped",
-    #         "1 1/2 tsp. kosher salt",
-    #         "1 tsp. baking powder",
-    #         "1 tsp. ground coriander",
-    #         "1 tsp. ground cumin",
-    #         "1/4 cup all-purpose flour",
-    #         "Vegetable oil, for frying (6 to 8 cups)",
-    #         "Tahini sauce, for serving",
-    #     ],
-    # },
+    Path("data/easy-homemade-falafel-recipe_.html"): {
+        "expected_names": ["Easy Homemade Falafel", "Homemade Falafel"],
+        "expected_ingredients": [
+            "1 cup dried chickpeas",
+            "1/2 small white onion, coarsely chopped",
+            "4 garlic cloves, coarsely chopped",
+            "1/4 cup fresh cilantro, coarsely chopped",
+            "1/4 cup fresh parsley, coarsely chopped",
+            "1 1/2 tsp. kosher salt",
+            "1 tsp. baking powder",
+            "1 tsp. ground coriander",
+            "1 tsp. ground cumin",
+            "1/4 cup all-purpose flour",
+            "Vegetable oil, for frying (6 to 8 cups)",
+            "Tahini sauce, for serving",
+        ],
+    },
 }
 
 

@@ -1,12 +1,14 @@
 import logging
 import os
 from typing import TypeVar
+import textwrap
 
 import fasthtml.common as fh
 import httpx
 import instructor
 import monsterui.all as mu
 from bs4 import BeautifulSoup
+import html2text
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
@@ -37,6 +39,17 @@ app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
 
 MODEL_NAME = "gemini-2.0-flash"
+
+
+def create_html_cleaner() -> str:
+    h = html2text.HTML2Text()
+    h.ignore_links = True
+    h.ignore_images = True
+    h.body_width = 0
+    return h
+
+
+HTML_CLEANER = create_html_cleaner()
 
 
 @rt("/")
@@ -137,21 +150,6 @@ async def fetch_page_text(recipe_url: str):
     return response.text
 
 
-def clean_html(html: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
-
-    tags_to_remove = ["script", "style", "nav", "footer", "aside"]
-    for tag_name in tags_to_remove:
-        for tag in soup.find_all(tag_name):
-            tag.decompose()
-
-    for ad_selector in [".ad", "#ads", "[class*=advert]", "[id*=banner]"]:
-        for tag in soup.select(ad_selector):
-            tag.decompose()
-
-    return str(soup)
-
-
 class ContainsRecipe(BaseModel):
     contains_recipe: bool = Field(
         ..., description="Whether the provided text contains a recipe (True or False)"
@@ -185,28 +183,29 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
             exc_info=True,
         )
         raise
-    page_text = clean_html(raw_text)
+    page_text = HTML_CLEANER.handle(raw_text)
     try:
         logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
-        prompt = f"""Please extract the recipe name and a list of ingredients from the
-        following HTML content.
+        prompt = textwrap.dedent(f"""\
+            Please extract the recipe name and a list of ingredients from the
+            following HTML content.
 
-        Recipe Name Guidelines:
-        - Focus on extracting the primary dish name itself.
-        - Avoid including prefixes like 'Quick:', 'Easy:', 'Healthy Dinner:', etc.
-        - Avoid numbers unless part of the dish name (e.g., '5-Spice Chicken').
-        - The name MUST be extracted exactly as it appears in the core title,
-          after excluding any such prefixes.
-        - Do NOT include the word 'recipe' in the name.
+            Recipe Name Guidelines:
+            - Focus on extracting the primary dish name itself.
+            - Avoid including prefixes like 'Quick:', 'Easy:', 'Healthy Dinner:', etc.
+            - Avoid numbers unless part of the dish name (e.g., '5-Spice Chicken').
+            - The name MUST be extracted exactly as it appears in the core title,
+                after excluding any such prefixes.
+            - Do NOT include the word 'recipe' in the name.
 
-        Ingredients Guidelines:
-        - Extract each ingredient as a single string, including quantity and unit.
-        - Preserve original wording (e.g., "6 large eggs", "1/4 cup mayonnaise",
-          "Salt and freshly ground black pepper", "Paprika, for garnish").
+            Ingredients Guidelines:
+            - Extract each ingredient as a single string, including quantity and unit.
+            - Preserve original wording (e.g., "6 large eggs", "1/4 cup mayonnaise",
+                "Salt and freshly ground black pepper", "Paprika, for garnish").
 
-        HTML Content:
-        {page_text}
-        """
+            HTML Content:
+            {page_text}
+            """)
         extracted_recipe: Recipe = await call_llm(
             prompt=prompt,
             response_model=Recipe,

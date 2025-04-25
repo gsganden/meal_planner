@@ -13,6 +13,7 @@ dependencies = [
     "monsterui",
     "pydantic",
     "python-fasthtml",
+    "html2text",
 ]
 
 [project.optional-dependencies]
