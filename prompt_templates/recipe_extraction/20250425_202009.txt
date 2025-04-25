@@ -1,6 +1,3 @@
----
-version: 20250425_202009
----
 Please extract the recipe name and a list of ingredients from the
 following HTML content.
 

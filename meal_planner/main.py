@@ -46,7 +46,7 @@ def load_latest_prompt(prompt_type: str) -> str:
     latest_prompt_file = prompt_files[0]
     logger.info(f"Loading prompt from: {latest_prompt_file}")
 
-    return latest_prompt_file.read_text().split("---\n")[-1]
+    return latest_prompt_file.read_text()
 
 
 def create_html_cleaner() -> html2text.HTML2Text:
