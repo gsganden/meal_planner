@@ -84,7 +84,8 @@ recipes = {
             "Creamy Pasta With Mushrooms",
         ],
         "expected_ingredients": [
-            "1 cup (240 ml) homemade or store-bought low-sodium chicken stock (see note)",
+            "1 cup (240 ml) homemade or store-bought low-sodium chicken stock (see "
+            "note)",
             "1 1/2 teaspoons (4 g) powdered gelatin, such as Knox",
             "2 tablespoons (30 ml) extra-virgin olive oil",
             "1 1/2 pounds (675 g) mixed mushrooms (such as shiitake, oyster, maitake, "
@@ -121,7 +122,8 @@ recipes = {
             "1 teaspoon finely grated lemon zest",
             "1 tablespoon plus 1 teaspoon freshly squeezed lemon juice",
             "1 tablespoon water",
-            "8 tablespoons (1 stick) cold unsalted butter, preferably European-style such as Kerrygold, cut into 8 pieces",
+            "8 tablespoons (1 stick) cold unsalted butter, preferably European-style "
+            "such as Kerrygold, cut into 8 pieces",
             "1 tablespoon coarsely chopped fresh parsley leaves (from about 3 sprigs)",
             "1 clove garlic, minced",
             "1/4 teaspoon kosher salt, plus more as needed",
