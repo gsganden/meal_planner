@@ -2,7 +2,6 @@ from unittest.mock import patch
 
 import httpx
 import pytest
-from bs4 import BeautifulSoup
 from httpx import ASGITransport, AsyncClient
 from pytest_httpx import HTTPXMock
 
