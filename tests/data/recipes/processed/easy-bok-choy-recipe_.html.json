@@ -1,0 +1,22 @@
+{
+    "html_file": "../raw/easy-bok-choy-recipe_.html",
+    "expected_names": [
+        "Easy Bok Choy",
+        "Bok Choy"
+    ],
+    "expected_ingredients": [
+        "3 Tbsp. vegetable oil, divided",
+        "1 lb. baby bok choy, quartered lengthwise, washed, dried",
+        "2 garlic cloves, finely chopped",
+        "1 (1\") piece ginger, peeled, finely chopped",
+        "1 tsp. kosher salt, divided",
+        "1 Tbsp. reduced-sodium soy sauce",
+        "1/2 tsp. toasted sesame oil"
+    ],
+    "expected_instructions": [
+        "In a large skillet over medium-high heat, heat 1 Tbsp. vegetable oil. Add half of bok choy, arranging cut side down in a single layer, and cook, undisturbed, until golden brown, 3 to 4 minutes. Transfer to a plate. Repeat with 1 Tbsp. vegetable oil and remaining bok choy.",
+        "Reduce heat to medium. In same skillet, heat remaining 1 Tbsp. vegetable oil. Add garlic and ginger and cook, stirring, until fragrant, 30 to 60 seconds. Return bok choy to pan; season with 1/2 tsp. salt and toss to combine.",
+        "Add soy sauce and 1 Tbsp. water. Cover and steam until bok choy is just fork-tender, 2 to 4 minutes. Uncover and continue to cook, tossing frequently, until liquid is evaporated, about 30 seconds more; season with remaining 1/2 tsp. salt, if needed.",
+        "Transfer bok choy to a platter. Drizzle with sesame oil."
+    ]
+}

@@ -1,0 +1,28 @@
+{
+    "html_file": "../raw/easy-homemade-falafel-recipe_.html",
+    "expected_names": [
+        "Easy Homemade Falafel",
+        "Homemade Falafel"
+    ],
+    "expected_ingredients": [
+        "1 cup dried chickpeas",
+        "1/2 small white onion, coarsely chopped",
+        "4 garlic cloves, coarsely chopped",
+        "1/4 cup fresh cilantro, coarsely chopped",
+        "1/4 cup fresh parsley, coarsely chopped",
+        "1 1/2 tsp. kosher salt",
+        "1 tsp. baking powder",
+        "1 tsp. ground coriander",
+        "1 tsp. ground cumin",
+        "1/4 cup all-purpose flour",
+        "Vegetable oil, for frying (6 to 8 cups)",
+        "Tahini sauce, for serving"
+    ],
+    "expected_instructions": [
+        "In a large bowl, cover chickpeas with cold water by at least 2\". Cover and refrigerate overnight.",
+        "Drain chickpeas well, pat dry, and transfer to a food processor. Pulse until chickpeas are halfway broken down. Add onion, garlic, cilantro, parsley, salt, baking powder, coriander, and cumin and continue to pulse until finely chopped but not pasty. Sprinkle flour over and pulse just until combined.",
+        "Using a 1-oz. cookie scoop or 2 spoons, portion chickpea mixture into 1\" balls (about 2 Tbsp. each). Using clean hands, roll each ball, tossing between both hands and lightly squeezing to compress, until smooth and compact (mixture will feel wet). Arrange balls on a clean plate or parchment-lined baking sheet.",
+        "Into a large heavy pot fitted with a deep-fry or candy thermometer, pour oil to a depth of 2\". Heat over high heat until thermometer registers 350\u00b0. Set a wire rack in a large baking sheet. Working 6 to 7 at a time, gently lower falafel into oil and fry, adjusting heat as needed, until deeply browned on all sides, 2 to 3 minutes.",
+        "Remove from oil with a slotted spoon and transfer to prepared rack to cool. Serve warm with tahini sauce alongside."
+    ]
+}

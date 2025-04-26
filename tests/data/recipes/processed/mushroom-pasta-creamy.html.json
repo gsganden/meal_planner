@@ -1,0 +1,32 @@
+{
+    "html_file": "../raw/mushroom-pasta-creamy.html",
+    "expected_names": [
+        "Pasta Ai Funghi",
+        "Pasta Ai Funghi (Creamy Pasta With Mushrooms)",
+        "Creamy Pasta With Mushrooms"
+    ],
+    "expected_ingredients": [
+        "1 cup (240 ml) homemade or store-bought low-sodium chicken stock (see note)",
+        "1 1/2 teaspoons (4 g) powdered gelatin, such as Knox",
+        "2 tablespoons (30 ml) extra-virgin olive oil",
+        "1 1/2 pounds (675 g) mixed mushrooms (such as shiitake, oyster, maitake, beech, cremini, and chanterelles), cleaned, trimmed, and thinly sliced or torn by hand (see note)",
+        "Kosher salt and freshly ground black pepper",
+        "3 medium shallots, finely minced (about 3/4 cup; 120 g)",
+        "2 medium (10 g) garlic cloves, minced",
+        "2 tablespoons (4 g) chopped fresh thyme leaves",
+        "1/2 cup (120 ml) dry white wine or 1/4 cup (60 ml) dry sherry",
+        "1 pound (450 g) short dried pasta (such as casarecce or gemelli) or long fresh egg-dough pasta (such as tagliatelle or fettuccine)",
+        "6 tablespoons unsalted butter (3 ounces; 85 g)",
+        "3 ounces grated Parmigiano-Reggiano (1 cup; 85 g)",
+        "1/4 cup (10 g) chopped fresh flat-leaf parsley leaves",
+        "1 teaspoon (5 ml) fish sauce (optional)"
+    ],
+    "expected_instructions": [
+        "Pour stock into a small bowl or liquid measuring cup and evenly sprinkle gelatin over surface of stock. Set aside.",
+        "In a large 12-inch cast iron or stainless steel skillet, heat oil over medium-high heat until shimmering. Add mushrooms, season with salt and pepper, and cook, stirring frequently with a wooden spoon, until moisture has evaporated and mushrooms are deeply browned, 12 to 15 minutes.",
+        "Add shallots, garlic, and thyme and cook, stirring constantly, until fragrant and shallots are softened, 30 seconds to 1 minute. Add wine or sherry, and cook, swirling pan and scraping up any stuck-on bits with a wooden spoon, until wine is reduced by half, about 30 seconds.",
+        "Add chicken stock mixture, season lightly with salt, and bring to a simmer. Reduce heat to medium-low, add fish sauce (if using), and cook, stirring occasionally, until mushroom mixture is thickened to a saucy consistency, about 5 minutes. Turn off heat.",
+        "Meanwhile, in a pot of salted boiling water, cook pasta. If using dry pasta, cook until just shy of al dente (1 to 2 minutes less than the package directs). If using fresh pasta, cook until noodles are barely cooked through. Using either a spider skimmer (for short pasta) or tongs (for long fresh pasta), transfer pasta to pan with mushrooms along with 3/4 cup (180ml) pasta cooking water. Alternatively, drain pasta using a colander or fine-mesh strainer, making sure to reserve at least 2 cups (475ml) pasta cooking water.",
+        "Heat sauce and pasta over high and cook, stirring and tossing rapidly, until pasta is al dente (fresh pasta will never be truly al dente) and sauce is thickened and coats noodles, 1 to 2 minutes, adding more pasta cooking water in 1/4 cup (60ml) increments as needed. At this point, the sauce should coat the pasta but still be loose enough to pool around the edges of the pan. Add butter, and stir and toss rapidly to melt and emulsify into the sauce. Remove from heat, add 3/4 of grated cheese and all of the parsley, and stir rapidly to incorporate. Season with salt to taste. Serve immediately, passing remaining grated cheese at the table."
+    ]
+}
