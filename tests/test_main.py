@@ -96,7 +96,7 @@ async def test_post_extract_response_contains_only_result(
     )
     mock_fetch.return_value = fetched_page_content
 
-    mock_llm.return_value = Recipe(name="Mock Name", ingredients=[])
+    mock_llm.return_value = Recipe(name="Mock Name", ingredients=[], instructions=[])
 
     response = await CLIENT.post(
         "/recipes/extract/run",
@@ -106,7 +106,7 @@ async def test_post_extract_response_contains_only_result(
     assert response.status_code == 200
     mock_fetch.assert_called_once_with("http://example.com")
 
-    assert """<div>name=\'Mock Name\' ingredients=[]</div>""" in response.text
+    assert "<div>name='Mock Name' ingredients=[] instructions=[]</div>" in response.text
 
 
 @pytest.mark.anyio
@@ -149,34 +149,40 @@ async def test_extract_recipe_from_url_llm_exception(
 class TestPostprocessRecipeName:
     def test_strips_and_titlecases(self):
         """Test postprocess_recipe title-cases and strips whitespace."""
-        input_recipe = Recipe(name="  my awesome cake  ", ingredients=[])
+        input_recipe = Recipe(
+            name="  my awesome cake  ", ingredients=[], instructions=[]
+        )
         expected_name = "My Awesome Cake"
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == expected_name
 
     def test_removes_recipe_suffix_lowercase(self):
         """Test postprocess_recipe removes lowercase 'recipe' suffix."""
-        input_recipe = Recipe(name="Another Example recipe ", ingredients=[])
+        input_recipe = Recipe(
+            name="Another Example recipe ", ingredients=[], instructions=[]
+        )
         expected_name = "Another Example"
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == expected_name
 
     def test_removes_recipe_suffix_titlecase(self):
         """Test postprocess_recipe removes title-case 'Recipe' suffix."""
-        input_recipe = Recipe(name="Another Example Recipe ", ingredients=[])
+        input_recipe = Recipe(
+            name="Another Example Recipe ", ingredients=[], instructions=[]
+        )
         expected_name = "Another Example"
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == expected_name
 
     def test_handles_empty_name(self):
         """Test postprocess_recipe handles an empty name string."""
-        input_recipe = Recipe(name="", ingredients=[])
+        input_recipe = Recipe(name="", ingredients=[], instructions=[])
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == ""
 
     def test_closes_parenthesis(self):
         """Test postprocess_recipe adds a closing parenthesis if missing."""
-        input_recipe = Recipe(name="Recipe (unclosed", ingredients=[])
+        input_recipe = Recipe(name="Recipe (unclosed", ingredients=[], instructions=[])
         expected_name = "Recipe (Unclosed)"
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == expected_name
@@ -279,7 +285,9 @@ class TestRecipeExtractRunEndpoint:
         )
         mock_fetch.return_value = fetched_page_content
 
-        mock_llm.return_value = Recipe(name="Mock Name", ingredients=[])
+        mock_llm.return_value = Recipe(
+            name="Mock Name", ingredients=[], instructions=[]
+        )
 
         response = await CLIENT.post(
             "/recipes/extract/run",
@@ -289,7 +297,10 @@ class TestRecipeExtractRunEndpoint:
         assert response.status_code == 200
         mock_fetch.assert_called_once_with("http://example.com")
 
-        assert """<div>name=\'Mock Name\' ingredients=[]</div>""" in response.text
+        assert (
+            "<div>name='Mock Name' ingredients=[] instructions=[]</div>"
+            in response.text
+        )
 
     @patch("meal_planner.main.extract_recipe_from_url")
     @patch("meal_planner.main.logger.error")

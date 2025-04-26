@@ -13,7 +13,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 MODEL_NAME = "gemini-2.0-flash"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250425_202009__initial.txt"
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250426_212535__extract_instructions.txt"
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
 
@@ -120,6 +120,11 @@ class Recipe(BaseModel):
     ingredients: list[str] = Field(
         description="List of ingredients for the recipe, as raw strings.",
     )
+    instructions: list[str] = Field(
+        description=(
+            "List of instructions for the recipe, as Markdown-formatted strings."
+        ),
+    )
 
 
 @rt("/recipes/extract")
@@ -191,6 +196,7 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
         )
         raise
     page_text = HTML_CLEANER.handle(raw_text)
+
     try:
         logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
         extracted_recipe: Recipe = await call_llm(
@@ -219,6 +225,8 @@ def postprocess_recipe(recipe: Recipe) -> Recipe:
         recipe.name = _postprocess_recipe_name(recipe.name)
     if recipe.ingredients:
         recipe.ingredients = [_postprocess_ingredient(i) for i in recipe.ingredients]
+    if recipe.instructions:
+        recipe.instructions = [_postprocess_instruction(i) for i in recipe.instructions]
 
     return recipe
 
@@ -233,6 +241,11 @@ def _postprocess_recipe_name(name: str) -> str:
 def _postprocess_ingredient(ingredient: str) -> str:
     """Cleans and standardizes a single ingredient string."""
     return _close_parenthesis(" ".join(ingredient.split()).strip().replace(" ,", ","))
+
+
+def _postprocess_instruction(instruction: str) -> str:
+    """Cleans and standardizes a single instruction string."""
+    return instruction.replace(" ,", ",").replace(" ;", ";").strip()
 
 
 def _close_parenthesis(text: str) -> str:
