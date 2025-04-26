@@ -1,5 +1,6 @@
 import logging
 import os
+import textwrap
 from pathlib import Path
 from typing import TypeVar
 
@@ -107,10 +108,14 @@ def with_layout(content):
 class Recipe(BaseModel):
     name: str = Field(
         ...,
-        description="""
-            The exact name of the dish as found in the text, including all punctuation.
-            Should NOT include the word "recipe".
-            """,
+        description=(
+            textwrap.dedent(
+                """\
+                    The exact name of the dish as found in the text, including all
+                    punctuation. Should NOT include the word "recipe".
+                """
+            )
+        ),
     )
     ingredients: list[str] = Field(
         description="List of ingredients for the recipe, as raw strings.",
@@ -211,22 +216,30 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
 def postprocess_recipe(recipe: Recipe) -> Recipe:
     """Post-processes the extracted recipe data."""
     if recipe.name:
-        recipe.name = (
-            recipe.name.strip()
-            .removesuffix("recipe")
-            .removesuffix("Recipe")
-            .title()
-            .strip()
-        )
+        recipe.name = _postprocess_recipe_name(recipe.name)
     if recipe.ingredients:
-        recipe.ingredients = [
-            # One site has ingredients styled as e.g. "1 cucumber\n\npeeled into
-            # ribbons". Another gave "1 lb medium uncooked shrimp , peeled & deveined".
-            " ".join(ingredient.split()).strip().replace(" ,", ",")
-            for ingredient in recipe.ingredients
-        ]
+        recipe.ingredients = [_postprocess_ingredient(i) for i in recipe.ingredients]
 
     return recipe
+
+
+def _postprocess_recipe_name(name: str) -> str:
+    """Cleans and standardizes the recipe name."""
+    return _close_parenthesis(
+        name.strip().removesuffix("recipe").removesuffix("Recipe").title().strip()
+    )
+
+
+def _postprocess_ingredient(ingredient: str) -> str:
+    """Cleans and standardizes a single ingredient string."""
+    return _close_parenthesis(" ".join(ingredient.split()).strip().replace(" ,", ","))
+
+
+def _close_parenthesis(text: str) -> str:
+    """Appends a closing parenthesis if an opening one exists without a closing one."""
+    if "(" in text and ")" not in text:
+        return text + ")"
+    return text
 
 
 @rt("/recipes/extract/run")

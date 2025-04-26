@@ -96,12 +96,12 @@ recipes = {
             "2 medium (10 g) garlic cloves, minced",
             "2 tablespoons (4 g) chopped fresh thyme leaves",
             "1/2 cup (120 ml) dry white wine or 1/4 cup (60 ml) dry sherry",
-            "1 teaspoon (5 ml) fish sauce (optional)",
             "1 pound (450 g) short dried pasta (such as casarecce or gemelli) or long "
             "fresh egg-dough pasta (such as tagliatelle or fettuccine)",
             "6 tablespoons unsalted butter (3 ounces; 85 g)",
             "3 ounces grated Parmigiano-Reggiano (1 cup; 85 g)",
             "1/4 cup (10 g) chopped fresh flat-leaf parsley leaves",
+            "1 teaspoon (5 ml) fish sauce (optional)",
         ],
     },
     Path("data/easy-bok-choy-recipe_.html"): {
@@ -136,9 +136,9 @@ recipes = {
             "1/3 cup honey",
             "1/4 cup soy sauce (we usually use reduced sodium)",
             "2 garlic cloves, minced (or 1 teaspoon jarred minced garlic)",
-            "optional: 1 teaspoon minced fresh ginger",
             "1 lb medium uncooked shrimp, peeled & deveined",
             "2 teaspoons olive oil",
+            "optional: 1 teaspoon minced fresh ginger",
             "optional for garnish: chopped green onion",
         ],
     },
@@ -178,7 +178,9 @@ recipes = {
 }
 
 
-@pytest.fixture(params=recipes.keys(), ids=[str(p.name) for p in recipes])
+@pytest.fixture(
+    params=recipes.keys(), ids=[str(p.name) for p in recipes], scope="module"
+)
 @patch("meal_planner.main.fetch_page_text")
 async def extracted_recipe_fixture(mock_fetch, request, anyio_backend):
     """Fixture to extract recipe data for a given path."""
@@ -214,5 +216,4 @@ def test_extract_recipe_ingredients(extracted_recipe_fixture, anyio_backend):
 
     expected = sorted([i.lower() for i in recipes[path]["expected_ingredients"]])
     actual = sorted([i.lower() for i in extracted_recipe.ingredients])
-
     assert actual == expected
