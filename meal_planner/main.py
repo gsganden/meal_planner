@@ -224,9 +224,17 @@ def postprocess_recipe(recipe: Recipe) -> Recipe:
     if recipe.name:
         recipe.name = _postprocess_recipe_name(recipe.name)
     if recipe.ingredients:
-        recipe.ingredients = [_postprocess_ingredient(i) for i in recipe.ingredients]
+        recipe.ingredients = [
+            _postprocess_ingredient(i)
+            for i in recipe.ingredients
+            if i  # remove empty strings
+        ]
     if recipe.instructions:
-        recipe.instructions = [_postprocess_instruction(i) for i in recipe.instructions]
+        recipe.instructions = [
+            _postprocess_instruction(i)
+            for i in recipe.instructions
+            if i  # remove empty strings
+        ]
 
     return recipe
 
