@@ -57,8 +57,3 @@ jobs:
         run: |
           source .venv/bin/activate
           pytest --cov=meal_planner --runslow
-
-      - name: Upload coverage reports to Coveralls
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
