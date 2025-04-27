@@ -1,0 +1,30 @@
+# .github/workflows/deploy.yml
+name: Deploy to Modal
+
+on:
+  push:
+    branches:
+      - main # Or your default branch name
+
+jobs:
+  deploy:
+    name: Deploy Modal App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Modal client
+        run: pip install modal-client
+
+      - name: Deploy to Modal
+        # Requires MODAL_TOKEN_ID and MODAL_TOKEN_SECRET to be set as GitHub secrets
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: modal deploy deploy.py 
