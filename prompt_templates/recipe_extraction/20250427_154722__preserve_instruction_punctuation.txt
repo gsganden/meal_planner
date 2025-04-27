@@ -1,0 +1,27 @@
+Please extract the recipe name and a list of ingredients from the
+following HTML content.
+
+Recipe Name Guidelines:
+- Focus on extracting the primary dish name itself.
+- Avoid including prefixes like 'Quick:', 'Easy:', 'Healthy Dinner:', etc.
+- Avoid numbers unless part of the dish name (e.g., '5-Spice Chicken').
+- The name MUST be extracted exactly as it appears in the core title,
+    after excluding any such prefixes.
+- Do NOT include the word 'recipe' in the name.
+
+Ingredients Guidelines:
+- Extract each ingredient as a single string, including quantity and unit.
+- Preserve original wording (e.g., "6 large eggs", "1/4 cup mayonnaise").
+- Discard any formatting (like bolding or italics) from the original text.
+
+Recipe Instructions Guidelines:
+- Extract each instruction as a single string.
+- Preserve the original wording and structure of each instruction step.
+- Ensure ALL punctuation, including trailing periods, is preserved exactly as it appears in the original text.
+- Preserve any formatting (like bolding or italics) from the original text,
+    representing it using Markdown syntax (e.g., **bold**, *italic*).
+- Do NOT include step numbers or prefixes like "Step 1:", "Step 2:", etc.
+- Ensure the instructions are in the correct order.
+
+HTML Content:
+{page_text}

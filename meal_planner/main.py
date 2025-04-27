@@ -3,6 +3,7 @@ import os
 import textwrap
 from pathlib import Path
 from typing import TypeVar
+import re
 
 import fasthtml.common as fh
 import html2text
@@ -13,7 +14,9 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 MODEL_NAME = "gemini-2.0-flash"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250426_212535__extract_instructions.txt"
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = (
+    "20250427_154722__preserve_instruction_punctuation.txt"
+)
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
 
@@ -253,7 +256,19 @@ def _postprocess_ingredient(ingredient: str) -> str:
 
 def _postprocess_instruction(instruction: str) -> str:
     """Cleans and standardizes a single instruction string."""
-    return instruction.replace(" ,", ",").replace(" ;", ";").strip()
+    return (
+        _remove_leading_step_numbers(instruction)
+        .replace(" ,", ",")
+        .replace(" ;", ";")
+        .strip()
+    )
+
+
+def _remove_leading_step_numbers(instruction: str) -> str:
+    """Removes leading step numbers like "Step 1", "Step 1:", "1.", "1 " """
+    return re.sub(
+        r"^\s*(?:Step\s*\d+|\d+)\s*[:.]?\s*", "", instruction, flags=re.IGNORECASE
+    )
 
 
 def _close_parenthesis(text: str) -> str:
