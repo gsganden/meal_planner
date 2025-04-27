@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: CI and Deploy
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 jobs:
   ci:
+    name: Run CI Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -57,3 +58,30 @@ jobs:
         run: |
           source .venv/bin/activate
           pytest --cov=meal_planner --runslow
+
+  deploy:
+    name: Deploy Modal App
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read .python-version
+        id: python-version
+        run: echo "version=$(cat .python-version)" >> $GITHUB_OUTPUT
+
+      - name: Set up Python ${{ steps.python-version.outputs.version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ steps.python-version.outputs.version }}
+
+      - name: Install Modal client
+        run: pip install modal-client
+
+      - name: Deploy to Modal
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: modal deploy deploy.py
