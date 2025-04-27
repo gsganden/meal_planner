@@ -13,7 +13,9 @@ image = (
     .add_local_dir("prompt_templates", remote_path="/root/prompt_templates")
 )
 
-google_api_key_secret = modal.Secret.from_dotenv(".env")
+google_api_key_secret = modal.Secret.from_dict(
+    {"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"]}
+)
 
 
 def _check_api_key():
