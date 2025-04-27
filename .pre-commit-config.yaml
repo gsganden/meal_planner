@@ -25,15 +25,7 @@ repos:
         always_run: true
         stages: [pre-push]
     -   id: pytest
-        name: Run non-slow pytest tests
-        entry: uv run pytest
-        language: system
-        types: [python]
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]
-    -   id: pytest
-        name: Run all pytest tests and check coverage
+        name: Run tests and check coverage
         entry: uv run pytest --cov=meal_planner --runslow --cov-fail-under=100
         language: system
         types: [python]
