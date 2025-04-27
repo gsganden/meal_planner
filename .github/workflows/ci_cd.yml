@@ -78,7 +78,7 @@ jobs:
           python-version: ${{ steps.python-version.outputs.version }}
 
       - name: Install Modal client
-        run: pip install modal-client
+        run: pip install modal
 
       - name: Deploy to Modal
         env:
