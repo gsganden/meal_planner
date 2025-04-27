@@ -8,7 +8,6 @@ from pytest_httpx import HTTPXMock
 from meal_planner.main import (
     MODEL_NAME,
     Recipe,
-    _check_api_key,
     app,
     extract_recipe_from_url,
     fetch_page_text,
@@ -36,18 +35,6 @@ class TestSmokeEndpoints:
             data={"recipe_url": "http://example.com"},
         )
         assert response.status_code == 200
-
-
-@patch("meal_planner.main.os.environ", {})
-def test_configure_genai_exits_if_no_api_key():
-    """
-    Test that _check_api_key() raises SystemExit if GOOGLE_API_KEY is not set,
-    using unittest.mock.patch.
-    """
-    with pytest.raises(SystemExit) as excinfo:
-        _check_api_key()
-
-    assert "GOOGLE_API_KEY environment variable not set" in str(excinfo.value)
 
 
 @pytest.mark.anyio

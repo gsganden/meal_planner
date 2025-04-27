@@ -1,5 +1,7 @@
-import modal
 import os
+
+import modal
+
 from meal_planner.main import app as fasthtml_app
 
 app = modal.App("meal-planner")
