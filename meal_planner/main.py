@@ -152,9 +152,18 @@ def get():
         hx_indicator="#extract-indicator",
         id="extract-form",
     )
+    disclaimer = fh.P(
+        "Recipe extraction uses AI and may not be perfectly accurate. Always "
+        "double-check the results.",
+        cls="text-sm text-gray-500 mt-4",
+    )
     results_div = fh.Div(id="recipe-results")
     return with_layout(
-        mu.Titled("Extract Recipe", fh.Div(initial_form, results_div), id="content")
+        mu.Titled(
+            "Extract Recipe",
+            fh.Div(initial_form, disclaimer, results_div),
+            id="content",
+        )
     )
 
 
