@@ -1,6 +1,7 @@
 import modal
 
-from meal_planner.main import app as fasthtml_app, _check_api_key
+from meal_planner.main import _check_api_key
+from meal_planner.main import app as fasthtml_app
 
 app = modal.App("meal-planner")
 
