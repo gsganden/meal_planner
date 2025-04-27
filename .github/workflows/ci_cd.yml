@@ -77,8 +77,19 @@ jobs:
         with:
           python-version: ${{ steps.python-version.outputs.version }}
 
-      - name: Install Modal client
-        run: pip install modal
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-${{ steps.python-version.outputs.version }}-uv-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ steps.python-version.outputs.version }}-uv-
+
+      - name: Install dependencies
+        run: uv sync --frozen --compile-bytecode
 
       - name: Deploy to Modal
         env:
