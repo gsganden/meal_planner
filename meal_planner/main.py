@@ -28,12 +28,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _check_api_key():
-    if "GOOGLE_API_KEY" not in os.environ:
-        logger.error("GOOGLE_API_KEY environment variable not set.")
-        raise SystemExit("GOOGLE_API_KEY environment variable not set.")
-
-
 openai_client = AsyncOpenAI(
     api_key=os.environ["GOOGLE_API_KEY"],
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",

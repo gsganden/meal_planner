@@ -1,6 +1,5 @@
 import modal
 
-from meal_planner.main import _check_api_key
 from meal_planner.main import app as fasthtml_app
 
 app = modal.App("meal-planner")
@@ -13,6 +12,12 @@ image = (
 )
 
 google_api_key_secret = modal.Secret.from_dotenv(".env")
+
+
+def _check_api_key():
+    if "GOOGLE_API_KEY" not in os.environ:
+        logger.error("GOOGLE_API_KEY environment variable not set.")
+        raise SystemExit("GOOGLE_API_KEY environment variable not set.")
 
 
 @app.function(image=image, secrets=[google_api_key_secret])
