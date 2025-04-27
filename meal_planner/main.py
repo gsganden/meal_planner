@@ -182,19 +182,19 @@ def _build_extract_form_content(selected_type: str = "url"):
             id="recipe_url",
             name="recipe_url",
             type="url",
-            placeholder="Enter Recipe URL",
+            placeholder="Enter recipe URL. If extraction fails, try pasting the page "
+            "contents with the Text tool.",
             disabled=not is_url_selected,
         ),
         id="url-input-group",
         hidden=not is_url_selected,
     )
 
-    # Text Input Group
     text_input = fh.Div(
         mu.TextArea(
             id="recipe_text",
             name="recipe_text",
-            placeholder="Paste Recipe Text Here",
+            placeholder="Paste recipe text here. Superfluous text will be removed.",
             rows=10,
             disabled=is_url_selected,
         ),
@@ -207,7 +207,6 @@ def _build_extract_form_content(selected_type: str = "url"):
 
 @rt("/recipes/extract")
 def get():
-    # Generate the initial form content (URL selected by default)
     form_inputs = _build_extract_form_content(selected_type="url")
 
     initial_form = mu.Form(
@@ -409,7 +408,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         if recipe_text:
             source_description = "provided text"
             logger.info("Processing recipe from text input.")
-            # Directly use the provided text
             processed_recipe = await extract_recipe_from_text(recipe_text)
 
         elif recipe_url:
@@ -418,11 +416,9 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             processed_recipe = await extract_recipe_from_url(recipe_url)
 
         else:
-            # This case should ideally be prevented by the form logic
             logger.warning("Recipe extraction called with neither URL nor text.")
             return fh.Div("Please provide either a Recipe URL or Recipe Text.")
 
-        # Display the extracted recipe (common logic)
         ingredients_md = "\n".join([f"- {i}" for i in processed_recipe.ingredients])
         instructions_md = "\n".join([f"- {i}" for i in processed_recipe.instructions])
         recipe_display_text = (
@@ -433,19 +429,16 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         return mu.Form(
             mu.TextArea(
                 recipe_display_text,
-                label="Extracted Recipe",  # Changed label
-                id="recipe_text_display",  # Changed ID to avoid clash
+                label="Extracted Recipe",
+                id="recipe_text_display",
                 name="recipe_text_display",
                 rows=25,
             ),
-            # Add Save/Edit buttons here later if needed
-            id="recipe-display-form",  # Changed ID
+            id="recipe-display-form",
         )
 
-    # --- Exception Handling --- #
-    # Specific handling for URL fetching errors
     except httpx.RequestError as e:
-        if recipe_url:  # Only relevant if URL was the source
+        if recipe_url:
             logger.error(
                 "HTTP Request Error extracting recipe from %s: %s",
                 recipe_url,
@@ -455,12 +448,12 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             return fh.Div(
                 f"Error fetching URL: {e}. Please check the URL and try again."
             )
-        else:  # Should not happen if text was the source
+        else:
             logger.error("Unexpected HTTP Request Error: %s", e, exc_info=True)
             return fh.Div("An unexpected network error occurred.")
 
     except httpx.HTTPStatusError as e:
-        if recipe_url:  # Only relevant if URL was the source
+        if recipe_url:
             logger.error(
                 "HTTP Status Error extracting recipe from %s: %s",
                 recipe_url,
@@ -471,11 +464,10 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
                 f"Error fetching URL: Received status {e.response.status_code}. "
                 "Please check the URL."
             )
-        else:  # Should not happen if text was the source
+        else:
             logger.error("Unexpected HTTP Status Error: %s", e, exc_info=True)
             return fh.Div("An unexpected network error occurred.")
 
-    # Generic handling for LLM or other errors
     except Exception as e:
         logger.error(
             "Generic error processing recipe from %s: %s",
