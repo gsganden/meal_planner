@@ -267,7 +267,23 @@ def _close_parenthesis(text: str) -> str:
 async def post(recipe_url: str):
     try:
         processed_recipe = await extract_recipe_from_url(recipe_url)
-        return fh.Div(processed_recipe)
+        ingredients_md = "\n".join([f"- {i}" for i in processed_recipe.ingredients])
+        instructions_md = "\n".join([f"- {i}" for i in processed_recipe.instructions])
+        recipe_text = (
+            f"# {processed_recipe.name}\n\n"
+            f"## Ingredients\n{ingredients_md}\n\n"
+            f"## Instructions\n{instructions_md}\n"
+        )
+        return mu.Form(
+            mu.TextArea(
+                recipe_text,
+                label="Recipe",
+                id="recipe_text",
+                name="recipe_text",
+                rows=25,
+            ),
+            id="recipe-edit-form",
+        )
     except httpx.RequestError as e:
         logger.error(
             "HTTP Request Error extracting recipe from %s: %s",
