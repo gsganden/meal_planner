@@ -1,9 +1,9 @@
 import logging
 import os
+import re
 import textwrap
 from pathlib import Path
 from typing import TypeVar
-import re
 
 import fasthtml.common as fh
 import html2text
