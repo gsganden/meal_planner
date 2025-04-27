@@ -106,7 +106,7 @@ async def test_post_extract_response_contains_only_result(
     assert response.status_code == 200
     mock_fetch.assert_called_once_with("http://example.com")
 
-    assert "<div>name='Mock Name' ingredients=[] instructions=[]</div>" in response.text
+    assert "# Mock Name" in response.text
 
 
 @pytest.mark.anyio
@@ -297,10 +297,8 @@ class TestRecipeExtractRunEndpoint:
         assert response.status_code == 200
         mock_fetch.assert_called_once_with("http://example.com")
 
-        assert (
-            "<div>name='Mock Name' ingredients=[] instructions=[]</div>"
-            in response.text
-        )
+        # Check for the start of the Markdown content
+        assert "# Mock Name" in response.text
 
     @patch("meal_planner.main.extract_recipe_from_url")
     @patch("meal_planner.main.logger.error")
