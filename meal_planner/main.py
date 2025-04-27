@@ -94,7 +94,7 @@ def with_layout(content):
     hamburger_button = fh.Div(
         mu.Button(
             mu.UkIcon("menu"),
-            {"data-uk-toggle": "target: #mobile-sidebar"},
+            data_uk_toggle="target: #mobile-sidebar",
             cls="p-2",
         ),
         cls="md:hidden flex justify-end p-2",
