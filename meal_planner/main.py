@@ -52,14 +52,14 @@ HTML_CLEANER = create_html_cleaner()
 
 @rt("/")
 def get():
-    return with_layout(mu.Titled("Meal Planner"))
+    return with_layout(mu.Titled("Home"))
 
 
 def sidebar():
     nav = mu.NavContainer(
         fh.Li(
             fh.A(
-                mu.DivFullySpaced("Meal Planner"),
+                mu.DivFullySpaced("Home"),
                 href="/",
                 hx_target="#content",
                 hx_push_url="true",
