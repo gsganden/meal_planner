@@ -12,14 +12,22 @@
 uv sync
 ```
 
-[Get a Gemini API key](https://aistudio.google.com/apikey) and assign its value to a `GOOGLE_API_KEY` environment variable.
+[Get a Gemini API key](https://aistudio.google.com/apikey) and assign its value to a `GOOGLE_API_KEY` environment variable inside a dotenv file.
+
+Install pre-commit hooks:
 
 ```bash
 pre-commit install --hook-type pre-push -f
 ```
 
-## Commands
+## Run App Locally
 
 ```bash
-uv run python meal_planner/main.py
+uv run modal serve meal_planner/main.py
+```
+
+## Deploy App
+
+```bash
+uv run modal deploy deploy.app
 ```

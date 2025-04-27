@@ -34,8 +34,6 @@ def _check_api_key():
         raise SystemExit("GOOGLE_API_KEY environment variable not set.")
 
 
-_check_api_key()
-
 openai_client = AsyncOpenAI(
     api_key=os.environ["GOOGLE_API_KEY"],
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -168,7 +166,15 @@ def get():
 
 
 async def fetch_page_text(recipe_url: str):
-    async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+    }
+    async with httpx.AsyncClient(
+        follow_redirects=True, timeout=15.0, headers=headers
+    ) as client:
         response = await client.get(recipe_url)
     response.raise_for_status()
     return response.text
@@ -332,6 +338,3 @@ async def post(recipe_url: str):
             "Generic error processing recipe from %s: %s", recipe_url, e, exc_info=True
         )
         return fh.Div("Recipe extraction failed. An unexpected error occurred.")
-
-
-fh.serve()

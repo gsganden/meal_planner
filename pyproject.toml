@@ -15,6 +15,7 @@ dependencies = [
     "python-fasthtml",
     "html2text",
     "pyyaml>=6.0.2",
+    "modal>=0.74.29",
 ]
 
 [project.optional-dependencies]
