@@ -140,21 +140,85 @@ class Recipe(BaseModel):
     )
 
 
-@rt("/recipes/extract")
-def get():
-    initial_form = mu.Form(
+def _build_extract_form_content(selected_type: str = "url"):
+    """Builds the dynamic part of the recipe extraction form."""
+    is_url_selected = selected_type == "url"
+
+    radio_buttons = fh.Div(
+        fh.Label(
+            fh.Input(
+                type="radio",
+                name="input_type",
+                value="url",
+                checked=is_url_selected,
+                hx_get="/recipes/extract/form-fragment",
+                hx_target="#form-inputs",
+                hx_swap="outerHTML",
+                hx_include="[name='input_type']",
+                hx_trigger="click",
+            ),
+            " URL",
+        ),
+        fh.Label(
+            fh.Input(
+                type="radio",
+                name="input_type",
+                value="text",
+                checked=not is_url_selected,
+                hx_get="/recipes/extract/form-fragment",
+                hx_target="#form-inputs",
+                hx_swap="outerHTML",
+                hx_include="[name='input_type']",
+                hx_trigger="click",
+            ),
+            " Text",
+            cls="ml-4",
+        ),
+        cls="mb-4",
+    )
+
+    url_input = fh.Div(
         mu.Input(
             id="recipe_url",
             name="recipe_url",
             type="url",
             placeholder="Enter Recipe URL",
+            disabled=not is_url_selected,
         ),
+        id="url-input-group",
+        hidden=not is_url_selected,
+    )
+
+    # Text Input Group
+    text_input = fh.Div(
+        mu.TextArea(
+            id="recipe_text",
+            name="recipe_text",
+            placeholder="Paste Recipe Text Here",
+            rows=10,
+            disabled=is_url_selected,
+        ),
+        id="text-input-group",
+        hidden=is_url_selected,
+    )
+
+    return fh.Div(radio_buttons, url_input, text_input, id="form-inputs")
+
+
+@rt("/recipes/extract")
+def get():
+    # Generate the initial form content (URL selected by default)
+    form_inputs = _build_extract_form_content(selected_type="url")
+
+    initial_form = mu.Form(
+        form_inputs,
         fh.Div(
             mu.Button("Extract Recipe"),
             mu.Loading(
                 id="extract-indicator",
                 cls="htmx-indicator ml-2",
             ),
+            cls="mt-4",
         ),
         hx_post="/recipes/extract/run",
         hx_target="#recipe-results",
@@ -168,6 +232,7 @@ def get():
         cls="text-sm text-gray-500 mt-4",
     )
     results_div = fh.Div(id="recipe-results")
+
     return with_layout(
         mu.Titled(
             "Extract Recipe",
@@ -175,6 +240,12 @@ def get():
             id="content",
         )
     )
+
+
+@rt("/recipes/extract/form-fragment")
+def get_form_fragment(input_type: str = "url"):
+    """Returns only the dynamic part of the form based on input_type."""
+    return _build_extract_form_content(selected_type=input_type)
 
 
 async def fetch_page_text(recipe_url: str):
@@ -212,6 +283,28 @@ async def call_llm(prompt: str, response_model: type[T]) -> T:
         response_model=response_model,
     )
     return response
+
+
+async def extract_recipe_from_text(page_text: str) -> Recipe:
+    """Extracts and post-processes a recipe from text."""
+    try:
+        logging.info("Calling model %s for provided text", MODEL_NAME)
+        extracted_recipe: Recipe = await call_llm(
+            prompt=(
+                PROMPT_DIR / "recipe_extraction" / ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
+            )
+            .read_text()
+            .format(page_text=page_text),
+            response_model=Recipe,
+        )
+        logging.info("Call to model %s successful for text", MODEL_NAME)
+    except Exception as e:
+        logger.error(
+            "Error calling model %s for text: %s", MODEL_NAME, e, exc_info=True
+        )
+        raise
+    processed_recipe = postprocess_recipe(extracted_recipe)
+    return processed_recipe
 
 
 async def extract_recipe_from_url(recipe_url: str) -> Recipe:
@@ -308,47 +401,86 @@ def _close_parenthesis(text: str) -> str:
 
 
 @rt("/recipes/extract/run")
-async def post(recipe_url: str):
+async def post(recipe_url: str | None = None, recipe_text: str | None = None):
+    processed_recipe = None
+    source_description = ""
+
     try:
-        processed_recipe = await extract_recipe_from_url(recipe_url)
+        if recipe_text:
+            source_description = "provided text"
+            logger.info("Processing recipe from text input.")
+            # Directly use the provided text
+            processed_recipe = await extract_recipe_from_text(recipe_text)
+
+        elif recipe_url:
+            source_description = f"URL: {recipe_url}"
+            logger.info("Processing recipe from URL: %s", recipe_url)
+            processed_recipe = await extract_recipe_from_url(recipe_url)
+
+        else:
+            # This case should ideally be prevented by the form logic
+            logger.warning("Recipe extraction called with neither URL nor text.")
+            return fh.Div("Please provide either a Recipe URL or Recipe Text.")
+
+        # Display the extracted recipe (common logic)
         ingredients_md = "\n".join([f"- {i}" for i in processed_recipe.ingredients])
         instructions_md = "\n".join([f"- {i}" for i in processed_recipe.instructions])
-        recipe_text = (
+        recipe_display_text = (
             f"# {processed_recipe.name}\n\n"
             f"## Ingredients\n{ingredients_md}\n\n"
             f"## Instructions\n{instructions_md}\n"
         )
         return mu.Form(
             mu.TextArea(
-                recipe_text,
-                label="Recipe",
-                id="recipe_text",
-                name="recipe_text",
+                recipe_display_text,
+                label="Extracted Recipe",  # Changed label
+                id="recipe_text_display",  # Changed ID to avoid clash
+                name="recipe_text_display",
                 rows=25,
             ),
-            id="recipe-edit-form",
+            # Add Save/Edit buttons here later if needed
+            id="recipe-display-form",  # Changed ID
         )
+
+    # --- Exception Handling --- #
+    # Specific handling for URL fetching errors
     except httpx.RequestError as e:
-        logger.error(
-            "HTTP Request Error extracting recipe from %s: %s",
-            recipe_url,
-            e,
-            exc_info=True,
-        )
-        return fh.Div(f"Error fetching URL: {e}. Please check the URL and try again.")
+        if recipe_url:  # Only relevant if URL was the source
+            logger.error(
+                "HTTP Request Error extracting recipe from %s: %s",
+                recipe_url,
+                e,
+                exc_info=True,
+            )
+            return fh.Div(
+                f"Error fetching URL: {e}. Please check the URL and try again."
+            )
+        else:  # Should not happen if text was the source
+            logger.error("Unexpected HTTP Request Error: %s", e, exc_info=True)
+            return fh.Div("An unexpected network error occurred.")
+
     except httpx.HTTPStatusError as e:
-        logger.error(
-            "HTTP Status Error extracting recipe from %s: %s",
-            recipe_url,
-            e,
-            exc_info=True,
-        )
-        return fh.Div(
-            f"Error fetching URL: Received status {e.response.status_code}. Please "
-            "check the URL."
-        )
+        if recipe_url:  # Only relevant if URL was the source
+            logger.error(
+                "HTTP Status Error extracting recipe from %s: %s",
+                recipe_url,
+                e,
+                exc_info=True,
+            )
+            return fh.Div(
+                f"Error fetching URL: Received status {e.response.status_code}. "
+                "Please check the URL."
+            )
+        else:  # Should not happen if text was the source
+            logger.error("Unexpected HTTP Status Error: %s", e, exc_info=True)
+            return fh.Div("An unexpected network error occurred.")
+
+    # Generic handling for LLM or other errors
     except Exception as e:
         logger.error(
-            "Generic error processing recipe from %s: %s", recipe_url, e, exc_info=True
+            "Generic error processing recipe from %s: %s",
+            source_description,
+            e,
+            exc_info=True,
         )
         return fh.Div("Recipe extraction failed. An unexpected error occurred.")
