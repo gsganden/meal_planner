@@ -90,9 +90,27 @@ def with_layout(content):
         .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
         .htmx-indicator.htmx-request { opacity: 1; }
     """)
+
+    hamburger_button = fh.Div(
+        mu.Button(
+            mu.UkIcon("menu"),
+            {"data-uk-toggle": "target: #mobile-sidebar"},
+            cls="p-2",
+        ),
+        cls="md:hidden flex justify-end p-2",
+    )
+
+    mobile_sidebar_container = fh.Div(
+        sidebar(),
+        id="mobile-sidebar",
+        hidden=True,
+    )
+
     return (
         fh.Title("Meal Planner"),
         indicator_style,
+        hamburger_button,
+        mobile_sidebar_container,
         fh.Div(cls="flex flex-col md:flex-row w-full")(
             fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
             fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
