@@ -1,9 +1,10 @@
+# .github/workflows/deploy.yml
 name: Deploy to Modal
 
 on:
   push:
     branches:
-      - main
+      - main # Or your default branch name
 
 jobs:
   deploy:
@@ -22,6 +23,7 @@ jobs:
         run: pip install modal-client
 
       - name: Deploy to Modal
+        # Requires MODAL_TOKEN_ID and MODAL_TOKEN_SECRET to be set as GitHub secrets
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
