@@ -1,4 +1,4 @@
-from unittest.mock import ANY, AsyncMock, patch, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -356,9 +356,10 @@ class TestFetchAndCleanTextFromUrl:
         self, mock_logger_error, mock_fetch_page_text, mock_html_cleaner
     ):
         test_url = "http://example.com/status_error"
-        mock_response = httpx.Response(404, request=httpx.Request("GET", test_url))
+        dummy_request = httpx.Request("GET", test_url)
+        mock_response = httpx.Response(404, request=dummy_request)
         mock_fetch_page_text.side_effect = httpx.HTTPStatusError(
-            "Not Found", request=None, response=mock_response
+            "Not Found", request=dummy_request, response=mock_response
         )
 
         with pytest.raises(httpx.HTTPStatusError):
