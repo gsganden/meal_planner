@@ -10,13 +10,12 @@ import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
 from meal_planner.main import (
     CSS_ERROR_CLASS,
-    Recipe,
     app,
     fetch_and_clean_text_from_url,
     fetch_page_text,
     postprocess_recipe,
 )
-from meal_planner.models import Recipe as ModelRecipe
+from meal_planner.models import Recipe
 
 TRANSPORT = ASGITransport(app=app)
 TEST_URL = "http://test-recipe.com"
@@ -360,7 +359,7 @@ class TestPostprocessRecipeName:
         assert processed_recipe.name == expected_name
 
 
-mock_recipe_data = ModelRecipe(
+mock_recipe_data = Recipe(
     name="Mock Recipe",
     ingredients=["mock ingredient 1", "mock ingredient 2"],
     instructions=["mock instruction 1", "mock instruction 2"],
