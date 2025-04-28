@@ -1,16 +1,14 @@
 # meal_planner/api/recipes.py
+import json
 import logging
 import uuid
-import json
-from typing import Annotated
 
-import fasthtml.common as fh
+from fastlite import NotFoundError, database
+from pydantic import ValidationError
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.routing import Router, Route
-from starlette.exceptions import HTTPException
-from pydantic import ValidationError
-from fastlite import database, NotFoundError
+from starlette.routing import Route, Router
 
 from meal_planner.models import Recipe, RecipeRead
 
@@ -44,11 +42,10 @@ async def create_recipe(request: Request):
         return JSONResponse(content={"detail": e.errors()}, status_code=422)
     except Exception as e:
         logger.error("Error parsing request JSON: %s", e, exc_info=True)
-        return JSONResponse(content={"detail": "Invalid JSON payload"}, status_code=400)
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
 
     new_id = uuid.uuid4()
 
-    # Prepare data for DB (serialize lists to JSON)
     db_data = {
         "id": new_id,
         "name": recipe_data.name,
@@ -57,14 +54,13 @@ async def create_recipe(request: Request):
     }
 
     try:
-        # Insert data using fastlite
         recipes_table.insert(db_data)
     except Exception as e:
         logger.error("Database error inserting recipe: %s", e, exc_info=True)
-        # Use HTTPException for standard errors
-        raise HTTPException(status_code=500, detail="Database error creating recipe")
+        raise HTTPException(
+            status_code=500, detail="Database error creating recipe"
+        ) from e
 
-    # Create the response model instance
     stored_recipe = RecipeRead(id=new_id, **recipe_data.model_dump())
 
     logger.info("Created recipe with ID: %s, Name: %s", new_id, stored_recipe.name)
@@ -79,23 +75,22 @@ async def create_recipe(request: Request):
 
 
 async def get_recipe(request: Request):
-    recipe_id = request.path_params["recipe_id"]  # Already UUID from converter
+    recipe_id = request.path_params["recipe_id"]
     if not isinstance(recipe_id, uuid.UUID):
-        # Should not happen if :uuid converter works, but good to check
         raise HTTPException(status_code=400, detail="Invalid recipe ID format")
 
     try:
-        # Fetch using fastlite table indexing
         row = recipes_table[recipe_id]
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="Recipe not found")
+        raise HTTPException(status_code=404, detail="Recipe not found") from None
     except Exception as e:
         logger.error(
             "Database error fetching recipe %s: %s", recipe_id, e, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="Database error fetching recipe")
+        raise HTTPException(
+            status_code=500, detail="Database error fetching recipe"
+        ) from e
 
-    # Deserialize JSON strings back to lists
     try:
         ingredients_list = json.loads(row["ingredients"])
         instructions_list = json.loads(row["instructions"])
@@ -103,9 +98,8 @@ async def get_recipe(request: Request):
         logger.error(
             "Error decoding JSON for recipe %s: %s", recipe_id, e, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="Error reading recipe data")
+        raise HTTPException(status_code=500, detail="Error reading recipe data") from e
 
-    # Create response model
     recipe = RecipeRead(
         id=row["id"],
         name=row["name"],
@@ -113,17 +107,17 @@ async def get_recipe(request: Request):
         instructions=instructions_list,
     )
 
-    return recipe  # Return the Pydantic model directly
+    return recipe
 
 
-# Add GET all recipes endpoint
 async def get_all_recipes(request: Request):
     try:
-        # Fetch all rows using table as callable
         all_rows = recipes_table()
     except Exception as e:
         logger.error("Database error fetching all recipes: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Database error fetching recipes")
+        raise HTTPException(
+            status_code=500, detail="Database error fetching recipes"
+        ) from e
 
     results = []
     for row in all_rows:
@@ -142,10 +136,9 @@ async def get_all_recipes(request: Request):
             logger.error(
                 "Error decoding JSON for recipe %s: %s", row.get("id"), e, exc_info=True
             )
-            # Skip corrupted rows or return an error? For now, skip.
             continue
 
-    return results  # Return list of Pydantic models
+    return results
 
 
 api_router = Router(

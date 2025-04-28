@@ -1,16 +1,15 @@
 # tests/test_api.py
 import uuid
+from pathlib import Path  # Import Path
+
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient, Response
-from pathlib import Path  # Import Path
 from fastlite import database  # Import database for test setup
-
-from meal_planner.main import app
-from meal_planner.models import Recipe
+from httpx import ASGITransport, AsyncClient
 
 # Import production db path for monkeypatching target
 import meal_planner.api.recipes as recipes_api
+from meal_planner.main import app
 
 pytestmark = pytest.mark.asyncio
 
@@ -64,12 +63,13 @@ async def client(
 # Fixture to clean the *test* recipes table before each test function
 @pytest.fixture(autouse=True)
 def clean_test_db(test_db_session):
-    test_db, test_recipes_table = test_db_session
+    test_db, _ = test_db_session
+    sql = "DELETE FROM recipes"
     try:
-        test_db.conn.execute(f"DELETE FROM {test_recipes_table}")
+        test_db.conn.execute(sql)
         yield
     finally:
-        test_db.conn.execute(f"DELETE FROM {test_recipes_table}")
+        test_db.conn.execute(sql)
 
 
 @pytest.fixture()
