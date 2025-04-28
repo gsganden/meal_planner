@@ -11,7 +11,8 @@ Recipe Name Guidelines:
 Ingredients Guidelines:
 - Extract each ingredient as a single string, including quantity and unit (e.g., "1 cup flour", "2 large eggs", "1/2 tsp salt").
 - Preserve original wording and details where possible.
-- Discard formatting such as bolding or italics from the original text, but keep parenthetical items.
+- Preserve comments in parentheses.
+- Discard formatting such as bolding or italics from the original text.
 
 Recipe Instructions Guidelines:
 - Extract each instruction as a single string.
