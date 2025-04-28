@@ -451,7 +451,7 @@ async def test_save_recipe_missing_ingredients_instructions(client: AsyncClient)
     # Test case: Missing ingredients and instructions
     response = await client.post("/recipes/save", data={"name": "Only Name"})
     assert response.status_code == 200
-    assert "Error: Missing recipe ingredients or instructions." in response.text
+    assert "Error: Missing recipe ingredients." in response.text
 
 
 @pytest.mark.anyio
