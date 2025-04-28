@@ -1,8 +1,8 @@
+import html
 import logging
 import os
 import re
 import textwrap
-import html
 from pathlib import Path
 from typing import TypeVar
 
