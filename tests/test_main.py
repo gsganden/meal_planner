@@ -336,10 +336,16 @@ class TestFetchAndCleanTextFromUrl:
 
 
 class TestPostprocessRecipeName:
+    # Provide dummy non-empty lists for tests focusing on name processing
+    DUMMY_INGREDIENTS = ["dummy ingredient"]
+    DUMMY_INSTRUCTIONS = ["dummy instruction"]
+
     def test_strips_and_titlecases(self):
         """Test postprocess_recipe title-cases and strips whitespace."""
         input_recipe = Recipe(
-            name="  my awesome cake  ", ingredients=[], instructions=[]
+            name="  my awesome cake  ",
+            ingredients=self.DUMMY_INGREDIENTS,
+            instructions=self.DUMMY_INSTRUCTIONS,
         )
         expected_name = "My Awesome Cake"
         processed_recipe = postprocess_recipe(input_recipe)
@@ -348,7 +354,9 @@ class TestPostprocessRecipeName:
     def test_removes_recipe_suffix_lowercase(self):
         """Test postprocess_recipe removes lowercase 'recipe' suffix."""
         input_recipe = Recipe(
-            name="Another Example recipe ", ingredients=[], instructions=[]
+            name="Another Example recipe ",
+            ingredients=self.DUMMY_INGREDIENTS,
+            instructions=self.DUMMY_INSTRUCTIONS,
         )
         expected_name = "Another Example"
         processed_recipe = postprocess_recipe(input_recipe)
@@ -357,7 +365,9 @@ class TestPostprocessRecipeName:
     def test_removes_recipe_suffix_titlecase(self):
         """Test postprocess_recipe removes title-case 'Recipe' suffix."""
         input_recipe = Recipe(
-            name="Another Example Recipe ", ingredients=[], instructions=[]
+            name="Another Example Recipe ",
+            ingredients=self.DUMMY_INGREDIENTS,
+            instructions=self.DUMMY_INSTRUCTIONS,
         )
         expected_name = "Another Example"
         processed_recipe = postprocess_recipe(input_recipe)
@@ -365,13 +375,21 @@ class TestPostprocessRecipeName:
 
     def test_handles_empty_name(self):
         """Test postprocess_recipe handles an empty name string."""
-        input_recipe = Recipe(name="", ingredients=[], instructions=[])
+        input_recipe = Recipe(
+            name="",
+            ingredients=self.DUMMY_INGREDIENTS,
+            instructions=self.DUMMY_INSTRUCTIONS,
+        )
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == ""
 
     def test_closes_parenthesis(self):
         """Test postprocess_recipe adds a closing parenthesis if missing."""
-        input_recipe = Recipe(name="Recipe (unclosed", ingredients=[], instructions=[])
+        input_recipe = Recipe(
+            name="Recipe (unclosed",
+            ingredients=self.DUMMY_INGREDIENTS,
+            instructions=self.DUMMY_INSTRUCTIONS,
+        )
         expected_name = "Recipe (Unclosed)"
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == expected_name

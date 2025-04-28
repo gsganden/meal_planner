@@ -17,11 +17,13 @@ class Recipe(BaseModel):
     )
     ingredients: list[str] = Field(
         description="List of ingredients for the recipe, as raw strings.",
+        min_length=1,
     )
     instructions: list[str] = Field(
         description=(
             "List of instructions for the recipe, as Markdown-formatted strings."
         ),
+        min_length=1,
     )
 
     @property

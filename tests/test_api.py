@@ -1,14 +1,12 @@
 from pathlib import Path
 
 import pytest
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import AsyncClient, Response
 
 import meal_planner.api.recipes as recipes_api
 
 pytestmark = pytest.mark.asyncio
-
-# Use the same DB path as test_main.py for consistency
-TEST_DB_PATH = Path("meal_planner_local.db")
 
 
 @pytest.fixture()
@@ -21,37 +19,36 @@ def valid_recipe_payload():
 
 
 class TestCreateRecipeSuccess:
-    async def test_create_recipe_returns_201(
+    @pytest_asyncio.fixture()
+    async def create_recipe_response(
         self, client: AsyncClient, valid_recipe_payload: dict
     ):
-        response = await client.post("/api/v1/recipes", json=valid_recipe_payload)
-        assert response.status_code == 201
+        return await client.post("/api/v1/recipes", json=valid_recipe_payload)
+
+    async def test_create_recipe_returns_201(self, create_recipe_response: Response):
+        assert create_recipe_response.status_code == 201
 
     async def test_create_recipe_returns_location_header(
-        self, client: AsyncClient, valid_recipe_payload: dict
+        self, create_recipe_response: Response
     ):
-        response = await client.post("/api/v1/recipes", json=valid_recipe_payload)
-        assert "Location" in response.headers
-        recipe_id = response.json()["id"]  # ID is now int
-        assert isinstance(recipe_id, int)
+        assert "Location" in create_recipe_response.headers
+        response_json = create_recipe_response.json()
+        recipe_id_from_body = response_json["id"]
+        expected_location = f"/api/v1/recipes/{recipe_id_from_body}"
+        assert create_recipe_response.headers["Location"] == expected_location
 
-        expected_location = f"/api/v1/recipes/{recipe_id}"
-        assert response.headers["Location"] == expected_location
-
-    async def test_create_recipe_response_contains_id(
-        self, client: AsyncClient, valid_recipe_payload: dict
+    async def test_create_recipe_returns_id_in_body(
+        self, create_recipe_response: Response
     ):
-        response = await client.post("/api/v1/recipes", json=valid_recipe_payload)
-        response_json = response.json()
+        response_json = create_recipe_response.json()
         assert "id" in response_json
-        recipe_id = response_json["id"]  # ID is now int
-        assert isinstance(recipe_id, int)
+        recipe_id_from_body = response_json["id"]
+        assert isinstance(recipe_id_from_body, int)
 
     async def test_create_recipe_response_contains_payload_data(
-        self, client: AsyncClient, valid_recipe_payload: dict
+        self, create_recipe_response: Response, valid_recipe_payload: dict
     ):
-        response = await client.post("/api/v1/recipes", json=valid_recipe_payload)
-        response_json = response.json()
+        response_json = create_recipe_response.json()
         assert response_json["name"] == valid_recipe_payload["name"]
         assert response_json["ingredients"] == valid_recipe_payload["ingredients"]
         assert response_json["instructions"] == valid_recipe_payload["instructions"]
