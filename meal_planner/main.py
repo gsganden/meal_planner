@@ -402,7 +402,6 @@ def _postprocess_instruction(instruction: str) -> str:
 
 def _remove_leading_step_numbers(instruction: str) -> str:
     """Removes leading step numbers like "Step 1", "Step 1:", "1.", "1 " """
-    # This will remove the entire string if it only matches the pattern
     return re.sub(
         r"^\s*(?:Step\s*\d+|\d+)\s*[:.]?\s*", "", instruction, flags=re.IGNORECASE
     ).strip()
