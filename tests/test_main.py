@@ -155,7 +155,10 @@ class TestRecipeExtractRunEndpoint:
             yield mock_llm
 
     async def test_success(self, client: AsyncClient, mock_call_llm):
-        test_text = "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First step text, Step 2: Second step text"
+        test_text = (
+            "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First "
+            "step text\nStep 2: Second step text"
+        )
         mock_call_llm.return_value = Recipe(
             name="Text Input Success Name",
             ingredients=["ingA", "ingB"],
