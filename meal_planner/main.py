@@ -1,8 +1,8 @@
 import html
+import json
 import logging
 import os
 import re
-import json
 import uuid
 from pathlib import Path
 from typing import TypeVar
@@ -16,10 +16,9 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from starlette.datastructures import FormData
 from starlette.requests import Request
-from starlette.exceptions import HTTPException
 
 from meal_planner.api.recipes import api_router, recipes_table
-from meal_planner.models import Recipe, RecipeRead
+from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = (

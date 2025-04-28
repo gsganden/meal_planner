@@ -1,14 +1,15 @@
+import json
+import uuid
+from pathlib import Path
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient, Request, Response
-from pathlib import Path
-import uuid
-import json
 from fastlite import database
+from httpx import ASGITransport, AsyncClient, Request, Response
 
+import meal_planner.main as main_module
 from meal_planner.main import (
     Recipe,
     app,
@@ -17,8 +18,6 @@ from meal_planner.main import (
     postprocess_recipe,
 )
 from meal_planner.models import Recipe as ModelRecipe
-from meal_planner.api.recipes import db as api_db, recipes_table as api_recipes_table
-import meal_planner.main as main_module
 
 TRANSPORT = ASGITransport(app=app)
 CLIENT = AsyncClient(transport=TRANSPORT, base_url="http://test")
