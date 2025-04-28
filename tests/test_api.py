@@ -221,7 +221,9 @@ class TestCreateRecipeValidation:
         assert actual_detail_filtered == expected_error_detail
 
     async def test_create_recipe_invalid_json(self, client: AsyncClient):
-        invalid_json_string = '{"name": "Test", "ingredients": ["i1"], "instructions": ["s1"}'  # Missing closing brace
+        invalid_json_string = (
+            '{"name": "Test", "ingredients": ["i1"], "instructions": ["s1"}'
+        )
         response = await client.post(
             "/api/v1/recipes",
             content=invalid_json_string,
