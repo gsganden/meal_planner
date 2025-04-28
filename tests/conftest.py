@@ -17,7 +17,6 @@ TEST_DB_PATH = Path("meal_planner_local.db")
 def test_db_session():
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
-    # Use standard sqlite3 connection for setup/teardown
     conn = sqlite3.connect(TEST_DB_PATH)
     try:
         conn.execute(
@@ -31,8 +30,7 @@ def test_db_session():
             """
         )
         conn.commit()
-        # Yield the path, let fastlite handle connection in tests if needed
-        yield TEST_DB_PATH  # Yielding path for simplicity first
+        yield TEST_DB_PATH
     finally:
         conn.close()
         if TEST_DB_PATH.exists():
@@ -41,14 +39,14 @@ def test_db_session():
 
 @pytest.fixture(autouse=True)
 def clean_test_db(test_db_session):
-    db_path = test_db_session  # Now receives the path
+    db_path = test_db_session
     conn = sqlite3.connect(db_path)
     try:
         conn.execute("DELETE FROM recipes")
         conn.commit()
         yield
     finally:
-        conn.close()  # Ensure connection is closed after cleanup
+        conn.close()
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -56,10 +54,7 @@ async def client(test_db_session, monkeypatch):
     test_db_path = test_db_session
     test_db = fastlite.database(test_db_path)
     test_recipes_table = test_db.t.recipes
-
-    # Ensure the app code uses the test table object
     monkeypatch.setattr(api_recipes_module, "recipes_table", test_recipes_table)
-    # Use raising=False for main_module in case recipes_table isn't directly used there
     monkeypatch.setattr(main_module, "recipes_table", test_recipes_table, raising=False)
 
     async with AsyncClient(
@@ -67,7 +62,6 @@ async def client(test_db_session, monkeypatch):
     ) as client:
         yield client
 
-    # Close the test db connection after tests in this function are done
     test_db.conn.close()
 
 
