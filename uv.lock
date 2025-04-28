@@ -1172,6 +1172,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anyio" },
     { name = "beautifulsoup4" },
+    { name = "fastlite" },
     { name = "html2text" },
     { name = "httpx" },
     { name = "instructor" },
@@ -1203,6 +1204,7 @@ requires-dist = [
     { name = "anyio" },
     { name = "beautifulsoup4", specifier = ">=4.13.4" },
     { name = "coverage", marker = "extra == 'dev'" },
+    { name = "fastlite", specifier = ">=0.1.3" },
     { name = "html2text" },
     { name = "httpx" },
     { name = "httpx", marker = "extra == 'dev'" },

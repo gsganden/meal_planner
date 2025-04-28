@@ -2,7 +2,6 @@ import html
 import logging
 import os
 import re
-import textwrap
 from pathlib import Path
 from typing import TypeVar
 
@@ -13,6 +12,9 @@ import instructor
 import monsterui.all as mu
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
+
+from meal_planner.api.recipes import api_router
+from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = (
@@ -38,6 +40,9 @@ aclient = instructor.from_openai(openai_client)
 
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
+
+
+app.mount("/api/v1", api_router)
 
 
 def create_html_cleaner() -> html2text.HTML2Text:
@@ -117,38 +122,6 @@ def with_layout(content):
             fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
         ),
     )
-
-
-class Recipe(BaseModel):
-    name: str = Field(
-        ...,
-        description=(
-            textwrap.dedent(
-                """\
-                    The exact name of the dish as found in the text, including all
-                    punctuation. Should NOT include the word "recipe".
-                """
-            )
-        ),
-    )
-    ingredients: list[str] = Field(
-        description="List of ingredients for the recipe, as raw strings.",
-    )
-    instructions: list[str] = Field(
-        description=(
-            "List of instructions for the recipe, as Markdown-formatted strings."
-        ),
-    )
-
-    @property
-    def markdown(self) -> str:
-        ingredients_md = "\n".join([f"- {i}" for i in self.ingredients])
-        instructions_md = "\n".join([f"- {i}" for i in self.instructions])
-        return (
-            f"# {self.name}\n\n"
-            f"## Ingredients\n{ingredients_md}\n\n"
-            f"## Instructions\n{instructions_md}\n"
-        )
 
 
 @rt("/recipes/extract")
