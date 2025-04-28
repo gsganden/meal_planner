@@ -6,6 +6,8 @@
 
 # Meal Planner
 
+AI-powered meal planning app. Under development. Running at https://gsganden--meal-planner-web.modal.run/.
+
 ## Setup
 
 ```bash
