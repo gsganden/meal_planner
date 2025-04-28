@@ -1,4 +1,4 @@
-from unittest.mock import ANY, AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch, MagicMock
 
 import httpx
 import pytest
@@ -51,7 +51,8 @@ class TestRecipeExtractRunEndpoint:
             yield mock_fetch
 
     async def test_extraction_error_url_input(self, mock_fetch_clean, mock_call_llm):
-        """Test POST /run handles exceptions from call_llm (via extract_recipe_from_text) for URL input."""
+        """Test POST /run handles exceptions from call_llm (via
+        extract_recipe_from_text) for URL input."""
         test_url = "http://example.com/llm_fail"
         mock_fetch_clean.return_value = "Cleaned page text"
         mock_call_llm.side_effect = Exception("LLM processing failed")
@@ -70,7 +71,8 @@ class TestRecipeExtractRunEndpoint:
 
     @patch("meal_planner.main.logger.error")
     async def test_request_error(self, mock_logger_error, mock_fetch_clean):
-        """Test POST /run handles httpx.RequestError from fetch_and_clean_text_from_url."""
+        """Test POST /run handles httpx.RequestError from
+        fetch_and_clean_text_from_url."""
         test_url = "http://example.com/network_error"
         error_message = "Network connection failed"
         mock_fetch_clean.side_effect = httpx.RequestError(error_message, request=None)
@@ -97,7 +99,8 @@ class TestRecipeExtractRunEndpoint:
 
     @patch("meal_planner.main.logger.error")
     async def test_status_error(self, mock_logger_error, mock_fetch_clean):
-        """Test POST /run handles httpx.HTTPStatusError from fetch_and_clean_text_from_url."""
+        """Test POST /run handles httpx.HTTPStatusError from
+        fetch_and_clean_text_from_url."""
         test_url = "http://example.com/not_found"
         status_code = 404
         mock_request = Request("GET", test_url)
@@ -186,7 +189,8 @@ class TestRecipeExtractRunEndpoint:
 
     async def test_success_text_input(self, mock_call_llm):
         """Test successful recipe extraction using direct text input."""
-        test_text = "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First step text, Step 2: Second step text"
+        test_text = "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First step "
+        "text, Step 2: Second step text"
         mock_call_llm.return_value = Recipe(
             name="Text Input Success Name",
             ingredients=["ingA", "ingB"],
@@ -259,7 +263,7 @@ class TestFetchPageText:
         with patch("meal_planner.main.httpx.AsyncClient") as mock_client_class:
             mock_response = AsyncMock(spec=httpx.Response)
             mock_response.text = "Mock page content"
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()
 
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(return_value=mock_response)
@@ -333,7 +337,10 @@ class TestFetchAndCleanTextFromUrl:
         self, mock_logger_error, mock_fetch_page_text, mock_html_cleaner
     ):
         test_url = "http://example.com/req_error"
-        mock_fetch_page_text.side_effect = httpx.RequestError("ReqErr", request=None)
+        dummy_request = httpx.Request("GET", test_url)
+        mock_fetch_page_text.side_effect = httpx.RequestError(
+            "ReqErr", request=dummy_request
+        )
 
         with pytest.raises(httpx.RequestError):
             await fetch_and_clean_text_from_url(test_url)
