@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch, ANY
+from unittest.mock import ANY, AsyncMock, patch
 
 import httpx
 import pytest
@@ -7,9 +7,9 @@ from httpx import ASGITransport, AsyncClient, Request, Response
 from meal_planner.main import (
     Recipe,
     app,
-    postprocess_recipe,
-    fetch_page_text,
     fetch_and_clean_text_from_url,
+    fetch_page_text,
+    postprocess_recipe,
 )
 
 TRANSPORT = ASGITransport(app=app)
@@ -285,8 +285,9 @@ class TestFetchPageText:
         """Test fetch_page_text raises HTTPStatusError correctly."""
         mock_client_class, mock_client, mock_response = mock_httpx_client
         test_url = "http://example.com/notfound"
+        dummy_request = httpx.Request("GET", test_url)
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "Not Found", request=None, response=mock_response
+            "Not Found", request=dummy_request, response=mock_response
         )
 
         with pytest.raises(httpx.HTTPStatusError):
@@ -300,7 +301,10 @@ class TestFetchPageText:
         """Test fetch_page_text raises RequestError correctly."""
         mock_client_class, mock_client, mock_response = mock_httpx_client
         test_url = "http://example.com/networkfail"
-        mock_client.get.side_effect = httpx.RequestError("Network error", request=None)
+        dummy_request = httpx.Request("GET", test_url)
+        mock_client.get.side_effect = httpx.RequestError(
+            "Network error", request=dummy_request
+        )
 
         with pytest.raises(httpx.RequestError):
             await fetch_page_text(test_url)

@@ -271,7 +271,7 @@ async def fetch_page_text(recipe_url: str):
         follow_redirects=True, timeout=15.0, headers=headers
     ) as client:
         response = await client.get(recipe_url)
-    await response.raise_for_status()
+    response.raise_for_status()
     return response.text
 
 
