@@ -376,9 +376,7 @@ def _close_parenthesis(text: str) -> str:
 async def post_fetch_text(recipe_url: str | None = None):
     if not recipe_url:
         logger.error("Fetch text called without URL.")
-        return fh.Div(
-            "Please provide a Recipe URL to fetch.", cls="text-red-500 mb-4"
-        )
+        return fh.Div("Please provide a Recipe URL to fetch.", cls="text-red-500 mb-4")
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", recipe_url)
@@ -457,4 +455,3 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         ),
         id="recipe-display-form",
     )
-
