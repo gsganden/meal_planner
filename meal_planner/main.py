@@ -1,3 +1,4 @@
+import html
 import logging
 import os
 import re
@@ -139,22 +140,96 @@ class Recipe(BaseModel):
         ),
     )
 
+    @property
+    def markdown(self) -> str:
+        ingredients_md = "\n".join([f"- {i}" for i in self.ingredients])
+        instructions_md = "\n".join([f"- {i}" for i in self.instructions])
+        return (
+            f"# {self.name}\n\n"
+            f"## Ingredients\n{ingredients_md}\n\n"
+            f"## Instructions\n{instructions_md}\n"
+        )
 
-@rt("/recipes/extract")
-def get():
-    initial_form = mu.Form(
+
+def _build_extract_form_content(selected_type: str = "url"):
+    """Builds the dynamic part of the recipe extraction form."""
+    is_url_selected = selected_type == "url"
+
+    radio_buttons = fh.Div(
+        fh.Label(
+            fh.Input(
+                type="radio",
+                name="input_type",
+                value="url",
+                checked=is_url_selected,
+                hx_get="/recipes/extract/form-fragment",
+                hx_target="#form-inputs",
+                hx_swap="outerHTML",
+                hx_include="[name='input_type']",
+                hx_trigger="click",
+            ),
+            " URL",
+        ),
+        fh.Label(
+            fh.Input(
+                type="radio",
+                name="input_type",
+                value="text",
+                checked=not is_url_selected,
+                hx_get="/recipes/extract/form-fragment",
+                hx_target="#form-inputs",
+                hx_swap="outerHTML",
+                hx_include="[name='input_type']",
+                hx_trigger="click",
+            ),
+            " Text",
+            cls="ml-4",
+        ),
+        cls="mb-4",
+    )
+
+    url_input = fh.Div(
         mu.Input(
             id="recipe_url",
             name="recipe_url",
             type="url",
-            placeholder="Enter Recipe URL",
+            placeholder="Enter recipe URL. If extraction fails, try pasting the page "
+            "contents with the Text tool.",
+            disabled=not is_url_selected,
         ),
+        id="url-input-group",
+        hidden=not is_url_selected,
+    )
+
+    text_input = fh.Div(
+        mu.TextArea(
+            id="recipe_text",
+            name="recipe_text",
+            placeholder="Paste recipe text here. Don't worry about removing "
+            "superfluous text: it will be removed automatically!",
+            rows=10,
+            disabled=is_url_selected,
+        ),
+        id="text-input-group",
+        hidden=is_url_selected,
+    )
+
+    return fh.Div(radio_buttons, url_input, text_input, id="form-inputs")
+
+
+@rt("/recipes/extract")
+def get():
+    form_inputs = _build_extract_form_content(selected_type="url")
+
+    initial_form = mu.Form(
+        form_inputs,
         fh.Div(
             mu.Button("Extract Recipe"),
             mu.Loading(
                 id="extract-indicator",
                 cls="htmx-indicator ml-2",
             ),
+            cls="mt-4",
         ),
         hx_post="/recipes/extract/run",
         hx_target="#recipe-results",
@@ -168,6 +243,7 @@ def get():
         cls="text-sm text-gray-500 mt-4",
     )
     results_div = fh.Div(id="recipe-results")
+
     return with_layout(
         mu.Titled(
             "Extract Recipe",
@@ -175,6 +251,12 @@ def get():
             id="content",
         )
     )
+
+
+@rt("/recipes/extract/form-fragment")
+def get_form_fragment(input_type: str = "url"):
+    """Returns only the dynamic part of the form based on input_type."""
+    return _build_extract_form_content(selected_type=input_type)
 
 
 async def fetch_page_text(recipe_url: str):
@@ -214,23 +296,43 @@ async def call_llm(prompt: str, response_model: type[T]) -> T:
     return response
 
 
-async def extract_recipe_from_url(recipe_url: str) -> Recipe:
-    """Fetches, cleans, extracts, and post-processes a recipe from a URL."""
+async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
+    """Fetches and cleans text content from a URL."""
+    logger.info("Fetching text from: %s", recipe_url)
     try:
         raw_text = await fetch_page_text(recipe_url)
         logger.info("Successfully fetched text from: %s", recipe_url)
-    except Exception as e:
+    except httpx.RequestError as e:
         logger.error(
-            "Error fetching page text from %s: %s",
+            "HTTP Request Error fetching page text from %s: %s",
             recipe_url,
             e,
             exc_info=True,
         )
         raise
-    page_text = HTML_CLEANER.handle(raw_text)
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "HTTP Status Error fetching page text from %s: %s",
+            recipe_url,
+            e,
+            exc_info=True,
+        )
+        raise
+    except Exception as e:
+        logger.error(
+            "Error fetching page text from %s: %s", recipe_url, e, exc_info=True
+        )
+        raise RuntimeError(f"Failed to fetch or process URL: {recipe_url}") from e
 
+    page_text = HTML_CLEANER.handle(raw_text)
+    logger.info("Cleaned HTML text from: %s", recipe_url)
+    return page_text
+
+
+async def extract_recipe_from_text(page_text: str) -> Recipe:
+    """Extracts and post-processes a recipe from text."""
     try:
-        logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
+        logging.info("Calling model %s for provided text", MODEL_NAME)
         extracted_recipe: Recipe = await call_llm(
             prompt=(
                 PROMPT_DIR / "recipe_extraction" / ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
@@ -239,16 +341,21 @@ async def extract_recipe_from_url(recipe_url: str) -> Recipe:
             .format(page_text=page_text),
             response_model=Recipe,
         )
-        logging.info(f"Call to model {MODEL_NAME} successful for URL: {recipe_url}")
+        logging.info("Call to model %s successful for text", MODEL_NAME)
     except Exception as e:
         logger.error(
-            f"Error calling model {MODEL_NAME} for URL {recipe_url}: %s",
-            e,
-            exc_info=True,
+            "Error calling model %s for text: %s", MODEL_NAME, e, exc_info=True
         )
         raise
     processed_recipe = postprocess_recipe(extracted_recipe)
     return processed_recipe
+
+
+async def extract_recipe_from_url(recipe_url: str) -> Recipe:
+    """Fetches text from a URL and extracts a recipe from it."""
+    return await extract_recipe_from_text(
+        await fetch_and_clean_text_from_url(recipe_url)
+    )
 
 
 def postprocess_recipe(recipe: Recipe) -> Recipe:
@@ -286,7 +393,7 @@ def _postprocess_ingredient(ingredient: str) -> str:
 def _postprocess_instruction(instruction: str) -> str:
     """Cleans and standardizes a single instruction string."""
     return (
-        _remove_leading_step_numbers(instruction)
+        _remove_leading_step_numbers(html.unescape(instruction))
         .replace(" ,", ",")
         .replace(" ;", ";")
         .strip()
@@ -297,7 +404,7 @@ def _remove_leading_step_numbers(instruction: str) -> str:
     """Removes leading step numbers like "Step 1", "Step 1:", "1.", "1 " """
     return re.sub(
         r"^\s*(?:Step\s*\d+|\d+)\s*[:.]?\s*", "", instruction, flags=re.IGNORECASE
-    )
+    ).strip()
 
 
 def _close_parenthesis(text: str) -> str:
@@ -308,47 +415,71 @@ def _close_parenthesis(text: str) -> str:
 
 
 @rt("/recipes/extract/run")
-async def post(recipe_url: str):
+async def post(recipe_url: str | None = None, recipe_text: str | None = None):
+    # Check if at least one input is provided
+    if not recipe_url and not recipe_text:
+        logging.error("Recipe extraction called with neither URL nor text.")
+        return fh.Div("Please provide either a Recipe URL or Recipe Text.")
+
+    if recipe_url:
+        try:
+            logger.info("Fetching and cleaning text from URL: %s", recipe_url)
+            recipe_text = await fetch_and_clean_text_from_url(recipe_url)
+            logger.info("Successfully processed URL: %s", recipe_url)
+        except httpx.RequestError as e:
+            logger.error(
+                "HTTP Request Error processing URL %s: %s",
+                recipe_url,
+                e,
+                exc_info=False,
+            )
+            return fh.Div(
+                f"Error fetching URL: {e}. Please check the URL and try again."
+            )
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "HTTP Status Error processing URL %s: %s", recipe_url, e, exc_info=False
+            )
+            return fh.Div(
+                f"Error fetching URL: Received status {e.response.status_code}. "
+                "Please check the URL."
+            )
+        except RuntimeError as e:
+            logger.error(
+                "Runtime error processing URL %s: %s", recipe_url, e, exc_info=True
+            )
+            return fh.Div(f"Failed to process the provided URL. {e}")
+    else:
+        logger.info("Processing recipe from direct text input.")
+
+    if not recipe_text:
+        logger.error("No text content available for extraction after processing input.")
+        return fh.Div("Failed to obtain text content for extraction.")
+
     try:
-        processed_recipe = await extract_recipe_from_url(recipe_url)
-        ingredients_md = "\n".join([f"- {i}" for i in processed_recipe.ingredients])
-        instructions_md = "\n".join([f"- {i}" for i in processed_recipe.instructions])
-        recipe_text = (
-            f"# {processed_recipe.name}\n\n"
-            f"## Ingredients\n{ingredients_md}\n\n"
-            f"## Instructions\n{instructions_md}\n"
-        )
-        return mu.Form(
-            mu.TextArea(
-                recipe_text,
-                label="Recipe",
-                id="recipe_text",
-                name="recipe_text",
-                rows=25,
-            ),
-            id="recipe-edit-form",
-        )
-    except httpx.RequestError as e:
+        log_source = f"URL ({recipe_url})" if recipe_url else "provided text"
+        logger.info("Calling extraction logic for source: %s", log_source)
+        processed_recipe = await extract_recipe_from_text(recipe_text)
+        logger.info("Extraction successful for source: %s", log_source)
+    except Exception as e:
+        log_source = f"URL ({recipe_url})" if recipe_url else "provided text"
         logger.error(
-            "HTTP Request Error extracting recipe from %s: %s",
-            recipe_url,
-            e,
-            exc_info=True,
-        )
-        return fh.Div(f"Error fetching URL: {e}. Please check the URL and try again.")
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "HTTP Status Error extracting recipe from %s: %s",
-            recipe_url,
+            "Error during recipe extraction from %s: %s",
+            log_source,
             e,
             exc_info=True,
         )
         return fh.Div(
-            f"Error fetching URL: Received status {e.response.status_code}. Please "
-            "check the URL."
+            "Recipe extraction failed. An unexpected error occurred during processing."
         )
-    except Exception as e:
-        logger.error(
-            "Generic error processing recipe from %s: %s", recipe_url, e, exc_info=True
-        )
-        return fh.Div("Recipe extraction failed. An unexpected error occurred.")
+
+    return mu.Form(
+        mu.TextArea(
+            processed_recipe.markdown,
+            label="Extracted Recipe",
+            id="recipe_text_display",
+            name="recipe_text_display",
+            rows=25,
+        ),
+        id="recipe-display-form",
+    )
