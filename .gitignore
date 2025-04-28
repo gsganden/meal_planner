@@ -14,3 +14,11 @@ wheels/
 .specstory
 
 **/scratch/
+
+*.db
+*.db-journal
+*.db-trace
+*.db-wal
+*.db-lock
+*.db-shm
+*.db-trace

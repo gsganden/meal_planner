@@ -22,18 +22,125 @@ class TestSmokeEndpoints:
     async def test_root(self, anyio_backend):
         response = await CLIENT.get("/")
         assert response.status_code == 200
+        assert "Meal Planner" in response.text
 
-    async def test_extract_recipe(self, anyio_backend):
+    async def test_extract_recipe_page_loads(self, anyio_backend):
         response = await CLIENT.get("/recipes/extract")
         assert response.status_code == 200
+        assert 'id="recipe_url"' in response.text
+        assert 'placeholder="Enter recipe URL (optional)' in response.text
+        assert 'hx-post="/recipes/fetch-text"' in response.text
+        assert "Fetch Text from URL" in response.text
+        assert 'id="recipe_text"' in response.text
+        assert 'placeholder="Paste recipe text here' in response.text
+        assert 'hx-post="/recipes/extract/run"' in response.text
+        assert "Extract Recipe" in response.text
+        assert 'id="recipe-results"' in response.text
 
-    async def test_get_extract_recipe_form_fragment_url(self):
-        response = await CLIENT.get("/recipes/extract/form-fragment?input_type=url")
-        assert response.status_code == 200
 
-    async def test_get_extract_recipe_form_fragment_text(self):
-        response = await CLIENT.get("/recipes/extract/form-fragment?input_type=text")
+@pytest.mark.anyio
+class TestRecipeFetchTextEndpoint:
+    TEST_URL = "http://example.com/fetch-success"
+
+    @pytest.fixture
+    def mock_fetch_clean(self):
+        with patch(
+            "meal_planner.main.fetch_and_clean_text_from_url", new_callable=AsyncMock
+        ) as mock_fetch:
+            yield mock_fetch
+
+    async def test_success(self, mock_fetch_clean):
+        mock_text = "Fetched and cleaned recipe text."
+        mock_fetch_clean.return_value = mock_text
+
+        response = await CLIENT.post(
+            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
+        )
+
         assert response.status_code == 200
+        mock_fetch_clean.assert_called_once_with(self.TEST_URL)
+        # Check that the response text contains the key parts of the textarea
+        assert '<textarea' in response.text
+        assert 'id="recipe_text"' in response.text
+        assert 'name="recipe_text"' in response.text
+        assert '>Fetched and cleaned recipe text.</textarea>' in response.text
+        assert 'label="Recipe Text (Fetched or Manual)"' in response.text
+
+    async def test_missing_url(self):
+        response = await CLIENT.post("/recipes/fetch-text", data={})
+        assert response.status_code == 200
+        assert "Please provide a Recipe URL to fetch." in response.text
+        assert 'class="text-red-500 mb-4"' in response.text
+
+    @patch("meal_planner.main.logger.error")
+    async def test_request_error(
+        self, mock_logger_error, mock_fetch_clean
+    ):
+        error_message = "Network connection failed"
+        mock_fetch_clean.side_effect = httpx.RequestError(error_message, request=None)
+
+        response = await CLIENT.post(
+            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
+        )
+
+        assert response.status_code == 200
+        expected_text = f"Error fetching URL: {error_message}. Check URL/connection."
+        assert expected_text in response.text
+        assert 'class="text-red-500 mb-4"' in response.text
+        mock_logger_error.assert_called_once()
+
+    @patch("meal_planner.main.logger.error")
+    async def test_status_error(
+        self, mock_logger_error, mock_fetch_clean
+    ):
+        status_code = 404
+        mock_request = Request("GET", self.TEST_URL)
+        mock_response = Response(status_code, request=mock_request)
+        mock_fetch_clean.side_effect = httpx.HTTPStatusError(
+            f"{status_code} Client Error", request=mock_request, response=mock_response
+        )
+
+        response = await CLIENT.post(
+            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
+        )
+
+        assert response.status_code == 200
+        expected_text = f"HTTP Error {status_code} fetching URL."
+        assert expected_text in response.text
+        assert 'class="text-red-500 mb-4"' in response.text
+        mock_logger_error.assert_called_once()
+
+    @patch("meal_planner.main.logger.error")
+    async def test_runtime_error(
+        self, mock_logger_error, mock_fetch_clean
+    ):
+        error_message = "Processing failed"
+        mock_fetch_clean.side_effect = RuntimeError(error_message)
+
+        response = await CLIENT.post(
+            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
+        )
+
+        assert response.status_code == 200
+        expected_text = f"Failed to process URL: {error_message}"
+        assert expected_text in response.text
+        assert 'class="text-red-500 mb-4"' in response.text
+        mock_logger_error.assert_called_once()
+
+    @patch("meal_planner.main.logger.error")
+    async def test_generic_exception(
+        self, mock_logger_error, mock_fetch_clean
+    ):
+        mock_fetch_clean.side_effect = Exception("Unexpected error")
+
+        response = await CLIENT.post(
+            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
+        )
+
+        assert response.status_code == 200
+        assert "Unexpected error fetching text." in response.text
+        assert 'class="text-red-500 mb-4"' in response.text
+        mock_logger_error.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -43,151 +150,7 @@ class TestRecipeExtractRunEndpoint:
         with patch("meal_planner.main.call_llm", new_callable=AsyncMock) as mock_llm:
             yield mock_llm
 
-    @pytest.fixture
-    def mock_fetch_clean(self):
-        with patch(
-            "meal_planner.main.fetch_and_clean_text_from_url", new_callable=AsyncMock
-        ) as mock_fetch:
-            yield mock_fetch
-
-    async def test_extraction_error_url_input(self, mock_fetch_clean, mock_call_llm):
-        """Test POST /run handles exceptions from call_llm (via
-        extract_recipe_from_text) for URL input."""
-        test_url = "http://example.com/llm_fail"
-        mock_fetch_clean.return_value = "Cleaned page text"
-        mock_call_llm.side_effect = Exception("LLM processing failed")
-
-        response = await CLIENT.post(
-            "/recipes/extract/run", data={"recipe_url": test_url}
-        )
-
-        assert response.status_code == 200
-        expected_error_msg = (
-            "Recipe extraction failed. An unexpected error occurred during processing."
-        )
-        assert expected_error_msg in response.text
-        mock_fetch_clean.assert_called_once_with(test_url)
-        mock_call_llm.assert_called_once()
-
-    @patch("meal_planner.main.logger.error")
-    async def test_request_error(self, mock_logger_error, mock_fetch_clean):
-        """Test POST /run handles httpx.RequestError from
-        fetch_and_clean_text_from_url."""
-        test_url = "http://example.com/network_error"
-        error_message = "Network connection failed"
-        mock_fetch_clean.side_effect = httpx.RequestError(error_message, request=None)
-
-        response = await CLIENT.post(
-            "/recipes/extract/run", data={"recipe_url": test_url}
-        )
-
-        assert response.status_code == 200
-        expected_response_text = (
-            f"Error fetching URL: {error_message}. Please check the URL and try again."
-        )
-        assert expected_response_text in response.text
-
-        mock_logger_error.assert_called_once()
-        call_args, call_kwargs = mock_logger_error.call_args
-        log_format_string = call_args[0]
-        log_args = call_args[1:]
-        assert "HTTP Request Error processing URL %s: %s" in log_format_string
-        assert log_args[0] == test_url
-        assert isinstance(log_args[1], httpx.RequestError)
-        assert str(log_args[1]) == error_message
-        assert call_kwargs.get("exc_info") is False
-
-    @patch("meal_planner.main.logger.error")
-    async def test_status_error(self, mock_logger_error, mock_fetch_clean):
-        """Test POST /run handles httpx.HTTPStatusError from
-        fetch_and_clean_text_from_url."""
-        test_url = "http://example.com/not_found"
-        status_code = 404
-        mock_request = Request("GET", test_url)
-        mock_response = Response(status_code, request=mock_request)
-        mock_fetch_clean.side_effect = httpx.HTTPStatusError(
-            f"{status_code} Client Error", request=mock_request, response=mock_response
-        )
-
-        response = await CLIENT.post(
-            "/recipes/extract/run", data={"recipe_url": test_url}
-        )
-
-        assert response.status_code == 200
-        expected_response_text = (
-            f"Error fetching URL: Received status {status_code}. Please check the URL."
-        )
-        assert expected_response_text in response.text
-
-        mock_logger_error.assert_called_once()
-        call_args, call_kwargs = mock_logger_error.call_args
-        log_format_string = call_args[0]
-        log_args = call_args[1:]
-        assert "HTTP Status Error processing URL %s: %s" in log_format_string
-        assert log_args[0] == test_url
-        assert isinstance(log_args[1], httpx.HTTPStatusError)
-        assert log_args[1].response.status_code == status_code
-        assert call_kwargs.get("exc_info") is False
-
-    @patch("meal_planner.main.logger.error")
-    async def test_runtime_error_from_fetch(self, mock_logger_error, mock_fetch_clean):
-        """Test POST /run handles RuntimeError from fetch_and_clean_text_from_url."""
-        test_url = "http://example.com/runtime_error"
-        error_message = "Something else went wrong during fetch/clean"
-        mock_fetch_clean.side_effect = RuntimeError(
-            f"Failed to process the provided URL. {error_message}"
-        )
-
-        response = await CLIENT.post(
-            "/recipes/extract/run", data={"recipe_url": test_url}
-        )
-
-        assert response.status_code == 200
-        expected_response_text = f"Failed to process the provided URL. {error_message}"
-        assert expected_response_text in response.text
-
-        mock_logger_error.assert_called_once()
-        call_args, call_kwargs = mock_logger_error.call_args
-        log_format_string = call_args[0]
-        log_args = call_args[1:]
-        assert "Runtime error processing URL %s: %s" in log_format_string
-        assert log_args[0] == test_url
-        assert isinstance(log_args[1], RuntimeError)
-        assert (
-            str(log_args[1]) == f"Failed to process the provided URL. {error_message}"
-        )
-        assert call_kwargs.get("exc_info") is True
-
-    async def test_success_url_input(self, mock_fetch_clean, mock_call_llm):
-        test_url = "http://example.com/success"
-        mock_fetch_clean.return_value = "Cleaned text for LLM"
-        mock_call_llm.return_value = Recipe(
-            name="Mock Success Name",
-            ingredients=["ing1", "ing2"],
-            instructions=["1. Mix flour", "Step 2: Add eggs"],
-        )
-
-        response = await CLIENT.post(
-            "/recipes/extract/run", data={"recipe_url": test_url}
-        )
-
-        assert response.status_code == 200
-        mock_fetch_clean.assert_called_once_with(test_url)
-        mock_call_llm.assert_called_once_with(
-            prompt=ANY,
-            response_model=Recipe,
-        )
-        assert "# Mock Success Name" in response.text
-        assert "## Ingredients" in response.text
-        assert "- ing1" in response.text
-        assert "- ing2" in response.text
-        assert "## Instructions" in response.text
-        assert "Mix flour" in response.text
-        assert "Add eggs" in response.text
-        assert 'id="recipe_text_display"' in response.text
-        assert 'id="recipe-display-form"' in response.text
-
-    async def test_success_text_input(self, mock_call_llm):
+    async def test_success(self, mock_call_llm):
         """Test successful recipe extraction using direct text input."""
         test_text = "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First step "
         "text, Step 2: Second step text"
@@ -212,11 +175,10 @@ class TestRecipeExtractRunEndpoint:
         assert "## Instructions" in response.text
         assert "Actual step A" in response.text
         assert "Actual step B" in response.text
-        assert 'id="recipe-display-form"' in response.text
 
-    async def test_extraction_error_text_input(self, mock_call_llm):
-        """Test POST /run handles exceptions from call_llm for text input."""
-        test_text = "Some recipe text that causes an error."
+    async def test_extraction_error(self, mock_call_llm):
+        """Test POST /run handles exceptions from call_llm (via extract_recipe_from_text)."""
+        test_text = "Some recipe text that causes an LLM error."
         mock_call_llm.side_effect = Exception("LLM failed on text input")
 
         response = await CLIENT.post(
@@ -229,31 +191,13 @@ class TestRecipeExtractRunEndpoint:
         assert expected_error_msg in response.text
         mock_call_llm.assert_called_once()
 
-    async def test_no_input_provided(self):
-        """Test POST /run returns error if neither URL nor text is provided."""
+    async def test_no_text_input_provided(self):
+        """Test POST /run returns error if recipe_text is not provided."""
         response = await CLIENT.post("/recipes/extract/run", data={})
 
         assert response.status_code == 200
-        expected_error_msg = "Please provide either a Recipe URL or Recipe Text."
+        expected_error_msg = "No text content provided for extraction."
         assert expected_error_msg in response.text
-
-    @patch("meal_planner.main.logger.error")
-    async def test_empty_text_after_fetch(self, mock_logger_error, mock_fetch_clean):
-        """Test POST /run handles case where fetched text is empty."""
-        test_url = "http://example.com/empty_content"
-        mock_fetch_clean.return_value = ""
-
-        response = await CLIENT.post(
-            "/recipes/extract/run", data={"recipe_url": test_url}
-        )
-
-        assert response.status_code == 200
-        expected_error_msg = "Failed to obtain text content for extraction."
-        assert expected_error_msg in response.text
-        mock_fetch_clean.assert_called_once_with(test_url)
-        mock_logger_error.assert_called_once_with(
-            "No text content available for extraction after processing input."
-        )
 
 
 @pytest.mark.anyio

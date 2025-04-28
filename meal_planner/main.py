@@ -151,92 +151,56 @@ class Recipe(BaseModel):
         )
 
 
-def _build_extract_form_content(selected_type: str = "url"):
-    """Builds the dynamic part of the recipe extraction form."""
-    is_url_selected = selected_type == "url"
-
-    radio_buttons = fh.Div(
-        fh.Label(
-            fh.Input(
-                type="radio",
-                name="input_type",
-                value="url",
-                checked=is_url_selected,
-                hx_get="/recipes/extract/form-fragment",
-                hx_target="#form-inputs",
-                hx_swap="outerHTML",
-                hx_include="[name='input_type']",
-                hx_trigger="click",
-            ),
-            " URL",
-        ),
-        fh.Label(
-            fh.Input(
-                type="radio",
-                name="input_type",
-                value="text",
-                checked=not is_url_selected,
-                hx_get="/recipes/extract/form-fragment",
-                hx_target="#form-inputs",
-                hx_swap="outerHTML",
-                hx_include="[name='input_type']",
-                hx_trigger="click",
-            ),
-            " Text",
-            cls="ml-4",
-        ),
-        cls="mb-4",
-    )
-
-    url_input = fh.Div(
+@rt("/recipes/extract")
+def get():
+    url_input_group = fh.Div(
         mu.Input(
             id="recipe_url",
             name="recipe_url",
             type="url",
-            placeholder="Enter recipe URL. If extraction fails, try pasting the page "
-            "contents with the Text tool.",
-            disabled=not is_url_selected,
+            placeholder="Enter recipe URL (optional)",
         ),
-        id="url-input-group",
-        hidden=not is_url_selected,
+        mu.Button(
+            "Fetch Text from URL",
+            hx_post="/recipes/fetch-text",
+            hx_target="#recipe_text",
+            hx_swap="outerHTML",
+            hx_include="[name='recipe_url']",
+            hx_indicator="#fetch-indicator",
+            margin="ml-2",
+        ),
+        mu.Loading(id="fetch-indicator", cls="htmx-indicator ml-2"),
+        cls="flex items-center mb-4 mt-4",
     )
 
-    text_input = fh.Div(
-        mu.TextArea(
-            id="recipe_text",
-            name="recipe_text",
-            placeholder="Paste recipe text here. Don't worry about removing "
-            "superfluous text: it will be removed automatically!",
-            rows=10,
-            disabled=is_url_selected,
-        ),
-        id="text-input-group",
-        hidden=is_url_selected,
+    text_area = mu.TextArea(
+        id="recipe_text",
+        name="recipe_text",
+        placeholder="Paste recipe text here, or fetch from URL above.",
+        rows=15,
+        label="Recipe Text (Editable)",
     )
 
-    return fh.Div(radio_buttons, url_input, text_input, id="form-inputs")
-
-
-@rt("/recipes/extract")
-def get():
-    form_inputs = _build_extract_form_content(selected_type="url")
-
-    initial_form = mu.Form(
-        form_inputs,
-        fh.Div(
-            mu.Button("Extract Recipe"),
-            mu.Loading(
-                id="extract-indicator",
-                cls="htmx-indicator ml-2",
-            ),
-            cls="mt-4",
+    extract_button_group = fh.Div(
+        mu.Button(
+            "Extract Recipe",
+            hx_post="/recipes/extract/run",
+            hx_target="#recipe-results",
+            hx_swap="innerHTML",
+            hx_include="#recipe_text",
+            hx_indicator="#extract-indicator",
         ),
-        hx_post="/recipes/extract/run",
-        hx_target="#recipe-results",
-        hx_swap="innerHTML",
-        hx_indicator="#extract-indicator",
-        id="extract-form",
+        mu.Loading(id="extract-indicator", cls="htmx-indicator ml-2"),
+        cls="mt-4",
     )
+
+    form = mu.Form(
+        url_input_group,
+        text_area,
+        extract_button_group,
+        id="recipe-input-form",
+    )
+
     disclaimer = fh.P(
         "Recipe extraction uses AI and may not be perfectly accurate. Always "
         "double-check the results.",
@@ -247,16 +211,10 @@ def get():
     return with_layout(
         mu.Titled(
             "Extract Recipe",
-            fh.Div(initial_form, disclaimer, results_div),
+            fh.Div(form, disclaimer, results_div),
             id="content",
         )
     )
-
-
-@rt("/recipes/extract/form-fragment")
-def get_form_fragment(input_type: str = "url"):
-    """Returns only the dynamic part of the form based on input_type."""
-    return _build_extract_form_content(selected_type=input_type)
 
 
 async def fetch_page_text(recipe_url: str):
@@ -414,55 +372,71 @@ def _close_parenthesis(text: str) -> str:
     return text
 
 
-@rt("/recipes/extract/run")
-async def post(recipe_url: str | None = None, recipe_text: str | None = None):
-    # Check if at least one input is provided
-    if not recipe_url and not recipe_text:
-        logging.error("Recipe extraction called with neither URL nor text.")
-        return fh.Div("Please provide either a Recipe URL or Recipe Text.")
-
-    if recipe_url:
-        try:
-            logger.info("Fetching and cleaning text from URL: %s", recipe_url)
-            recipe_text = await fetch_and_clean_text_from_url(recipe_url)
-            logger.info("Successfully processed URL: %s", recipe_url)
-        except httpx.RequestError as e:
-            logger.error(
-                "HTTP Request Error processing URL %s: %s",
-                recipe_url,
-                e,
-                exc_info=False,
-            )
-            return fh.Div(
-                f"Error fetching URL: {e}. Please check the URL and try again."
-            )
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "HTTP Status Error processing URL %s: %s", recipe_url, e, exc_info=False
-            )
-            return fh.Div(
-                f"Error fetching URL: Received status {e.response.status_code}. "
-                "Please check the URL."
-            )
-        except RuntimeError as e:
-            logger.error(
-                "Runtime error processing URL %s: %s", recipe_url, e, exc_info=True
-            )
-            return fh.Div(f"Failed to process the provided URL. {e}")
-    else:
-        logger.info("Processing recipe from direct text input.")
-
-    if not recipe_text:
-        logger.error("No text content available for extraction after processing input.")
-        return fh.Div("Failed to obtain text content for extraction.")
+@rt("/recipes/fetch-text")
+async def post_fetch_text(recipe_url: str | None = None):
+    if not recipe_url:
+        logger.error("Fetch text called without URL.")
+        return fh.Div(
+            "Please provide a Recipe URL to fetch.", cls="text-red-500 mb-4"
+        )
 
     try:
-        log_source = f"URL ({recipe_url})" if recipe_url else "provided text"
+        logger.info("Fetching and cleaning text from URL: %s", recipe_url)
+        cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
+        logger.info("Successfully processed URL for text: %s", recipe_url)
+    except httpx.RequestError as e:
+        logger.error(
+            "HTTP Request Error fetching text from %s: %s",
+            recipe_url,
+            e,
+            exc_info=False,
+        )
+        return fh.Div(
+            f"Error fetching URL: {e}. Check URL/connection.",
+            cls="text-red-500 mb-4",
+        )
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "HTTP Status Error fetching text from %s: %s", recipe_url, e, exc_info=False
+        )
+        return fh.Div(
+            f"HTTP Error {e.response.status_code} fetching URL.",
+            cls="text-red-500 mb-4",
+        )
+    except RuntimeError as e:
+        logger.error(
+            "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
+        )
+        return fh.Div(f"Failed to process URL: {e}", cls="text-red-500 mb-4")
+    except Exception as e:
+        logger.error(
+            "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
+        )
+        return fh.Div("Unexpected error fetching text.", cls="text-red-500 mb-4")
+
+    return mu.TextArea(
+        cleaned_text,
+        id="recipe_text",
+        name="recipe_text",
+        rows=15,
+        label="Recipe Text (Fetched or Manual)",
+        placeholder="Paste recipe text here, or fetch from URL above.",
+    )
+
+
+@rt("/recipes/extract/run")
+async def post(recipe_url: str | None = None, recipe_text: str | None = None):
+    if not recipe_text:
+        logging.error("Recipe extraction called without text.")
+        return fh.Div("No text content provided for extraction.")
+
+    try:
+        log_source = "provided text"
         logger.info("Calling extraction logic for source: %s", log_source)
         processed_recipe = await extract_recipe_from_text(recipe_text)
         logger.info("Extraction successful for source: %s", log_source)
     except Exception as e:
-        log_source = f"URL ({recipe_url})" if recipe_url else "provided text"
+        log_source = "provided text"
         logger.error(
             "Error during recipe extraction from %s: %s",
             log_source,
@@ -483,3 +457,4 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         ),
         id="recipe-display-form",
     )
+
