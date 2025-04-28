@@ -139,6 +139,16 @@ class Recipe(BaseModel):
         ),
     )
 
+    @property
+    def markdown(self) -> str:
+        ingredients_md = "\n".join([f"- {i}" for i in self.ingredients])
+        instructions_md = "\n".join([f"- {i}" for i in self.instructions])
+        return (
+            f"# {self.name}\n\n"
+            f"## Ingredients\n{ingredients_md}\n\n"
+            f"## Instructions\n{instructions_md}\n"
+        )
+
 
 def _build_extract_form_content(selected_type: str = "url"):
     """Builds the dynamic part of the recipe extraction form."""
@@ -194,7 +204,8 @@ def _build_extract_form_content(selected_type: str = "url"):
         mu.TextArea(
             id="recipe_text",
             name="recipe_text",
-            placeholder="Paste recipe text here. Superfluous text will be removed.",
+            placeholder="Paste recipe text here. Don't worry about removing "
+            "superfluous text: it will be removed automatically!",
             rows=10,
             disabled=is_url_selected,
         ),
@@ -260,7 +271,7 @@ async def fetch_page_text(recipe_url: str):
         follow_redirects=True, timeout=15.0, headers=headers
     ) as client:
         response = await client.get(recipe_url)
-    response.raise_for_status()
+    await response.raise_for_status()
     return response.text
 
 
@@ -282,6 +293,39 @@ async def call_llm(prompt: str, response_model: type[T]) -> T:
         response_model=response_model,
     )
     return response
+
+
+async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
+    """Fetches and cleans text content from a URL."""
+    logger.info("Fetching text from: %s", recipe_url)
+    try:
+        raw_text = await fetch_page_text(recipe_url)
+        logger.info("Successfully fetched text from: %s", recipe_url)
+    except httpx.RequestError as e:
+        logger.error(
+            "HTTP Request Error fetching page text from %s: %s",
+            recipe_url,
+            e,
+            exc_info=True,
+        )
+        raise
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "HTTP Status Error fetching page text from %s: %s",
+            recipe_url,
+            e,
+            exc_info=True,
+        )
+        raise
+    except Exception as e:
+        logger.error(
+            "Error fetching page text from %s: %s", recipe_url, e, exc_info=True
+        )
+        raise RuntimeError(f"Failed to fetch or process URL: {recipe_url}") from e
+
+    page_text = HTML_CLEANER.handle(raw_text)
+    logger.info("Cleaned HTML text from: %s", recipe_url)
+    return page_text
 
 
 async def extract_recipe_from_text(page_text: str) -> Recipe:
@@ -307,40 +351,10 @@ async def extract_recipe_from_text(page_text: str) -> Recipe:
 
 
 async def extract_recipe_from_url(recipe_url: str) -> Recipe:
-    """Fetches, cleans, extracts, and post-processes a recipe from a URL."""
-    try:
-        raw_text = await fetch_page_text(recipe_url)
-        logger.info("Successfully fetched text from: %s", recipe_url)
-    except Exception as e:
-        logger.error(
-            "Error fetching page text from %s: %s",
-            recipe_url,
-            e,
-            exc_info=True,
-        )
-        raise
-    page_text = HTML_CLEANER.handle(raw_text)
-
-    try:
-        logging.info(f"Calling model {MODEL_NAME} for URL: {recipe_url}")
-        extracted_recipe: Recipe = await call_llm(
-            prompt=(
-                PROMPT_DIR / "recipe_extraction" / ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
-            )
-            .read_text()
-            .format(page_text=page_text),
-            response_model=Recipe,
-        )
-        logging.info(f"Call to model {MODEL_NAME} successful for URL: {recipe_url}")
-    except Exception as e:
-        logger.error(
-            f"Error calling model {MODEL_NAME} for URL {recipe_url}: %s",
-            e,
-            exc_info=True,
-        )
-        raise
-    processed_recipe = postprocess_recipe(extracted_recipe)
-    return processed_recipe
+    """Fetches text from a URL and extracts a recipe from it."""
+    return await extract_recipe_from_text(
+        await fetch_and_clean_text_from_url(recipe_url)
+    )
 
 
 def postprocess_recipe(recipe: Recipe) -> Recipe:
@@ -387,9 +401,10 @@ def _postprocess_instruction(instruction: str) -> str:
 
 def _remove_leading_step_numbers(instruction: str) -> str:
     """Removes leading step numbers like "Step 1", "Step 1:", "1.", "1 " """
+    # This will remove the entire string if it only matches the pattern
     return re.sub(
         r"^\s*(?:Step\s*\d+|\d+)\s*[:.]?\s*", "", instruction, flags=re.IGNORECASE
-    )
+    ).strip()
 
 
 def _close_parenthesis(text: str) -> str:
@@ -401,78 +416,70 @@ def _close_parenthesis(text: str) -> str:
 
 @rt("/recipes/extract/run")
 async def post(recipe_url: str | None = None, recipe_text: str | None = None):
-    processed_recipe = None
-    source_description = ""
+    # Check if at least one input is provided
+    if not recipe_url and not recipe_text:
+        logging.error("Recipe extraction called with neither URL nor text.")
+        return fh.Div("Please provide either a Recipe URL or Recipe Text.")
 
-    try:
-        if recipe_text:
-            source_description = "provided text"
-            logger.info("Processing recipe from text input.")
-            processed_recipe = await extract_recipe_from_text(recipe_text)
-
-        elif recipe_url:
-            source_description = f"URL: {recipe_url}"
-            logger.info("Processing recipe from URL: %s", recipe_url)
-            processed_recipe = await extract_recipe_from_url(recipe_url)
-
-        else:
-            logger.warning("Recipe extraction called with neither URL nor text.")
-            return fh.Div("Please provide either a Recipe URL or Recipe Text.")
-
-        ingredients_md = "\n".join([f"- {i}" for i in processed_recipe.ingredients])
-        instructions_md = "\n".join([f"- {i}" for i in processed_recipe.instructions])
-        recipe_display_text = (
-            f"# {processed_recipe.name}\n\n"
-            f"## Ingredients\n{ingredients_md}\n\n"
-            f"## Instructions\n{instructions_md}\n"
-        )
-        return mu.Form(
-            mu.TextArea(
-                recipe_display_text,
-                label="Extracted Recipe",
-                id="recipe_text_display",
-                name="recipe_text_display",
-                rows=25,
-            ),
-            id="recipe-display-form",
-        )
-
-    except httpx.RequestError as e:
-        if recipe_url:
+    if recipe_url:
+        try:
+            logger.info("Fetching and cleaning text from URL: %s", recipe_url)
+            recipe_text = await fetch_and_clean_text_from_url(recipe_url)
+            logger.info("Successfully processed URL: %s", recipe_url)
+        except httpx.RequestError as e:
             logger.error(
-                "HTTP Request Error extracting recipe from %s: %s",
+                "HTTP Request Error processing URL %s: %s",
                 recipe_url,
                 e,
-                exc_info=True,
+                exc_info=False,
             )
             return fh.Div(
                 f"Error fetching URL: {e}. Please check the URL and try again."
             )
-        else:
-            logger.error("Unexpected HTTP Request Error: %s", e, exc_info=True)
-            return fh.Div("An unexpected network error occurred.")
-
-    except httpx.HTTPStatusError as e:
-        if recipe_url:
+        except httpx.HTTPStatusError as e:
             logger.error(
-                "HTTP Status Error extracting recipe from %s: %s",
-                recipe_url,
-                e,
-                exc_info=True,
+                "HTTP Status Error processing URL %s: %s", recipe_url, e, exc_info=False
             )
             return fh.Div(
                 f"Error fetching URL: Received status {e.response.status_code}. "
                 "Please check the URL."
             )
-        else:
-            logger.error("Unexpected HTTP Status Error: %s", e, exc_info=True)
-            return fh.Div("An unexpected network error occurred.")
+        except RuntimeError as e:
+            logger.error(
+                "Runtime error processing URL %s: %s", recipe_url, e, exc_info=True
+            )
+            return fh.Div(f"Failed to process the provided URL. {e}")
+    else:
+        logger.info("Processing recipe from direct text input.")
 
+    if not recipe_text:
+        logger.error("No text content available for extraction after processing input.")
+        return fh.Div("Failed to obtain text content for extraction.")
+
+    try:
+        log_source = f"URL ({recipe_url})" if recipe_url else "provided text"
+        logger.info("Calling extraction logic for source: %s", log_source)
+        processed_recipe = await extract_recipe_from_text(recipe_text)
+        logger.info("Extraction successful for source: %s", log_source)
     except Exception as e:
+        log_source = f"URL ({recipe_url})" if recipe_url else "provided text"
         logger.error(
-            "Generic error processing recipe from %s: %s",
-            source_description,
+            "Error during recipe extraction from %s: %s",
+            log_source,
             e,
             exc_info=True,
         )
-        return fh.Div("Recipe extraction failed. An unexpected error occurred.")
+        return fh.Div(
+            "Recipe extraction failed. An unexpected error occurred during processing."
+        )
+
+    return mu.Form(
+        mu.TextArea(
+            processed_recipe.markdown,
+            label="Extracted Recipe",
+            id="recipe_text_display",
+            name="recipe_text_display",
+            rows=25,
+        ),
+        id="recipe-display-form",
+    )
