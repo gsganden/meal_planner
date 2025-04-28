@@ -60,10 +60,10 @@ class TestRecipeFetchTextEndpoint:
         assert response.status_code == 200
         mock_fetch_clean.assert_called_once_with(self.TEST_URL)
         # Check that the response text contains the key parts of the textarea
-        assert "<textarea" in response.text
+        assert '<textarea' in response.text
         assert 'id="recipe_text"' in response.text
         assert 'name="recipe_text"' in response.text
-        assert ">Fetched and cleaned recipe text.</textarea>" in response.text
+        assert '>Fetched and cleaned recipe text.</textarea>' in response.text
         assert 'label="Recipe Text (Fetched or Manual)"' in response.text
 
     async def test_missing_url(self):
@@ -73,7 +73,9 @@ class TestRecipeFetchTextEndpoint:
         assert 'class="text-red-500 mb-4"' in response.text
 
     @patch("meal_planner.main.logger.error")
-    async def test_request_error(self, mock_logger_error, mock_fetch_clean):
+    async def test_request_error(
+        self, mock_logger_error, mock_fetch_clean
+    ):
         error_message = "Network connection failed"
         mock_fetch_clean.side_effect = httpx.RequestError(error_message, request=None)
 
@@ -88,7 +90,9 @@ class TestRecipeFetchTextEndpoint:
         mock_logger_error.assert_called_once()
 
     @patch("meal_planner.main.logger.error")
-    async def test_status_error(self, mock_logger_error, mock_fetch_clean):
+    async def test_status_error(
+        self, mock_logger_error, mock_fetch_clean
+    ):
         status_code = 404
         mock_request = Request("GET", self.TEST_URL)
         mock_response = Response(status_code, request=mock_request)
@@ -107,7 +111,9 @@ class TestRecipeFetchTextEndpoint:
         mock_logger_error.assert_called_once()
 
     @patch("meal_planner.main.logger.error")
-    async def test_runtime_error(self, mock_logger_error, mock_fetch_clean):
+    async def test_runtime_error(
+        self, mock_logger_error, mock_fetch_clean
+    ):
         error_message = "Processing failed"
         mock_fetch_clean.side_effect = RuntimeError(error_message)
 
@@ -122,7 +128,9 @@ class TestRecipeFetchTextEndpoint:
         mock_logger_error.assert_called_once()
 
     @patch("meal_planner.main.logger.error")
-    async def test_generic_exception(self, mock_logger_error, mock_fetch_clean):
+    async def test_generic_exception(
+        self, mock_logger_error, mock_fetch_clean
+    ):
         mock_fetch_clean.side_effect = Exception("Unexpected error")
 
         response = await CLIENT.post(
@@ -169,7 +177,8 @@ class TestRecipeExtractRunEndpoint:
         assert "Actual step B" in response.text
 
     async def test_extraction_error(self, mock_call_llm):
-        """Test POST /run handles exceptions from call_llm (via extract_recipe_from_text)."""
+        """Test POST /run handles exceptions from call_llm (via
+        extract_recipe_from_text)."""
         test_text = "Some recipe text that causes an LLM error."
         mock_call_llm.side_effect = Exception("LLM failed on text input")
 
