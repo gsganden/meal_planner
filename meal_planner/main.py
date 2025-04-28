@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = (
-    "20250427_154722__preserve_instruction_punctuation.txt"
+    "20250428_165655__include_quantities_units_dont_mention_html.txt"
 )
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
