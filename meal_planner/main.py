@@ -2,6 +2,8 @@ import html
 import logging
 import os
 import re
+import json
+import uuid
 from pathlib import Path
 from typing import TypeVar
 
@@ -12,9 +14,12 @@ import instructor
 import monsterui.all as mu
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
+from starlette.datastructures import FormData
+from starlette.requests import Request
+from starlette.exceptions import HTTPException
 
-from meal_planner.api.recipes import api_router
-from meal_planner.models import Recipe
+from meal_planner.api.recipes import api_router, recipes_table
+from meal_planner.models import Recipe, RecipeRead
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = (
@@ -418,6 +423,30 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             "Recipe extraction failed. An unexpected error occurred during processing."
         )
 
+    hidden_fields = (
+        fh.Input(type="hidden", name="name", value=processed_recipe.name),
+        *(
+            fh.Input(type="hidden", name="ingredients", value=ing)
+            for ing in processed_recipe.ingredients
+        ),
+        *(
+            fh.Input(type="hidden", name="instructions", value=inst)
+            for inst in processed_recipe.instructions
+        ),
+    )
+
+    save_button_container = fh.Div(
+        mu.Button(
+            "Save Recipe",
+            hx_post="/recipes/save",
+            hx_include="closest form",
+            hx_target="#save-button-container",
+            hx_swap="outerHTML",
+        ),
+        id="save-button-container",
+        cls="mt-4",
+    )
+
     return mu.Form(
         mu.TextArea(
             processed_recipe.markdown,
@@ -425,6 +454,37 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             id="recipe_text_display",
             name="recipe_text_display",
             rows=25,
+            disabled=True,
         ),
+        hidden_fields,
+        save_button_container,
         id="recipe-display-form",
     )
+
+
+@rt("/recipes/save")
+async def post_save_recipe(request: Request):
+    form_data: FormData = await request.form()
+    name = form_data.get("name")
+    ingredients = form_data.getlist("ingredients")
+    instructions = form_data.getlist("instructions")
+
+    if not name or not ingredients or not instructions:
+        return fh.Span("Error: Missing recipe data.", cls="text-red-500")
+
+    new_id = uuid.uuid4()
+    db_data = {
+        "id": new_id,
+        "name": name,
+        "ingredients": json.dumps(ingredients),
+        "instructions": json.dumps(instructions),
+    }
+
+    try:
+        recipes_table.insert(db_data)
+        logger.info("Saved recipe via UI: %s, Name: %s", new_id, name)
+    except Exception as e:
+        logger.error("Database error saving recipe via UI: %s", e, exc_info=True)
+        return fh.Span("Error saving recipe to database.", cls="text-red-500")
+
+    return fh.Span("Recipe Saved Successfully!", cls="text-green-500")

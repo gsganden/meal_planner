@@ -2,7 +2,12 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient, Request, Response
+from pathlib import Path
+import uuid
+import json
+from fastlite import database
 
 from meal_planner.main import (
     Recipe,
@@ -11,10 +16,58 @@ from meal_planner.main import (
     fetch_page_text,
     postprocess_recipe,
 )
+from meal_planner.models import Recipe as ModelRecipe
+from meal_planner.api.recipes import db as api_db, recipes_table as api_recipes_table
+import meal_planner.main as main_module
 
 TRANSPORT = ASGITransport(app=app)
 CLIENT = AsyncClient(transport=TRANSPORT, base_url="http://test")
 TEST_URL = "http://test-recipe.com"
+
+# Re-use test db setup logic (or potentially move to conftest.py later)
+TEST_DB_PATH = Path("test_meal_planner.db")  # Use same test DB
+
+
+@pytest.fixture(scope="session")
+def test_db_session():
+    if TEST_DB_PATH.exists():
+        TEST_DB_PATH.unlink()
+    test_db = database(TEST_DB_PATH)
+    test_recipes_table = test_db.t.recipes
+    test_recipes_table.create(
+        id=uuid.UUID,
+        name=str,
+        ingredients=str,
+        instructions=str,
+        pk="id",
+        if_not_exists=True,
+    )
+    yield test_db, test_recipes_table
+    test_db.conn.close()
+    if TEST_DB_PATH.exists():
+        TEST_DB_PATH.unlink()
+
+
+@pytest.fixture(autouse=True)
+def clean_test_db(test_db_session):
+    test_db, _ = test_db_session
+    sql = "DELETE FROM recipes"
+    try:
+        test_db.conn.execute(sql)
+        yield
+    finally:
+        test_db.conn.execute(sql)
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client(test_db_session, monkeypatch):
+    test_db, test_recipes_table = test_db_session
+    # Patch the table object *imported* in main.py
+    monkeypatch.setattr(main_module, "recipes_table", test_recipes_table)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        yield client
 
 
 @pytest.mark.anyio
@@ -363,3 +416,98 @@ class TestPostprocessRecipeName:
         expected_name = "Recipe (Unclosed)"
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == expected_name
+
+
+# Example Mock Recipe Data
+mock_recipe_data = ModelRecipe(
+    name="Mock Recipe",
+    ingredients=["mock ingredient 1", "mock ingredient 2"],
+    instructions=["mock instruction 1", "mock instruction 2"],
+)
+
+
+@pytest.mark.anyio
+async def test_extract_run_returns_save_form(client: AsyncClient, monkeypatch):
+    async def mock_extract(*args, **kwargs):
+        return mock_recipe_data
+
+    monkeypatch.setattr(main_module, "extract_recipe_from_text", mock_extract)
+
+    response = await client.post(
+        "/recipes/extract/run", data={"recipe_text": "some text"}
+    )
+    assert response.status_code == 200
+    html_content = response.text
+
+    # Check for hidden fields
+    assert (
+        f'<input type="hidden" name="name" value="{mock_recipe_data.name}">'
+        in html_content
+    )
+    for ing in mock_recipe_data.ingredients:
+        assert f'<input type="hidden" name="ingredients" value="{ing}">' in html_content
+    for inst in mock_recipe_data.instructions:
+        assert (
+            f'<input type="hidden" name="instructions" value="{inst}">' in html_content
+        )
+
+    # Check for save button
+    assert '<button hx-post="/recipes/save"' in html_content
+    assert ">Save Recipe</button>" in html_content
+
+
+@pytest.mark.anyio
+async def test_save_recipe_success(client: AsyncClient, test_db_session):
+    test_db, test_recipes_table = test_db_session
+
+    form_data = {
+        "name": "Saved Recipe Name",
+        "ingredients": ["saved ing 1", "saved ing 2"],
+        "instructions": ["saved inst 1", "saved inst 2"],
+    }
+
+    response = await client.post("/recipes/save", data=form_data)
+
+    assert response.status_code == 200
+    assert "Recipe Saved Successfully!" in response.text
+
+    # Verify data in DB
+    # Need to fetch - assuming only one record inserted per test due to cleanup
+    all_recipes = test_recipes_table()
+    assert len(all_recipes) == 1
+    saved_db_recipe = all_recipes[0]
+    assert saved_db_recipe["name"] == form_data["name"]
+    assert json.loads(saved_db_recipe["ingredients"]) == form_data["ingredients"]
+    assert json.loads(saved_db_recipe["instructions"]) == form_data["instructions"]
+    # Verify ID is a valid UUID string
+    recipe_id_str = saved_db_recipe["id"]
+    assert isinstance(recipe_id_str, str)
+    try:
+        uuid.UUID(recipe_id_str, version=4)
+    except ValueError:
+        pytest.fail(f"Saved recipe id '{recipe_id_str}' is not a valid UUID string.")
+
+
+@pytest.mark.anyio
+async def test_save_recipe_missing_data(client: AsyncClient):
+    response = await client.post("/recipes/save", data={"name": "Only Name"})
+    assert response.status_code == 200
+    assert "Error: Missing recipe data." in response.text
+
+
+@pytest.mark.anyio
+async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
+    def mock_insert_fail(*args, **kwargs):
+        raise Exception("Simulated DB Save Error")
+
+    # Patch the table object used in main.py
+    monkeypatch.setattr(main_module.recipes_table, "insert", mock_insert_fail)
+
+    form_data = {
+        "name": "DB Error Recipe",
+        "ingredients": ["i1"],
+        "instructions": ["s1"],
+    }
+    response = await client.post("/recipes/save", data=form_data)
+    assert response.status_code == 200
+    assert "Error saving recipe to database." in response.text
