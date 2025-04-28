@@ -1,4 +1,3 @@
-# meal_planner/models.py
 import textwrap
 import uuid
 
@@ -37,6 +36,5 @@ class Recipe(BaseModel):
         )
 
 
-# We can also move RecipeRead here if desired, to keep API models together
 class RecipeRead(Recipe):
     id: uuid.UUID

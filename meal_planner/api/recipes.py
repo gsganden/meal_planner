@@ -1,9 +1,8 @@
-# meal_planner/api/recipes.py
 import json
 import logging
 import uuid
 
-from fastlite import NotFoundError, database
+from fastlite import database
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -14,22 +13,19 @@ from meal_planner.models import Recipe, RecipeRead
 
 logger = logging.getLogger(__name__)
 
-# Initialize database connection
 DB_PATH = "meal_planner.db"
 db = database(DB_PATH)
 
-# Define table reference
 recipes_table = db.t.recipes
 
-# Ensure table exists (adjust schema for UUID and JSON text)
 recipes_table.create(
     id=uuid.UUID,
     name=str,
-    ingredients=str,  # Store list as JSON string
-    instructions=str,  # Store list as JSON string
+    ingredients=str,
+    instructions=str,
     pk="id",
-    replace=False,  # Don't replace if already exists
-    if_not_exists=True,  # Create only if it doesn't exist
+    replace=False,
+    if_not_exists=True,
 )
 
 
@@ -74,84 +70,8 @@ async def create_recipe(request: Request):
     )
 
 
-async def get_recipe(request: Request):
-    recipe_id = request.path_params["recipe_id"]
-    if not isinstance(recipe_id, uuid.UUID):
-        raise HTTPException(status_code=400, detail="Invalid recipe ID format")
-
-    try:
-        row = recipes_table[recipe_id]
-    except NotFoundError:
-        raise HTTPException(status_code=404, detail="Recipe not found") from None
-    except Exception as e:
-        logger.error(
-            "Database error fetching recipe %s: %s", recipe_id, e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=500, detail="Database error fetching recipe"
-        ) from e
-
-    try:
-        ingredients_list = json.loads(row["ingredients"])
-        instructions_list = json.loads(row["instructions"])
-    except json.JSONDecodeError as e:
-        logger.error(
-            "Error decoding JSON for recipe %s: %s", recipe_id, e, exc_info=True
-        )
-        raise HTTPException(status_code=500, detail="Error reading recipe data") from e
-
-    recipe = RecipeRead(
-        id=row["id"],
-        name=row["name"],
-        ingredients=ingredients_list,
-        instructions=instructions_list,
-    )
-
-    return recipe
-
-
-async def get_all_recipes(request: Request):
-    try:
-        all_rows = recipes_table()
-    except Exception as e:
-        logger.error("Database error fetching all recipes: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="Database error fetching recipes"
-        ) from e
-
-    results = []
-    for row in all_rows:
-        try:
-            ingredients_list = json.loads(row["ingredients"])
-            instructions_list = json.loads(row["instructions"])
-            results.append(
-                RecipeRead(
-                    id=row["id"],
-                    name=row["name"],
-                    ingredients=ingredients_list,
-                    instructions=instructions_list,
-                )
-            )
-        except json.JSONDecodeError as e:
-            logger.error(
-                "Error decoding JSON for recipe %s: %s", row.get("id"), e, exc_info=True
-            )
-            continue
-
-    return results
-
-
 api_router = Router(
     [
         Route("/recipes", endpoint=create_recipe, methods=["POST"]),
-        Route(
-            "/recipes", endpoint=get_all_recipes, methods=["GET"]
-        ),  # Add route for GET all
-        Route(
-            "/recipes/{recipe_id:uuid}",
-            endpoint=get_recipe,
-            methods=["GET"],
-            name="get_recipe",
-        ),
     ]
 )

@@ -1,13 +1,11 @@
-# tests/test_api.py
 import uuid
-from pathlib import Path  # Import Path
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from fastlite import database  # Import database for test setup
+from fastlite import database
 from httpx import ASGITransport, AsyncClient
 
-# Import production db path for monkeypatching target
 import meal_planner.api.recipes as recipes_api
 from meal_planner.main import app
 
@@ -16,16 +14,13 @@ pytestmark = pytest.mark.asyncio
 TEST_DB_PATH = Path("test_meal_planner.db")
 
 
-# Session-scoped fixture for setting up/tearing down the test database
 @pytest.fixture(scope="session")
 def test_db_session():
-    # Ensure clean start
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
 
     test_db = database(TEST_DB_PATH)
     test_recipes_table = test_db.t.recipes
-    # Define schema matching api/recipes.py
     test_recipes_table.create(
         id=uuid.UUID,
         name=str,
@@ -34,33 +29,26 @@ def test_db_session():
         pk="id",
         if_not_exists=True,
     )
-    yield test_db, test_recipes_table  # Provide db and table to tests/fixtures
+    yield test_db, test_recipes_table
 
-    # Teardown: close connection and delete test db file
     test_db.conn.close()
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(
-    test_db_session, monkeypatch
-):  # Inject session fixture and monkeypatch
-    # Get the test db and table objects
+async def client(test_db_session, monkeypatch):
     test_db, test_recipes_table = test_db_session
 
-    # Monkeypatch the db and recipes_table objects in the api module
     monkeypatch.setattr(recipes_api, "db", test_db)
     monkeypatch.setattr(recipes_api, "recipes_table", test_recipes_table)
 
-    # Now, when the app runs via ASGITransport, it uses the patched db
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         yield client
 
 
-# Fixture to clean the *test* recipes table before each test function
 @pytest.fixture(autouse=True)
 def clean_test_db(test_db_session):
     test_db, _ = test_db_session
@@ -82,7 +70,6 @@ def valid_recipe_payload():
 
 
 class TestCreateRecipeSuccess:
-    # Tests now accept client and payload, and make their own requests
     async def test_create_recipe_returns_201(
         self, client: AsyncClient, valid_recipe_payload: dict
     ):
@@ -223,7 +210,6 @@ class TestCreateRecipeValidation:
         actual_detail_filtered = []
         for error in actual_detail_full:
             filtered_error = {k: v for k, v in error.items() if k in fields_to_compare}
-            # Convert actual 'loc' list to tuple for comparison
             if "loc" in filtered_error and isinstance(filtered_error["loc"], list):
                 filtered_error["loc"] = tuple(filtered_error["loc"])
             actual_detail_filtered.append(filtered_error)
@@ -233,3 +219,29 @@ class TestCreateRecipeValidation:
                 error["type"] = error["type"].split(".")[-1]
 
         assert actual_detail_filtered == expected_error_detail
+
+    async def test_create_recipe_invalid_json(self, client: AsyncClient):
+        invalid_json_string = '{"name": "Test", "ingredients": ["i1"], "instructions": ["s1"}'  # Missing closing brace
+        response = await client.post(
+            "/api/v1/recipes",
+            content=invalid_json_string,
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code == 400
+        assert "Invalid JSON payload" in response.text
+
+
+@pytest.mark.usefixtures("client")
+class TestCreateRecipeDBErrors:
+    async def test_create_recipe_db_insert_error(
+        self, client: AsyncClient, valid_recipe_payload: dict, monkeypatch
+    ):
+        def mock_insert(*args, **kwargs):
+            raise Exception("Simulated DB Error")
+
+        monkeypatch.setattr(recipes_api.recipes_table, "insert", mock_insert)
+
+        response = await client.post("/api/v1/recipes", json=valid_recipe_payload)
+
+        assert response.status_code == 500
+        assert "Database error creating recipe" in response.text
