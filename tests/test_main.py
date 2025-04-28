@@ -1,14 +1,12 @@
 import json
-import uuid
-from pathlib import Path
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-import pytest_asyncio
 from fastlite import database
 from httpx import ASGITransport, AsyncClient, Request, Response
 
+import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
 from meal_planner.main import (
     Recipe,
@@ -16,68 +14,22 @@ from meal_planner.main import (
     fetch_and_clean_text_from_url,
     fetch_page_text,
     postprocess_recipe,
-    _generate_recipe_id,
 )
 from meal_planner.models import Recipe as ModelRecipe
 
 TRANSPORT = ASGITransport(app=app)
-CLIENT = AsyncClient(transport=TRANSPORT, base_url="http://test")
 TEST_URL = "http://test-recipe.com"
-
-TEST_DB_PATH = Path("test_meal_planner.db")
-
-
-@pytest.fixture(scope="session")
-def test_db_session():
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
-    test_db = database(TEST_DB_PATH)
-    test_recipes_table = test_db.t.recipes
-    test_recipes_table.create(
-        id=uuid.UUID,
-        name=str,
-        ingredients=str,
-        instructions=str,
-        pk="id",
-        if_not_exists=True,
-    )
-    yield test_db, test_recipes_table
-    test_db.conn.close()
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
-
-
-@pytest.fixture(autouse=True)
-def clean_test_db(test_db_session):
-    test_db, _ = test_db_session
-    sql = "DELETE FROM recipes"
-    try:
-        test_db.conn.execute(sql)
-        yield
-    finally:
-        test_db.conn.execute(sql)
-
-
-@pytest_asyncio.fixture(scope="function")
-async def client(test_db_session, monkeypatch):
-    test_db, test_recipes_table = test_db_session
-    # Patch the table object *imported* in main.py
-    monkeypatch.setattr(main_module, "recipes_table", test_recipes_table)
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        yield client
 
 
 @pytest.mark.anyio
 class TestSmokeEndpoints:
-    async def test_root(self, anyio_backend):
-        response = await CLIENT.get("/")
+    async def test_root(self, client: AsyncClient):
+        response = await client.get("/")
         assert response.status_code == 200
         assert "Meal Planner" in response.text
 
-    async def test_extract_recipe_page_loads(self, anyio_backend):
-        response = await CLIENT.get("/recipes/extract")
+    async def test_extract_recipe_page_loads(self, client: AsyncClient):
+        response = await client.get("/recipes/extract")
         assert response.status_code == 200
         assert 'id="recipe_url"' in response.text
         assert 'placeholder="Enter recipe URL (optional)' in response.text
@@ -101,11 +53,11 @@ class TestRecipeFetchTextEndpoint:
         ) as mock_fetch:
             yield mock_fetch
 
-    async def test_success(self, mock_fetch_clean):
+    async def test_success(self, client: AsyncClient, mock_fetch_clean):
         mock_text = "Fetched and cleaned recipe text."
         mock_fetch_clean.return_value = mock_text
 
-        response = await CLIENT.post(
+        response = await client.post(
             "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
         )
 
@@ -118,18 +70,20 @@ class TestRecipeFetchTextEndpoint:
         assert ">Fetched and cleaned recipe text.</textarea>" in response.text
         assert 'label="Recipe Text (Fetched or Manual)"' in response.text
 
-    async def test_missing_url(self):
-        response = await CLIENT.post("/recipes/fetch-text", data={})
+    async def test_missing_url(self, client: AsyncClient):
+        response = await client.post("/recipes/fetch-text", data={})
         assert response.status_code == 200
         assert "Please provide a Recipe URL to fetch." in response.text
         assert 'class="text-red-500 mb-4"' in response.text
 
     @patch("meal_planner.main.logger.error")
-    async def test_request_error(self, mock_logger_error, mock_fetch_clean):
+    async def test_request_error(
+        self, mock_logger_error, client: AsyncClient, mock_fetch_clean
+    ):
         error_message = "Network connection failed"
         mock_fetch_clean.side_effect = httpx.RequestError(error_message, request=None)
 
-        response = await CLIENT.post(
+        response = await client.post(
             "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
         )
 
@@ -140,7 +94,9 @@ class TestRecipeFetchTextEndpoint:
         mock_logger_error.assert_called_once()
 
     @patch("meal_planner.main.logger.error")
-    async def test_status_error(self, mock_logger_error, mock_fetch_clean):
+    async def test_status_error(
+        self, mock_logger_error, client: AsyncClient, mock_fetch_clean
+    ):
         status_code = 404
         mock_request = Request("GET", self.TEST_URL)
         mock_response = Response(status_code, request=mock_request)
@@ -148,7 +104,7 @@ class TestRecipeFetchTextEndpoint:
             f"{status_code} Client Error", request=mock_request, response=mock_response
         )
 
-        response = await CLIENT.post(
+        response = await client.post(
             "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
         )
 
@@ -159,11 +115,13 @@ class TestRecipeFetchTextEndpoint:
         mock_logger_error.assert_called_once()
 
     @patch("meal_planner.main.logger.error")
-    async def test_runtime_error(self, mock_logger_error, mock_fetch_clean):
+    async def test_runtime_error(
+        self, mock_logger_error, client: AsyncClient, mock_fetch_clean
+    ):
         error_message = "Processing failed"
         mock_fetch_clean.side_effect = RuntimeError(error_message)
 
-        response = await CLIENT.post(
+        response = await client.post(
             "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
         )
 
@@ -174,10 +132,12 @@ class TestRecipeFetchTextEndpoint:
         mock_logger_error.assert_called_once()
 
     @patch("meal_planner.main.logger.error")
-    async def test_generic_exception(self, mock_logger_error, mock_fetch_clean):
+    async def test_generic_exception(
+        self, mock_logger_error, client: AsyncClient, mock_fetch_clean
+    ):
         mock_fetch_clean.side_effect = Exception("Unexpected error")
 
-        response = await CLIENT.post(
+        response = await client.post(
             "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
         )
 
@@ -194,7 +154,7 @@ class TestRecipeExtractRunEndpoint:
         with patch("meal_planner.main.call_llm", new_callable=AsyncMock) as mock_llm:
             yield mock_llm
 
-    async def test_success(self, mock_call_llm):
+    async def test_success(self, client: AsyncClient, mock_call_llm):
         """Test successful recipe extraction using direct text input."""
         test_text = "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First step "
         "text, Step 2: Second step text"
@@ -204,7 +164,7 @@ class TestRecipeExtractRunEndpoint:
             instructions=["1. Actual step A", "Step 2: Actual step B"],
         )
 
-        response = await CLIENT.post(
+        response = await client.post(
             "/recipes/extract/run", data={"recipe_text": test_text}
         )
         assert response.status_code == 200
@@ -220,13 +180,13 @@ class TestRecipeExtractRunEndpoint:
         assert "Actual step A" in response.text
         assert "Actual step B" in response.text
 
-    async def test_extraction_error(self, mock_call_llm):
+    async def test_extraction_error(self, client: AsyncClient, mock_call_llm):
         """Test POST /run handles exceptions from call_llm (via
         extract_recipe_from_text)."""
         test_text = "Some recipe text that causes an LLM error."
         mock_call_llm.side_effect = Exception("LLM failed on text input")
 
-        response = await CLIENT.post(
+        response = await client.post(
             "/recipes/extract/run", data={"recipe_text": test_text}
         )
         assert response.status_code == 200
@@ -236,9 +196,9 @@ class TestRecipeExtractRunEndpoint:
         assert expected_error_msg in response.text
         mock_call_llm.assert_called_once()
 
-    async def test_no_text_input_provided(self):
+    async def test_no_text_input_provided(self, client: AsyncClient):
         """Test POST /run returns error if recipe_text is not provided."""
-        response = await CLIENT.post("/recipes/extract/run", data={})
+        response = await client.post("/recipes/extract/run", data={})
 
         assert response.status_code == 200
         expected_error_msg = "No text content provided for extraction."
@@ -457,7 +417,7 @@ async def test_extract_run_returns_save_form(client: AsyncClient, monkeypatch):
 
 @pytest.mark.anyio
 async def test_save_recipe_success(client: AsyncClient, test_db_session):
-    test_db, test_recipes_table = test_db_session
+    db_path = test_db_session  # Get the path from the fixture
 
     form_data = {
         "name": "Saved Recipe Name",
@@ -470,21 +430,20 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session):
     assert response.status_code == 200
     assert "Recipe Saved Successfully!" in response.text
 
-    # Verify data in DB
-    # Need to fetch - assuming only one record inserted per test due to cleanup
-    all_recipes = test_recipes_table()
+    # Verify data in DB using the yielded path
+    verify_db = database(db_path)
+    verify_table = verify_db.t.recipes
+    all_recipes = verify_table()
     assert len(all_recipes) == 1
     saved_db_recipe = all_recipes[0]
+    verify_db.conn.close()  # Close the verification connection
+
     assert saved_db_recipe["name"] == form_data["name"]
     assert json.loads(saved_db_recipe["ingredients"]) == form_data["ingredients"]
     assert json.loads(saved_db_recipe["instructions"]) == form_data["instructions"]
-    # Verify ID is a valid UUID string
-    recipe_id_str = saved_db_recipe["id"]
-    assert isinstance(recipe_id_str, str)
-    try:
-        uuid.UUID(recipe_id_str, version=4)
-    except ValueError:
-        pytest.fail(f"Saved recipe id '{recipe_id_str}' is not a valid UUID string.")
+    # Verify ID is an integer
+    recipe_id = saved_db_recipe["id"]
+    assert isinstance(recipe_id, int)
 
 
 @pytest.mark.anyio
@@ -502,7 +461,7 @@ async def test_save_recipe_missing_name(client: AsyncClient):
         "/recipes/save", data={"ingredients": ["i"], "instructions": ["s"]}
     )
     assert response.status_code == 200
-    assert "Error: Recipe name is required." in response.text
+    assert "Error: Recipe name is required and must be text." in response.text
 
 
 @pytest.mark.anyio
@@ -510,8 +469,7 @@ async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
     def mock_insert_fail(*args, **kwargs):
         raise Exception("Simulated DB Save Error")
 
-    # Patch the table object used in main.py
-    monkeypatch.setattr(main_module.recipes_table, "insert", mock_insert_fail)
+    monkeypatch.setattr(api_recipes_module.recipes_table, "insert", mock_insert_fail)
 
     form_data = {
         "name": "DB Error Recipe",
@@ -521,50 +479,3 @@ async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
     response = await client.post("/recipes/save", data=form_data)
     assert response.status_code == 200
     assert "Error saving recipe to database." in response.text
-
-
-@pytest.mark.anyio
-async def test_save_recipe_duplicate_name(client: AsyncClient):
-    form_data = {
-        "name": "Duplicate Recipe Test",
-        "ingredients": ["ing1", "ing2"],
-        "instructions": ["step1", "step2"],
-    }
-
-    response1 = await client.post("/recipes/save", data=form_data)
-    assert response1.status_code == 200
-    assert "Recipe Saved Successfully!" in response1.text
-
-    response2 = await client.post("/recipes/save", data=form_data)
-    assert response2.status_code == 200
-    assert "Error: A recipe with this name already exists." in response2.text
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        "Simple Pasta",
-        "  Chicken Curry!! ",
-        "Crème Brûlée",
-        "Multiple   Spaces",
-        "Leading-Trailing-",
-        # Add more diverse valid names if needed
-    ],
-)
-def test_generate_recipe_id_valid_deterministic(name):
-    id1 = _generate_recipe_id(name)
-    id2 = _generate_recipe_id(name)
-    assert id1 == id2
-    try:
-        uuid.UUID(id1, version=5)
-    except ValueError:
-        pytest.fail(f"Generated ID '{id1}' is not a valid UUID string.")
-
-
-@pytest.mark.parametrize("name", ["", "   "])
-def test_generate_recipe_id_invalid(name):
-    with pytest.raises(
-        ValueError,
-        match="Recipe name cannot be empty or only whitespace for ID generation",
-    ):
-        _generate_recipe_id(name)

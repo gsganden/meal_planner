@@ -1,6 +1,6 @@
 import json
 import logging
-import uuid
+import os
 from pathlib import Path
 
 from fastlite import database
@@ -14,36 +14,33 @@ from meal_planner.models import Recipe, RecipeRead
 
 logger = logging.getLogger(__name__)
 
+LOCAL_DB_PATH = Path("meal_planner_local.db")
 VOLUME_MOUNT_PATH = Path("/data")
-DB_PATH = VOLUME_MOUNT_PATH / "meal_planner.db"
+DB_PATH_STR = os.environ.get("MEAL_PLANNER_DB_PATH", str(LOCAL_DB_PATH))
+DB_PATH = Path(DB_PATH_STR)
 
-# Global variables for database and table, initialized lazily
-db = None
-recipes_table = None
+logger.info(f"Using database path: {DB_PATH}")
 
+if DB_PATH == LOCAL_DB_PATH:
+    LOCAL_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-def initialize_db():
-    global db, recipes_table
-    if db is None:
-        logger.info(f"Initializing database connection to: {DB_PATH}")
-        # Assuming /data exists due to deploy.py
-        db = database(DB_PATH)
-        recipes_table = db.t.recipes
-        recipes_table.create(
-            id=uuid.UUID,
-            name=str,
-            ingredients=str,
-            instructions=str,
-            pk="id",
-            replace=False,
-            if_not_exists=True,
-        )
-        logger.info(f"Database initialized and table ensured: {recipes_table}")
-    return recipes_table
+db = database(DB_PATH)
+recipes_table = db.t.recipes
+
+if DB_PATH == LOCAL_DB_PATH:
+    logger.info("Ensuring table exists for local DB")
+    recipes_table.create(
+        id=int,
+        name=str,
+        ingredients=str,
+        instructions=str,
+        pk="id",
+        replace=False,
+        if_not_exists=True,
+    )
 
 
 async def create_recipe(request: Request):
-    table = initialize_db()  # Get table, ensuring DB is initialized
     try:
         payload = await request.json()
         recipe_data = Recipe.model_validate(payload)
@@ -54,28 +51,35 @@ async def create_recipe(request: Request):
         logger.error("Error parsing request JSON: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
 
-    new_id = uuid.uuid4()
+    # ID is now auto-generated
+    # new_id = uuid.uuid4()
 
     db_data = {
-        "id": new_id,
+        # Remove "id": new_id,
         "name": recipe_data.name,
         "ingredients": json.dumps(recipe_data.ingredients),
         "instructions": json.dumps(recipe_data.instructions),
     }
 
     try:
-        table.insert(db_data)  # Use the local 'table' variable
+        # Use insert for auto-incrementing PKs
+        inserted_record = recipes_table.insert(db_data)
     except Exception as e:
         logger.error("Database error inserting recipe: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500, detail="Database error creating recipe"
         ) from e
 
-    stored_recipe = RecipeRead(id=new_id, **recipe_data.model_dump())
+    # Construct the response model using the ID from the inserted record
+    stored_recipe = RecipeRead(id=inserted_record["id"], **recipe_data.model_dump())
 
-    logger.info("Created recipe with ID: %s, Name: %s", new_id, stored_recipe.name)
+    logger.info(
+        "Created recipe with ID: %s, Name: %s",
+        stored_recipe.id,
+        stored_recipe.name,
+    )
 
-    location_path = f"/api/v1/recipes/{str(new_id)}"
+    location_path = f"/api/v1/recipes/{str(stored_recipe.id)}"
 
     return JSONResponse(
         content=stored_recipe.model_dump(mode="json"),

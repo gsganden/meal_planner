@@ -1,5 +1,4 @@
 import textwrap
-import uuid
 
 from pydantic import BaseModel, Field
 
@@ -37,4 +36,4 @@ class Recipe(BaseModel):
 
 
 class RecipeRead(Recipe):
-    id: uuid.UUID
+    id: int

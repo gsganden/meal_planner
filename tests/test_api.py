@@ -1,63 +1,14 @@
-import uuid
 from pathlib import Path
 
 import pytest
-import pytest_asyncio
-from fastlite import database
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 
 import meal_planner.api.recipes as recipes_api
-from meal_planner.main import app
 
 pytestmark = pytest.mark.asyncio
 
-TEST_DB_PATH = Path("test_meal_planner.db")
-
-
-@pytest.fixture(scope="session")
-def test_db_session():
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
-
-    test_db = database(TEST_DB_PATH)
-    test_recipes_table = test_db.t.recipes
-    test_recipes_table.create(
-        id=uuid.UUID,
-        name=str,
-        ingredients=str,
-        instructions=str,
-        pk="id",
-        if_not_exists=True,
-    )
-    yield test_db, test_recipes_table
-
-    test_db.conn.close()
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
-
-
-@pytest_asyncio.fixture(scope="function")
-async def client(test_db_session, monkeypatch):
-    test_db, test_recipes_table = test_db_session
-
-    monkeypatch.setattr(recipes_api, "db", test_db)
-    monkeypatch.setattr(recipes_api, "recipes_table", test_recipes_table)
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        yield client
-
-
-@pytest.fixture(autouse=True)
-def clean_test_db(test_db_session):
-    test_db, _ = test_db_session
-    sql = "DELETE FROM recipes"
-    try:
-        test_db.conn.execute(sql)
-        yield
-    finally:
-        test_db.conn.execute(sql)
+# Use the same DB path as test_main.py for consistency
+TEST_DB_PATH = Path("meal_planner_local.db")
 
 
 @pytest.fixture()
@@ -81,14 +32,10 @@ class TestCreateRecipeSuccess:
     ):
         response = await client.post("/api/v1/recipes", json=valid_recipe_payload)
         assert "Location" in response.headers
-        recipe_id_str = response.json()["id"]
-        assert isinstance(recipe_id_str, str)
-        try:
-            uuid.UUID(recipe_id_str, version=4)
-        except ValueError:
-            pytest.fail(f"Returned id '{recipe_id_str}' is not a valid UUID string.")
+        recipe_id = response.json()["id"]  # ID is now int
+        assert isinstance(recipe_id, int)
 
-        expected_location = f"/api/v1/recipes/{recipe_id_str}"
+        expected_location = f"/api/v1/recipes/{recipe_id}"
         assert response.headers["Location"] == expected_location
 
     async def test_create_recipe_response_contains_id(
@@ -97,12 +44,8 @@ class TestCreateRecipeSuccess:
         response = await client.post("/api/v1/recipes", json=valid_recipe_payload)
         response_json = response.json()
         assert "id" in response_json
-        recipe_id_str = response_json["id"]
-        assert isinstance(recipe_id_str, str)
-        try:
-            uuid.UUID(recipe_id_str, version=4)
-        except ValueError:
-            pytest.fail(f"Returned id '{recipe_id_str}' is not a valid UUID string.")
+        recipe_id = response_json["id"]  # ID is now int
+        assert isinstance(recipe_id, int)
 
     async def test_create_recipe_response_contains_payload_data(
         self, client: AsyncClient, valid_recipe_payload: dict
