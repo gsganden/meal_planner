@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import textwrap
+import html
 from pathlib import Path
 from typing import TypeVar
 
@@ -392,7 +393,7 @@ def _postprocess_ingredient(ingredient: str) -> str:
 def _postprocess_instruction(instruction: str) -> str:
     """Cleans and standardizes a single instruction string."""
     return (
-        _remove_leading_step_numbers(instruction)
+        _remove_leading_step_numbers(html.unescape(instruction))
         .replace(" ,", ",")
         .replace(" ;", ";")
         .strip()
