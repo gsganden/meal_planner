@@ -66,10 +66,8 @@ def test_extract_recipe_ingredients(extracted_recipe_fixture):
     expected_data: dict
     extracted_recipe, expected_data = extracted_recipe_fixture
 
-    expected = sorted(
-        [i.lower().strip() for i in expected_data["expected_ingredients"] if i]
-    )
-    actual = sorted([i.lower().strip() for i in extracted_recipe.ingredients if i])
+    expected = sorted([i.lower() for i in expected_data["expected_ingredients"]])
+    actual = sorted([i.lower() for i in extracted_recipe.ingredients])
     assert actual == expected
 
 
