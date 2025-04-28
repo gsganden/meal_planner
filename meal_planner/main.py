@@ -1,8 +1,8 @@
 import html
+import json
 import logging
 import os
 import re
-import textwrap
 from pathlib import Path
 from typing import TypeVar
 
@@ -13,11 +13,14 @@ import instructor
 import monsterui.all as mu
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
+from starlette.datastructures import FormData
+from starlette.requests import Request
+
+from meal_planner.api.recipes import api_router, recipes_table
+from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = (
-    "20250428_165655__include_quantities_units_dont_mention_html.txt"
-)
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250428_205830__include_parens.txt"
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
 
@@ -36,8 +39,12 @@ openai_client = AsyncOpenAI(
 
 aclient = instructor.from_openai(openai_client)
 
+
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
+
+
+app.mount("/api/v1", api_router)
 
 
 def create_html_cleaner() -> html2text.HTML2Text:
@@ -117,38 +124,6 @@ def with_layout(content):
             fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
         ),
     )
-
-
-class Recipe(BaseModel):
-    name: str = Field(
-        ...,
-        description=(
-            textwrap.dedent(
-                """\
-                    The exact name of the dish as found in the text, including all
-                    punctuation. Should NOT include the word "recipe".
-                """
-            )
-        ),
-    )
-    ingredients: list[str] = Field(
-        description="List of ingredients for the recipe, as raw strings.",
-    )
-    instructions: list[str] = Field(
-        description=(
-            "List of instructions for the recipe, as Markdown-formatted strings."
-        ),
-    )
-
-    @property
-    def markdown(self) -> str:
-        ingredients_md = "\n".join([f"- {i}" for i in self.ingredients])
-        instructions_md = "\n".join([f"- {i}" for i in self.instructions])
-        return (
-            f"# {self.name}\n\n"
-            f"## Ingredients\n{ingredients_md}\n\n"
-            f"## Instructions\n{instructions_md}\n"
-        )
 
 
 @rt("/recipes/extract")
@@ -372,11 +347,14 @@ def _close_parenthesis(text: str) -> str:
     return text
 
 
+CSS_ERROR_CLASS = "text-red-500 mb-4"
+
+
 @rt("/recipes/fetch-text")
 async def post_fetch_text(recipe_url: str | None = None):
     if not recipe_url:
         logger.error("Fetch text called without URL.")
-        return fh.Div("Please provide a Recipe URL to fetch.", cls="text-red-500 mb-4")
+        return fh.Div("Please provide a Recipe URL to fetch.", cls=CSS_ERROR_CLASS)
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", recipe_url)
@@ -391,7 +369,7 @@ async def post_fetch_text(recipe_url: str | None = None):
         )
         return fh.Div(
             f"Error fetching URL: {e}. Check URL/connection.",
-            cls="text-red-500 mb-4",
+            cls=CSS_ERROR_CLASS,
         )
     except httpx.HTTPStatusError as e:
         logger.error(
@@ -399,18 +377,18 @@ async def post_fetch_text(recipe_url: str | None = None):
         )
         return fh.Div(
             f"HTTP Error {e.response.status_code} fetching URL.",
-            cls="text-red-500 mb-4",
+            cls=CSS_ERROR_CLASS,
         )
     except RuntimeError as e:
         logger.error(
             "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return fh.Div(f"Failed to process URL: {e}", cls="text-red-500 mb-4")
+        return fh.Div(f"Failed to process URL: {e}", cls=CSS_ERROR_CLASS)
     except Exception as e:
         logger.error(
             "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return fh.Div("Unexpected error fetching text.", cls="text-red-500 mb-4")
+        return fh.Div("Unexpected error fetching text.", cls=CSS_ERROR_CLASS)
 
     return mu.TextArea(
         cleaned_text,
@@ -445,6 +423,30 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             "Recipe extraction failed. An unexpected error occurred during processing."
         )
 
+    hidden_fields = (
+        fh.Input(type="hidden", name="name", value=processed_recipe.name),
+        *(
+            fh.Input(type="hidden", name="ingredients", value=ing)
+            for ing in processed_recipe.ingredients
+        ),
+        *(
+            fh.Input(type="hidden", name="instructions", value=inst)
+            for inst in processed_recipe.instructions
+        ),
+    )
+
+    save_button_container = fh.Div(
+        mu.Button(
+            "Save Recipe",
+            hx_post="/recipes/save",
+            hx_include="closest form",
+            hx_target="#save-button-container",
+            hx_swap="outerHTML",
+        ),
+        id="save-button-container",
+        cls="mt-4",
+    )
+
     return mu.Form(
         mu.TextArea(
             processed_recipe.markdown,
@@ -452,6 +454,42 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             id="recipe_text_display",
             name="recipe_text_display",
             rows=25,
+            disabled=True,
         ),
+        hidden_fields,
+        save_button_container,
         id="recipe-display-form",
     )
+
+
+@rt("/recipes/save")
+async def post_save_recipe(request: Request):
+    form_data: FormData = await request.form()
+
+    if not form_data.get("name") or not isinstance(form_data.get("name"), str):
+        return fh.Span(
+            "Error: Recipe name is required and must be text.", cls="text-red-500"
+        )
+    if not form_data.getlist("ingredients"):
+        return fh.Span("Error: Missing recipe ingredients.", cls="text-red-500")
+    if not form_data.getlist("instructions"):
+        return fh.Span("Error: Missing recipe instructions.", cls="text-red-500")
+
+    db_data = {
+        "name": form_data.get("name"),
+        "ingredients": json.dumps(form_data.getlist("ingredients")),
+        "instructions": json.dumps(form_data.getlist("instructions")),
+    }
+
+    try:
+        inserted_record = recipes_table.insert(db_data)
+        logger.info(
+            "Saved recipe via UI: %s, Name: %s",
+            inserted_record["id"],
+            form_data.get("name"),
+        )
+    except Exception as e:
+        logger.error("Database error saving recipe via UI: %s", e, exc_info=True)
+        return fh.Span("Error saving recipe to database.", cls="text-red-500")
+
+    return fh.Span("Recipe Saved Successfully!", cls="text-green-500")

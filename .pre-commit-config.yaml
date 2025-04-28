@@ -26,7 +26,7 @@ repos:
         stages: [pre-push]
     -   id: pytest
         name: Run tests and check coverage
-        entry: uv run pytest --cov=meal_planner --runslow --cov-fail-under=100
+        entry: uv run pytest -vv --cov=meal_planner --runslow --cov-fail-under=100
         language: system
         types: [python]
         pass_filenames: false
