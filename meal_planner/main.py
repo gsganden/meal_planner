@@ -20,9 +20,7 @@ from meal_planner.api.recipes import api_router, recipes_table
 from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = (
-    "20250428_165655__include_quantities_units_dont_mention_html.txt"
-)
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250428_205830__include_parens.txt"
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
 
