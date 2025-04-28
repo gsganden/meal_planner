@@ -3,10 +3,12 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import uuid
 from pathlib import Path
 from typing import TypeVar
 
+import apsw
 import fasthtml.common as fh
 import html2text
 import httpx
@@ -17,7 +19,7 @@ from pydantic import BaseModel, Field
 from starlette.datastructures import FormData
 from starlette.requests import Request
 
-from meal_planner.api.recipes import api_router, recipes_table
+from meal_planner.api.recipes import api_router, initialize_db
 from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
@@ -41,6 +43,7 @@ openai_client = AsyncOpenAI(
 )
 
 aclient = instructor.from_openai(openai_client)
+
 
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
@@ -349,6 +352,20 @@ def _close_parenthesis(text: str) -> str:
     return text
 
 
+RECIPE_NAMESPACE_UUID = uuid.UUID("a5c1f7d3-0e9c-4b8e-8b7e-7d3f2c8e0b3d")
+
+
+def _generate_recipe_id(name: str) -> str:
+    stripped_name = name.strip()
+    if not stripped_name:
+        raise ValueError(
+            "Recipe name cannot be empty or only whitespace for ID generation"
+        )
+
+    # Generate UUIDv5 based on the namespace and the stripped recipe name
+    return str(uuid.uuid5(RECIPE_NAMESPACE_UUID, stripped_name))
+
+
 @rt("/recipes/fetch-text")
 async def post_fetch_text(recipe_url: str | None = None):
     if not recipe_url:
@@ -463,15 +480,25 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
 
 @rt("/recipes/save")
 async def post_save_recipe(request: Request):
+    table = initialize_db()
     form_data: FormData = await request.form()
     name = form_data.get("name")
     ingredients = form_data.getlist("ingredients")
     instructions = form_data.getlist("instructions")
 
-    if not name or not ingredients or not instructions:
-        return fh.Span("Error: Missing recipe data.", cls="text-red-500")
+    if not name:
+        return fh.Span("Error: Recipe name is required.", cls="text-red-500")
+    if not ingredients or not instructions:
+        return fh.Span(
+            "Error: Missing recipe ingredients or instructions.", cls="text-red-500"
+        )
 
-    new_id = uuid.uuid4()
+    try:
+        new_id = _generate_recipe_id(name)
+    except ValueError as e:
+        logger.error("Error generating recipe ID for save: %s", e, exc_info=False)
+        return fh.Span(f"Error: {e}", cls="text-red-500")
+
     db_data = {
         "id": new_id,
         "name": name,
@@ -480,8 +507,25 @@ async def post_save_recipe(request: Request):
     }
 
     try:
-        recipes_table.insert(db_data)
+        table.insert(db_data)
         logger.info("Saved recipe via UI: %s, Name: %s", new_id, name)
+    except apsw.ConstraintError as e:
+        if "UNIQUE constraint failed: recipes.id" in str(e):
+            logger.warning(
+                "Attempted to save duplicate recipe name via UI: %s (ID: %s)",
+                name,
+                new_id,
+            )
+            return fh.Span(
+                "Error: A recipe with this name already exists.", cls="text-red-500"
+            )
+        else:
+            logger.error(
+                "Database constraint error saving recipe via UI: %s", e, exc_info=True
+            )
+            return fh.Span(
+                "Error saving recipe due to data conflict.", cls="text-red-500"
+            )
     except Exception as e:
         logger.error("Database error saving recipe via UI: %s", e, exc_info=True)
         return fh.Span("Error saving recipe to database.", cls="text-red-500")

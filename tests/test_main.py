@@ -16,6 +16,7 @@ from meal_planner.main import (
     fetch_and_clean_text_from_url,
     fetch_page_text,
     postprocess_recipe,
+    _generate_recipe_id,
 )
 from meal_planner.models import Recipe as ModelRecipe
 
@@ -23,8 +24,7 @@ TRANSPORT = ASGITransport(app=app)
 CLIENT = AsyncClient(transport=TRANSPORT, base_url="http://test")
 TEST_URL = "http://test-recipe.com"
 
-# Re-use test db setup logic (or potentially move to conftest.py later)
-TEST_DB_PATH = Path("test_meal_planner.db")  # Use same test DB
+TEST_DB_PATH = Path("test_meal_planner.db")
 
 
 @pytest.fixture(scope="session")
@@ -488,10 +488,21 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session):
 
 
 @pytest.mark.anyio
-async def test_save_recipe_missing_data(client: AsyncClient):
+async def test_save_recipe_missing_ingredients_instructions(client: AsyncClient):
+    # Test case: Missing ingredients and instructions
     response = await client.post("/recipes/save", data={"name": "Only Name"})
     assert response.status_code == 200
-    assert "Error: Missing recipe data." in response.text
+    assert "Error: Missing recipe ingredients or instructions." in response.text
+
+
+@pytest.mark.anyio
+async def test_save_recipe_missing_name(client: AsyncClient):
+    # Test case: Missing name
+    response = await client.post(
+        "/recipes/save", data={"ingredients": ["i"], "instructions": ["s"]}
+    )
+    assert response.status_code == 200
+    assert "Error: Recipe name is required." in response.text
 
 
 @pytest.mark.anyio
@@ -510,3 +521,50 @@ async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
     response = await client.post("/recipes/save", data=form_data)
     assert response.status_code == 200
     assert "Error saving recipe to database." in response.text
+
+
+@pytest.mark.anyio
+async def test_save_recipe_duplicate_name(client: AsyncClient):
+    form_data = {
+        "name": "Duplicate Recipe Test",
+        "ingredients": ["ing1", "ing2"],
+        "instructions": ["step1", "step2"],
+    }
+
+    response1 = await client.post("/recipes/save", data=form_data)
+    assert response1.status_code == 200
+    assert "Recipe Saved Successfully!" in response1.text
+
+    response2 = await client.post("/recipes/save", data=form_data)
+    assert response2.status_code == 200
+    assert "Error: A recipe with this name already exists." in response2.text
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Simple Pasta",
+        "  Chicken Curry!! ",
+        "Crème Brûlée",
+        "Multiple   Spaces",
+        "Leading-Trailing-",
+        # Add more diverse valid names if needed
+    ],
+)
+def test_generate_recipe_id_valid_deterministic(name):
+    id1 = _generate_recipe_id(name)
+    id2 = _generate_recipe_id(name)
+    assert id1 == id2
+    try:
+        uuid.UUID(id1, version=5)
+    except ValueError:
+        pytest.fail(f"Generated ID '{id1}' is not a valid UUID string.")
+
+
+@pytest.mark.parametrize("name", ["", "   "])
+def test_generate_recipe_id_invalid(name):
+    with pytest.raises(
+        ValueError,
+        match="Recipe name cannot be empty or only whitespace for ID generation",
+    ):
+        _generate_recipe_id(name)

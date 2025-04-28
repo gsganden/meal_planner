@@ -22,6 +22,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "coverage",
+    "datasette",
     "httpx",
     "jupyter",
     "pre-commit",
@@ -52,11 +53,6 @@ known-first-party = ["meal_planner"]
 
 [tool.pyright]
 reportRedeclaration = false
-
-[tool.pytest.ini_options]
-# cov_report_exclude_lines = [
-#     "pragma: no cover",
-# ]
 
 [tool.coverage.report]
 exclude_lines = [

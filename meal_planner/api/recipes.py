@@ -1,6 +1,7 @@
 import json
 import logging
 import uuid
+from pathlib import Path
 
 from fastlite import database
 from pydantic import ValidationError
@@ -13,23 +14,36 @@ from meal_planner.models import Recipe, RecipeRead
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = "meal_planner.db"
-db = database(DB_PATH)
+VOLUME_MOUNT_PATH = Path("/data")
+DB_PATH = VOLUME_MOUNT_PATH / "meal_planner.db"
 
-recipes_table = db.t.recipes
+# Global variables for database and table, initialized lazily
+db = None
+recipes_table = None
 
-recipes_table.create(
-    id=uuid.UUID,
-    name=str,
-    ingredients=str,
-    instructions=str,
-    pk="id",
-    replace=False,
-    if_not_exists=True,
-)
+
+def initialize_db():
+    global db, recipes_table
+    if db is None:
+        logger.info(f"Initializing database connection to: {DB_PATH}")
+        # Assuming /data exists due to deploy.py
+        db = database(DB_PATH)
+        recipes_table = db.t.recipes
+        recipes_table.create(
+            id=uuid.UUID,
+            name=str,
+            ingredients=str,
+            instructions=str,
+            pk="id",
+            replace=False,
+            if_not_exists=True,
+        )
+        logger.info(f"Database initialized and table ensured: {recipes_table}")
+    return recipes_table
 
 
 async def create_recipe(request: Request):
+    table = initialize_db()  # Get table, ensuring DB is initialized
     try:
         payload = await request.json()
         recipe_data = Recipe.model_validate(payload)
@@ -50,7 +64,7 @@ async def create_recipe(request: Request):
     }
 
     try:
-        recipes_table.insert(db_data)
+        table.insert(db_data)  # Use the local 'table' variable
     except Exception as e:
         logger.error("Database error inserting recipe: %s", e, exc_info=True)
         raise HTTPException(
