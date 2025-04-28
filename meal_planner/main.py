@@ -347,11 +347,14 @@ def _close_parenthesis(text: str) -> str:
     return text
 
 
+CSS_ERROR_CLASS = "text-red-500 mb-4"
+
+
 @rt("/recipes/fetch-text")
 async def post_fetch_text(recipe_url: str | None = None):
     if not recipe_url:
         logger.error("Fetch text called without URL.")
-        return fh.Div("Please provide a Recipe URL to fetch.", cls="text-red-500 mb-4")
+        return fh.Div("Please provide a Recipe URL to fetch.", cls=CSS_ERROR_CLASS)
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", recipe_url)
@@ -366,7 +369,7 @@ async def post_fetch_text(recipe_url: str | None = None):
         )
         return fh.Div(
             f"Error fetching URL: {e}. Check URL/connection.",
-            cls="text-red-500 mb-4",
+            cls=CSS_ERROR_CLASS,
         )
     except httpx.HTTPStatusError as e:
         logger.error(
@@ -374,18 +377,18 @@ async def post_fetch_text(recipe_url: str | None = None):
         )
         return fh.Div(
             f"HTTP Error {e.response.status_code} fetching URL.",
-            cls="text-red-500 mb-4",
+            cls=CSS_ERROR_CLASS,
         )
     except RuntimeError as e:
         logger.error(
             "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return fh.Div(f"Failed to process URL: {e}", cls="text-red-500 mb-4")
+        return fh.Div(f"Failed to process URL: {e}", cls=CSS_ERROR_CLASS)
     except Exception as e:
         logger.error(
             "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return fh.Div("Unexpected error fetching text.", cls="text-red-500 mb-4")
+        return fh.Div("Unexpected error fetching text.", cls=CSS_ERROR_CLASS)
 
     return mu.TextArea(
         cleaned_text,

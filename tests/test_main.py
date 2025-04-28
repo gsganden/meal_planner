@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient, Request, Response
 import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
 from meal_planner.main import (
+    CSS_ERROR_CLASS,
     Recipe,
     app,
     fetch_and_clean_text_from_url,
@@ -20,6 +21,17 @@ from meal_planner.models import Recipe as ModelRecipe
 TRANSPORT = ASGITransport(app=app)
 TEST_URL = "http://test-recipe.com"
 
+RECIPES_EXTRACT_URL = "/recipes/extract"
+RECIPES_FETCH_TEXT_URL = "/recipes/fetch-text"
+RECIPES_EXTRACT_RUN_URL = "/recipes/extract/run"
+RECIPES_SAVE_URL = "/recipes/save"
+
+FIELD_RECIPE_URL = "recipe_url"
+FIELD_RECIPE_TEXT = "recipe_text"
+FIELD_NAME = "name"
+FIELD_INGREDIENTS = "ingredients"
+FIELD_INSTRUCTIONS = "instructions"
+
 
 @pytest.mark.anyio
 class TestSmokeEndpoints:
@@ -29,15 +41,15 @@ class TestSmokeEndpoints:
         assert "Meal Planner" in response.text
 
     async def test_extract_recipe_page_loads(self, client: AsyncClient):
-        response = await client.get("/recipes/extract")
+        response = await client.get(RECIPES_EXTRACT_URL)
         assert response.status_code == 200
         assert 'id="recipe_url"' in response.text
         assert 'placeholder="Enter recipe URL (optional)' in response.text
-        assert 'hx-post="/recipes/fetch-text"' in response.text
+        assert f'hx-post="{RECIPES_FETCH_TEXT_URL}"' in response.text
         assert "Fetch Text from URL" in response.text
         assert 'id="recipe_text"' in response.text
         assert 'placeholder="Paste recipe text here' in response.text
-        assert 'hx-post="/recipes/extract/run"' in response.text
+        assert f'hx-post="{RECIPES_EXTRACT_RUN_URL}"' in response.text
         assert "Extract Recipe" in response.text
         assert 'id="recipe-results"' in response.text
 
@@ -58,92 +70,80 @@ class TestRecipeFetchTextEndpoint:
         mock_fetch_clean.return_value = mock_text
 
         response = await client.post(
-            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
+            RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
         )
 
         assert response.status_code == 200
         mock_fetch_clean.assert_called_once_with(self.TEST_URL)
-        # Check that the response text contains the key parts of the textarea
         assert "<textarea" in response.text
-        assert 'id="recipe_text"' in response.text
-        assert 'name="recipe_text"' in response.text
+        assert f'id="{FIELD_RECIPE_TEXT}"' in response.text
+        assert f'name="{FIELD_RECIPE_TEXT}"' in response.text
         assert ">Fetched and cleaned recipe text.</textarea>" in response.text
         assert 'label="Recipe Text (Fetched or Manual)"' in response.text
 
     async def test_missing_url(self, client: AsyncClient):
-        response = await client.post("/recipes/fetch-text", data={})
+        response = await client.post(RECIPES_FETCH_TEXT_URL, data={})
         assert response.status_code == 200
         assert "Please provide a Recipe URL to fetch." in response.text
-        assert 'class="text-red-500 mb-4"' in response.text
+        assert f'class="{CSS_ERROR_CLASS}"' in response.text
 
+    @pytest.mark.parametrize(
+        "exception_type, exception_args, expected_message",
+        [
+            (
+                httpx.RequestError,
+                ("Network connection failed",),  # request=None is default
+                "Error fetching URL: Network connection failed. Check URL/connection.",
+            ),
+            (
+                httpx.HTTPStatusError,
+                (
+                    "404 Client Error",
+                    {
+                        "request": Request("GET", TEST_URL),
+                        "response": Response(404, request=Request("GET", TEST_URL)),
+                    },
+                ),
+                "HTTP Error 404 fetching URL.",
+            ),
+            (
+                RuntimeError,
+                ("Processing failed",),
+                "Failed to process URL: Processing failed",
+            ),
+            (
+                Exception,
+                ("Unexpected error",),
+                "Unexpected error fetching text.",
+            ),
+        ],
+    )
     @patch("meal_planner.main.logger.error")
-    async def test_request_error(
-        self, mock_logger_error, client: AsyncClient, mock_fetch_clean
+    async def test_fetch_text_errors(
+        self,
+        mock_logger_error,
+        client: AsyncClient,
+        mock_fetch_clean,
+        exception_type,
+        exception_args,
+        expected_message,
     ):
-        error_message = "Network connection failed"
-        mock_fetch_clean.side_effect = httpx.RequestError(error_message, request=None)
+        if exception_type == httpx.HTTPStatusError:
+            error_instance = exception_type(exception_args[0], **exception_args[1])
+        elif exception_type == httpx.RequestError:
+            error_instance = exception_type(exception_args[0], request=None)
+        else:
+            error_instance = exception_type(*exception_args)
+
+        mock_fetch_clean.side_effect = error_instance
 
         response = await client.post(
-            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
+            RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
         )
 
         assert response.status_code == 200
-        expected_text = f"Error fetching URL: {error_message}. Check URL/connection."
-        assert expected_text in response.text
-        assert 'class="text-red-500 mb-4"' in response.text
-        mock_logger_error.assert_called_once()
-
-    @patch("meal_planner.main.logger.error")
-    async def test_status_error(
-        self, mock_logger_error, client: AsyncClient, mock_fetch_clean
-    ):
-        status_code = 404
-        mock_request = Request("GET", self.TEST_URL)
-        mock_response = Response(status_code, request=mock_request)
-        mock_fetch_clean.side_effect = httpx.HTTPStatusError(
-            f"{status_code} Client Error", request=mock_request, response=mock_response
-        )
-
-        response = await client.post(
-            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
-        )
-
-        assert response.status_code == 200
-        expected_text = f"HTTP Error {status_code} fetching URL."
-        assert expected_text in response.text
-        assert 'class="text-red-500 mb-4"' in response.text
-        mock_logger_error.assert_called_once()
-
-    @patch("meal_planner.main.logger.error")
-    async def test_runtime_error(
-        self, mock_logger_error, client: AsyncClient, mock_fetch_clean
-    ):
-        error_message = "Processing failed"
-        mock_fetch_clean.side_effect = RuntimeError(error_message)
-
-        response = await client.post(
-            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
-        )
-
-        assert response.status_code == 200
-        expected_text = f"Failed to process URL: {error_message}"
-        assert expected_text in response.text
-        assert 'class="text-red-500 mb-4"' in response.text
-        mock_logger_error.assert_called_once()
-
-    @patch("meal_planner.main.logger.error")
-    async def test_generic_exception(
-        self, mock_logger_error, client: AsyncClient, mock_fetch_clean
-    ):
-        mock_fetch_clean.side_effect = Exception("Unexpected error")
-
-        response = await client.post(
-            "/recipes/fetch-text", data={"recipe_url": self.TEST_URL}
-        )
-
-        assert response.status_code == 200
-        assert "Unexpected error fetching text." in response.text
-        assert 'class="text-red-500 mb-4"' in response.text
+        assert expected_message in response.text
+        assert f'class="{CSS_ERROR_CLASS}"' in response.text
         mock_logger_error.assert_called_once()
 
 
@@ -155,9 +155,7 @@ class TestRecipeExtractRunEndpoint:
             yield mock_llm
 
     async def test_success(self, client: AsyncClient, mock_call_llm):
-        """Test successful recipe extraction using direct text input."""
-        test_text = "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First step "
-        "text, Step 2: Second step text"
+        test_text = "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First step text, Step 2: Second step text"
         mock_call_llm.return_value = Recipe(
             name="Text Input Success Name",
             ingredients=["ingA", "ingB"],
@@ -165,7 +163,7 @@ class TestRecipeExtractRunEndpoint:
         )
 
         response = await client.post(
-            "/recipes/extract/run", data={"recipe_text": test_text}
+            RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
         )
         assert response.status_code == 200
         mock_call_llm.assert_called_once_with(
@@ -181,13 +179,11 @@ class TestRecipeExtractRunEndpoint:
         assert "Actual step B" in response.text
 
     async def test_extraction_error(self, client: AsyncClient, mock_call_llm):
-        """Test POST /run handles exceptions from call_llm (via
-        extract_recipe_from_text)."""
         test_text = "Some recipe text that causes an LLM error."
         mock_call_llm.side_effect = Exception("LLM failed on text input")
 
         response = await client.post(
-            "/recipes/extract/run", data={"recipe_text": test_text}
+            RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
         )
         assert response.status_code == 200
         expected_error_msg = (
@@ -197,8 +193,7 @@ class TestRecipeExtractRunEndpoint:
         mock_call_llm.assert_called_once()
 
     async def test_no_text_input_provided(self, client: AsyncClient):
-        """Test POST /run returns error if recipe_text is not provided."""
-        response = await client.post("/recipes/extract/run", data={})
+        response = await client.post(RECIPES_EXTRACT_RUN_URL, data={})
 
         assert response.status_code == 200
         expected_error_msg = "No text content provided for extraction."
@@ -223,7 +218,6 @@ class TestFetchPageText:
             yield mock_client_class, mock_client, mock_response
 
     async def test_fetch_page_text_success(self, mock_httpx_client):
-        """Test fetch_page_text successfully returns page content."""
         mock_client_class, mock_client, mock_response = mock_httpx_client
         test_url = "http://example.com/success"
 
@@ -235,7 +229,6 @@ class TestFetchPageText:
         mock_response.raise_for_status.assert_called_once()
 
     async def test_fetch_page_text_http_error(self, mock_httpx_client):
-        """Test fetch_page_text raises HTTPStatusError correctly."""
         mock_client_class, mock_client, mock_response = mock_httpx_client
         test_url = "http://example.com/notfound"
         dummy_request = httpx.Request("GET", test_url)
@@ -251,7 +244,6 @@ class TestFetchPageText:
         mock_response.raise_for_status.assert_called_once()
 
     async def test_fetch_page_text_request_error(self, mock_httpx_client):
-        """Test fetch_page_text raises RequestError correctly."""
         mock_client_class, mock_client, mock_response = mock_httpx_client
         test_url = "http://example.com/networkfail"
         dummy_request = httpx.Request("GET", test_url)
@@ -287,16 +279,17 @@ class TestFetchAndCleanTextFromUrl:
     ):
         test_url = "http://example.com/req_error"
         dummy_request = httpx.Request("GET", test_url)
-        mock_fetch_page_text.side_effect = httpx.RequestError(
-            "ReqErr", request=dummy_request
-        )
+        exception = httpx.RequestError("ReqErr", request=dummy_request)
+        mock_fetch_page_text.side_effect = exception
 
         with pytest.raises(httpx.RequestError):
             await fetch_and_clean_text_from_url(test_url)
 
-        mock_logger_error.assert_called_once()
-        assert (
-            "HTTP Request Error fetching page text" in mock_logger_error.call_args[0][0]
+        mock_logger_error.assert_called_once_with(
+            "HTTP Request Error fetching page text from %s: %s",
+            test_url,
+            exception,
+            exc_info=True,
         )
         mock_html_cleaner.assert_not_called()
 
@@ -307,16 +300,19 @@ class TestFetchAndCleanTextFromUrl:
         test_url = "http://example.com/status_error"
         dummy_request = httpx.Request("GET", test_url)
         mock_response = httpx.Response(404, request=dummy_request)
-        mock_fetch_page_text.side_effect = httpx.HTTPStatusError(
+        exception = httpx.HTTPStatusError(
             "Not Found", request=dummy_request, response=mock_response
         )
+        mock_fetch_page_text.side_effect = exception
 
         with pytest.raises(httpx.HTTPStatusError):
             await fetch_and_clean_text_from_url(test_url)
 
-        mock_logger_error.assert_called_once()
-        assert (
-            "HTTP Status Error fetching page text" in mock_logger_error.call_args[0][0]
+        mock_logger_error.assert_called_once_with(
+            "HTTP Status Error fetching page text from %s: %s",
+            test_url,
+            exception,
+            exc_info=True,
         )
         mock_html_cleaner.assert_not_called()
 
@@ -325,77 +321,42 @@ class TestFetchAndCleanTextFromUrl:
         self, mock_logger_error, mock_fetch_page_text, mock_html_cleaner
     ):
         test_url = "http://example.com/generic_error"
-        mock_fetch_page_text.side_effect = Exception("Generic Error")
+        exception = Exception("Generic Error")
+        mock_fetch_page_text.side_effect = exception
 
         with pytest.raises(RuntimeError, match=r"Failed to fetch or process URL"):
             await fetch_and_clean_text_from_url(test_url)
 
-        mock_logger_error.assert_called_once()
-        assert "Error fetching page text" in mock_logger_error.call_args[0][0]
+        mock_logger_error.assert_called_once_with(
+            "Error fetching page text from %s: %s", test_url, exception, exc_info=True
+        )
         mock_html_cleaner.assert_not_called()
 
 
 class TestPostprocessRecipeName:
-    # Provide dummy non-empty lists for tests focusing on name processing
     DUMMY_INGREDIENTS = ["dummy ingredient"]
     DUMMY_INSTRUCTIONS = ["dummy instruction"]
 
-    def test_strips_and_titlecases(self):
-        """Test postprocess_recipe title-cases and strips whitespace."""
+    @pytest.mark.parametrize(
+        "input_name, expected_name",
+        [
+            ("  my awesome cake  ", "My Awesome Cake"),
+            ("Another Example recipe ", "Another Example"),
+            ("Another Example Recipe ", "Another Example"),
+            ("", ""),
+            ("Recipe (unclosed", "Recipe (Unclosed)"),
+        ],
+    )
+    def test_postprocess_recipe_name(self, input_name: str, expected_name: str):
         input_recipe = Recipe(
-            name="  my awesome cake  ",
+            name=input_name,
             ingredients=self.DUMMY_INGREDIENTS,
             instructions=self.DUMMY_INSTRUCTIONS,
         )
-        expected_name = "My Awesome Cake"
-        processed_recipe = postprocess_recipe(input_recipe)
-        assert processed_recipe.name == expected_name
-
-    def test_removes_recipe_suffix_lowercase(self):
-        """Test postprocess_recipe removes lowercase 'recipe' suffix."""
-        input_recipe = Recipe(
-            name="Another Example recipe ",
-            ingredients=self.DUMMY_INGREDIENTS,
-            instructions=self.DUMMY_INSTRUCTIONS,
-        )
-        expected_name = "Another Example"
-        processed_recipe = postprocess_recipe(input_recipe)
-        assert processed_recipe.name == expected_name
-
-    def test_removes_recipe_suffix_titlecase(self):
-        """Test postprocess_recipe removes title-case 'Recipe' suffix."""
-        input_recipe = Recipe(
-            name="Another Example Recipe ",
-            ingredients=self.DUMMY_INGREDIENTS,
-            instructions=self.DUMMY_INSTRUCTIONS,
-        )
-        expected_name = "Another Example"
-        processed_recipe = postprocess_recipe(input_recipe)
-        assert processed_recipe.name == expected_name
-
-    def test_handles_empty_name(self):
-        """Test postprocess_recipe handles an empty name string."""
-        input_recipe = Recipe(
-            name="",
-            ingredients=self.DUMMY_INGREDIENTS,
-            instructions=self.DUMMY_INSTRUCTIONS,
-        )
-        processed_recipe = postprocess_recipe(input_recipe)
-        assert processed_recipe.name == ""
-
-    def test_closes_parenthesis(self):
-        """Test postprocess_recipe adds a closing parenthesis if missing."""
-        input_recipe = Recipe(
-            name="Recipe (unclosed",
-            ingredients=self.DUMMY_INGREDIENTS,
-            instructions=self.DUMMY_INSTRUCTIONS,
-        )
-        expected_name = "Recipe (Unclosed)"
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == expected_name
 
 
-# Example Mock Recipe Data
 mock_recipe_data = ModelRecipe(
     name="Mock Recipe",
     ingredients=["mock ingredient 1", "mock ingredient 2"],
@@ -411,84 +372,84 @@ async def test_extract_run_returns_save_form(client: AsyncClient, monkeypatch):
     monkeypatch.setattr(main_module, "extract_recipe_from_text", mock_extract)
 
     response = await client.post(
-        "/recipes/extract/run", data={"recipe_text": "some text"}
+        RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: "some text"}
     )
     assert response.status_code == 200
     html_content = response.text
 
-    # Check for hidden fields
     assert (
-        f'<input type="hidden" name="name" value="{mock_recipe_data.name}">'
+        f'<input type="hidden" name="{FIELD_NAME}" value="{mock_recipe_data.name}">'
         in html_content
     )
     for ing in mock_recipe_data.ingredients:
-        assert f'<input type="hidden" name="ingredients" value="{ing}">' in html_content
+        assert (
+            f'<input type="hidden" name="{FIELD_INGREDIENTS}" value="{ing}">'
+            in html_content
+        )
     for inst in mock_recipe_data.instructions:
         assert (
-            f'<input type="hidden" name="instructions" value="{inst}">' in html_content
+            f'<input type="hidden" name="{FIELD_INSTRUCTIONS}" value="{inst}">'
+            in html_content
         )
 
-    # Check for save button
-    assert '<button hx-post="/recipes/save"' in html_content
+    assert f'<button hx-post="{RECIPES_SAVE_URL}"' in html_content
     assert ">Save Recipe</button>" in html_content
 
 
 @pytest.mark.anyio
 async def test_save_recipe_success(client: AsyncClient, test_db_session):
-    db_path = test_db_session  # Get the path from the fixture
+    db_path = test_db_session
 
     form_data = {
-        "name": "Saved Recipe Name",
-        "ingredients": ["saved ing 1", "saved ing 2"],
-        "instructions": ["saved inst 1", "saved inst 2"],
+        FIELD_NAME: "Saved Recipe Name",
+        FIELD_INGREDIENTS: ["saved ing 1", "saved ing 2"],
+        FIELD_INSTRUCTIONS: ["saved inst 1", "saved inst 2"],
     }
 
-    response = await client.post("/recipes/save", data=form_data)
+    response = await client.post(RECIPES_SAVE_URL, data=form_data)
 
     assert response.status_code == 200
     assert "Recipe Saved Successfully!" in response.text
 
-    # Verify data in DB using the yielded path
     verify_db = database(db_path)
     verify_table = verify_db.t.recipes
     all_recipes = verify_table()
     assert len(all_recipes) == 1
     saved_db_recipe = all_recipes[0]
-    verify_db.conn.close()  # Close the verification connection
+    verify_db.conn.close()
 
-    assert saved_db_recipe["name"] == form_data["name"]
-    assert json.loads(saved_db_recipe["ingredients"]) == form_data["ingredients"]
-    assert json.loads(saved_db_recipe["instructions"]) == form_data["instructions"]
-    # Verify ID is an integer
+    assert saved_db_recipe[FIELD_NAME] == form_data[FIELD_NAME]
+    assert (
+        json.loads(saved_db_recipe[FIELD_INGREDIENTS]) == form_data[FIELD_INGREDIENTS]
+    )
+    assert (
+        json.loads(saved_db_recipe[FIELD_INSTRUCTIONS]) == form_data[FIELD_INSTRUCTIONS]
+    )
     recipe_id = saved_db_recipe["id"]
     assert isinstance(recipe_id, int)
 
 
 @pytest.mark.anyio
-async def test_save_recipe_missing_ingredients_instructions(client: AsyncClient):
-    # Test case: Missing ingredients and instructions
-    response = await client.post("/recipes/save", data={"name": "Only Name"})
+@pytest.mark.parametrize(
+    "form_data, expected_error",
+    [
+        ({FIELD_NAME: "Only Name"}, "Error: Missing recipe ingredients."),
+        (
+            {FIELD_NAME: "Name and Ing", FIELD_INGREDIENTS: ["ing1"]},
+            "Error: Missing recipe instructions.",
+        ),
+        (
+            {FIELD_INGREDIENTS: ["i"], FIELD_INSTRUCTIONS: ["s"]},
+            "Error: Recipe name is required and must be text.",
+        ),
+    ],
+)
+async def test_save_recipe_missing_data(
+    client: AsyncClient, form_data: dict, expected_error: str
+):
+    response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
-    assert "Error: Missing recipe ingredients." in response.text
-
-
-@pytest.mark.anyio
-async def test_save_recipe_missing_instructions(client: AsyncClient):
-    response = await client.post(
-        "/recipes/save", data={"name": "Name and Ing", "ingredients": ["ing1"]}
-    )
-    assert response.status_code == 200
-    assert "Error: Missing recipe instructions." in response.text
-
-
-@pytest.mark.anyio
-async def test_save_recipe_missing_name(client: AsyncClient):
-    # Test case: Missing name
-    response = await client.post(
-        "/recipes/save", data={"ingredients": ["i"], "instructions": ["s"]}
-    )
-    assert response.status_code == 200
-    assert "Error: Recipe name is required and must be text." in response.text
+    assert expected_error in response.text
 
 
 @pytest.mark.anyio
@@ -499,10 +460,10 @@ async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
     monkeypatch.setattr(api_recipes_module.recipes_table, "insert", mock_insert_fail)
 
     form_data = {
-        "name": "DB Error Recipe",
-        "ingredients": ["i1"],
-        "instructions": ["s1"],
+        FIELD_NAME: "DB Error Recipe",
+        FIELD_INGREDIENTS: ["i1"],
+        FIELD_INSTRUCTIONS: ["s1"],
     }
-    response = await client.post("/recipes/save", data=form_data)
+    response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
     assert "Error saving recipe to database." in response.text
