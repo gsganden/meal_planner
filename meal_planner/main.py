@@ -665,14 +665,12 @@ async def post_save_recipe(request: Request):
         )
     except Exception as e:
         logger.error("Database error saving recipe via UI: %s", e, exc_info=True)
-        # Target the specific button container
         return fh.Span(
             "Error saving recipe.",
             cls=CSS_ERROR_CLASS,
             id="save-modified-button-container",
         )
 
-    # Target the specific button container
     return fh.Span(
         "Modified Recipe Saved!",
         cls="text-green-500",
