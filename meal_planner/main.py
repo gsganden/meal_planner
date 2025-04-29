@@ -702,7 +702,9 @@ async def post_modify_recipe(request: Request):
     logger.info("Modifying recipe with prompt: %s", modification_prompt)
 
     try:
-        modification_template = (PROMPT_DIR / "recipe_modification.txt").read_text()
+        modification_template = (
+            PROMPT_DIR / "recipe_modification" / "20250429_183353__initial.txt"
+        ).read_text()
 
         modification_full_prompt = modification_template.format(
             current_recipe_markdown=current_recipe.markdown,
