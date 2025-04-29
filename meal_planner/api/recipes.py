@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 LOCAL_DB_PATH = Path("meal_planner_local.db")
 DB_PATH = Path(os.environ.get("MEAL_PLANNER_DB_PATH", str(LOCAL_DB_PATH)))
 
-logger.info(f"Using database path: {DB_PATH}")
 logger.info(f"Absolute database path: {DB_PATH.resolve()}")
 
 if DB_PATH == LOCAL_DB_PATH:
