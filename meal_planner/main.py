@@ -49,7 +49,7 @@ api_app = FastAPI()
 api_app.include_router(api_router)
 
 # Mount the FastAPI app onto the main FastHTML app
-app.mount("/api/v1", api_app)
+app.mount("/api", api_app)
 
 
 def create_html_cleaner() -> html2text.HTML2Text:

@@ -37,7 +37,7 @@ api_router = APIRouter()
 
 
 @api_router.post(
-    "/recipes",
+    "/v1/recipes",
     status_code=status.HTTP_201_CREATED,
     response_model=RecipeRead,
 )
