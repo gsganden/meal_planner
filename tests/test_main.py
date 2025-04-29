@@ -544,8 +544,8 @@ class TestRecipeModifyEndpoint:
 
         # Check response HTML contains the *modified* recipe in hidden fields
         assert (
-            f'<input type="hidden" name="{FIELD_NAME}" value="{mock_llm_modified_recipe.name}">'
-            in response.text
+            f'<input type="hidden" name="{FIELD_NAME}"'
+            f' value="{mock_llm_modified_recipe.name}">' in response.text
         )
         for ing in mock_llm_modified_recipe.ingredients:
             assert (
@@ -559,8 +559,8 @@ class TestRecipeModifyEndpoint:
             )
         # Check original recipe data is still present for diffing/reference
         assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}" value="{mock_original_recipe.name}">'
-            in response.text
+            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
+            f' value="{mock_original_recipe.name}">' in response.text
         )
         # Removed checks for visual diff text
 
@@ -574,12 +574,12 @@ class TestRecipeModifyEndpoint:
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
         # Ensure original and current (pre-modify) recipes are still in the form
         assert (
-            f'<input type="hidden" name="{FIELD_NAME}" value="{mock_current_recipe_before_modify.name}">'
-            in response.text
+            f'<input type="hidden" name="{FIELD_NAME}"'
+            f' value="{mock_current_recipe_before_modify.name}">' in response.text
         )
         assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}" value="{mock_original_recipe.name}">'
-            in response.text
+            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
+            f' value="{mock_original_recipe.name}">' in response.text
         )
         mock_call_llm.assert_not_called()
 
@@ -597,12 +597,12 @@ class TestRecipeModifyEndpoint:
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
         # Ensure original and current (pre-modify) recipes are still in the form
         assert (
-            f'<input type="hidden" name="{FIELD_NAME}" value="{mock_current_recipe_before_modify.name}">'
-            in response.text
+            f'<input type="hidden" name="{FIELD_NAME}"'
+            f' value="{mock_current_recipe_before_modify.name}">' in response.text
         )
         assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}" value="{mock_original_recipe.name}">'
-            in response.text
+            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
+            f' value="{mock_original_recipe.name}">' in response.text
         )
         mock_call_llm.assert_called_once()
 
