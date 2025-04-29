@@ -13,7 +13,6 @@ import httpx
 import instructor
 import monsterui.all as mu
 from fastapi import FastAPI
-from fasthtml.common import NotStr
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from starlette.datastructures import FormData
@@ -447,7 +446,7 @@ def _build_diff_content(original_recipe: Recipe, current_text: str):
     before_area = fh.Div(
         fh.Strong("Original Recipe"),
         fh.Pre(
-            fh.Html(NotStr(before_html)),
+            fh.Html(fh.NotStr(before_html)),
             cls="border p-2 rounded bg-gray-50 mt-1 overflow-auto",
             id="diff-before-pre",
             style=pre_style,
@@ -457,7 +456,7 @@ def _build_diff_content(original_recipe: Recipe, current_text: str):
     after_area = fh.Div(
         fh.Strong("Current Recipe"),
         fh.Pre(
-            fh.Html(NotStr(after_html)),
+            fh.Html(fh.NotStr(after_html)),
             cls="border p-2 rounded bg-gray-50 mt-1 overflow-auto",
             id="diff-after-pre",
             style=pre_style,
