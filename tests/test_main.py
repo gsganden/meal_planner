@@ -393,7 +393,7 @@ async def test_extract_run_returns_save_form(
 
     assert (
         f'<input type="hidden" name="{FIELD_NAME}" '
-        'value="{mock_recipe_data_fixture.name}">' in html_content
+        f'value="{mock_recipe_data_fixture.name}">' in html_content
     )
     for ing in mock_recipe_data_fixture.ingredients:
         assert (
