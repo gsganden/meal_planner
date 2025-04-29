@@ -691,14 +691,13 @@ async def post_modify_recipe(request: Request):
         error_message = fh.Div(
             "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
         )
-        # Ensure modification_prompt is a string before passing
         mod_prompt_str = (
             modification_prompt if isinstance(modification_prompt, str) else ""
         )
         form_content = _build_edit_review_form(
             current_recipe, original_recipe, mod_prompt_str, error_message
         )
-        return form_content.children[0]  # Assuming form is the first child of the Div
+        return form_content.children[0]
 
     logger.info("Modifying recipe with prompt: %s", modification_prompt)
 
@@ -728,14 +727,13 @@ async def post_modify_recipe(request: Request):
             "Recipe modification failed. An unexpected error occurred.",
             cls=f"{CSS_ERROR_CLASS} mt-2",
         )
-        # Ensure modification_prompt is a string before passing
         mod_prompt_str = (
             modification_prompt if isinstance(modification_prompt, str) else ""
         )
         form_content = _build_edit_review_form(
             current_recipe, original_recipe, mod_prompt_str, error_message
         )
-        return form_content.children[0]  # Assuming form is the first child of the Div
+        return form_content.children[0]
 
     form_content = _build_edit_review_form(processed_recipe, original_recipe)
-    return form_content.children[0]  # Assuming form is the first child of the Div
+    return form_content.children[0]
