@@ -59,7 +59,6 @@ class TestSmokeEndpoints:
         assert f'hx-post="{RECIPES_EXTRACT_RUN_URL}"' in response.text
         assert "Extract Recipe" in response.text
         assert 'id="recipe-results"' in response.text
-        # assert ">Extract Recipe</button>" in response.text # Less specific check
 
 
 @pytest.mark.anyio
@@ -100,7 +99,7 @@ class TestRecipeFetchTextEndpoint:
         [
             (
                 httpx.RequestError,
-                ("Network connection failed",),  # request=None is default
+                ("Network connection failed",),
                 "Error fetching URL: Network connection failed. Check URL/connection.",
             ),
             (
@@ -404,9 +403,7 @@ async def test_extract_run_returns_save_form(client: AsyncClient, monkeypatch):
         )
 
     assert f'<button hx-post="{RECIPES_SAVE_URL}"' in html_content
-    assert (
-        "Save Current Recipe" in html_content
-    )  # Check for button text, not exact tags
+    assert "Save Current Recipe" in html_content
 
 
 @pytest.mark.anyio
@@ -536,13 +533,11 @@ class TestRecipeModifyEndpoint:
 
         assert response.status_code == 200
         mock_call_llm.assert_called_once_with(prompt=ANY, response_model=Recipe)
-        # Check that prompt formatting was called correctly
         call_args, call_kwargs = mock_call_llm.call_args
         prompt_arg = call_kwargs.get("prompt", call_args[0] if call_args else None)
         assert mock_current_recipe_before_modify.markdown in prompt_arg
         assert test_prompt in prompt_arg
 
-        # Check response HTML contains the *modified* recipe in hidden fields
         assert (
             f'<input type="hidden" name="{FIELD_NAME}"'
             f' value="{mock_llm_modified_recipe.name}">' in response.text
@@ -557,12 +552,10 @@ class TestRecipeModifyEndpoint:
                 f'<input type="hidden" name="{FIELD_INSTRUCTIONS}" value="{inst}">'
                 in response.text
             )
-        # Check original recipe data is still present for diffing/reference
         assert (
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
             f' value="{mock_original_recipe.name}">' in response.text
         )
-        # Removed checks for visual diff text
 
     async def test_modify_no_prompt(self, client: AsyncClient, mock_call_llm):
         form_data = self._build_modify_form_data(modification_prompt="")
@@ -572,7 +565,6 @@ class TestRecipeModifyEndpoint:
         assert response.status_code == 200
         assert "Please enter modification instructions." in response.text
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
-        # Ensure original and current (pre-modify) recipes are still in the form
         assert (
             f'<input type="hidden" name="{FIELD_NAME}"'
             f' value="{mock_current_recipe_before_modify.name}">' in response.text
@@ -595,7 +587,6 @@ class TestRecipeModifyEndpoint:
             "Recipe modification failed. An unexpected error occurred." in response.text
         )
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
-        # Ensure original and current (pre-modify) recipes are still in the form
         assert (
             f'<input type="hidden" name="{FIELD_NAME}"'
             f' value="{mock_current_recipe_before_modify.name}">' in response.text
