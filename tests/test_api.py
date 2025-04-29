@@ -64,7 +64,7 @@ class TestCreateRecipeValidation:
                 {"ingredients": ["i1"], "instructions": ["s1"]},
                 [
                     {
-                        "loc": ("name",),
+                        "loc": ("body", "name"),
                         "msg": "Field required",
                         "type": "missing",
                     }
@@ -74,7 +74,7 @@ class TestCreateRecipeValidation:
                 {"name": "Test", "instructions": ["s1"]},
                 [
                     {
-                        "loc": ("ingredients",),
+                        "loc": ("body", "ingredients"),
                         "msg": "Field required",
                         "type": "missing",
                     }
@@ -84,7 +84,7 @@ class TestCreateRecipeValidation:
                 {"name": "Test", "ingredients": ["i1"]},
                 [
                     {
-                        "loc": ("instructions",),
+                        "loc": ("body", "instructions"),
                         "msg": "Field required",
                         "type": "missing",
                     }
@@ -98,7 +98,7 @@ class TestCreateRecipeValidation:
                 },
                 [
                     {
-                        "loc": ("name",),
+                        "loc": ("body", "name"),
                         "msg": "Input should be a valid string",
                         "type": "string_type",
                     }
@@ -112,7 +112,7 @@ class TestCreateRecipeValidation:
                 },
                 [
                     {
-                        "loc": ("ingredients",),
+                        "loc": ("body", "ingredients"),
                         "msg": "Input should be a valid list",
                         "type": "list_type",
                     }
@@ -126,7 +126,7 @@ class TestCreateRecipeValidation:
                 },
                 [
                     {
-                        "loc": ("instructions",),
+                        "loc": ("body", "instructions"),
                         "msg": "Input should be a valid list",
                         "type": "list_type",
                     }
@@ -167,8 +167,11 @@ class TestCreateRecipeValidation:
             content=invalid_json_string,
             headers={"Content-Type": "application/json"},
         )
-        assert response.status_code == 400
-        assert "Invalid JSON payload" in response.text
+        assert response.status_code == 422
+        assert "detail" in response.json()
+        assert isinstance(response.json()["detail"], list)
+        assert len(response.json()["detail"]) > 0
+        assert "msg" in response.json()["detail"][0]
 
 
 @pytest.mark.usefixtures("client")
