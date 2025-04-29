@@ -44,11 +44,9 @@ aclient = instructor.from_openai(openai_client)
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
 
-# Create a separate FastAPI app for the API
 api_app = FastAPI()
 api_app.include_router(api_router)
 
-# Mount the FastAPI app onto the main FastHTML app
 app.mount("/api", api_app)
 
 
