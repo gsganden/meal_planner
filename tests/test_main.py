@@ -17,15 +17,18 @@ from meal_planner.main import (
 )
 from meal_planner.models import Recipe
 
+# Constants
 TRANSPORT = ASGITransport(app=app)
 TEST_URL = "http://test-recipe.com"
 
+# URLs
 RECIPES_EXTRACT_URL = "/recipes/extract"
 RECIPES_FETCH_TEXT_URL = "/recipes/fetch-text"
 RECIPES_EXTRACT_RUN_URL = "/recipes/extract/run"
 RECIPES_SAVE_URL = "/recipes/save"
 RECIPES_MODIFY_URL = "/recipes/modify"
 
+# Form Field Names
 FIELD_RECIPE_URL = "recipe_url"
 FIELD_RECIPE_TEXT = "recipe_text"
 FIELD_NAME = "name"
@@ -35,6 +38,15 @@ FIELD_MODIFICATION_PROMPT = "modification_prompt"
 FIELD_ORIGINAL_NAME = "original_name"
 FIELD_ORIGINAL_INGREDIENTS = "original_ingredients"
 FIELD_ORIGINAL_INSTRUCTIONS = "original_instructions"
+
+
+@pytest.fixture
+def mock_recipe_data_fixture() -> Recipe:
+    return Recipe(
+        name="Mock Recipe",
+        ingredients=["mock ingredient 1", "mock ingredient 2"],
+        instructions=["mock instruction 1", "mock instruction 2"],
+    )
 
 
 @pytest.mark.anyio
@@ -271,6 +283,8 @@ class TestFetchPageText:
 
 @pytest.mark.anyio
 class TestFetchAndCleanTextFromUrl:
+    TEST_URL = "http://example.com/error-test"
+
     @pytest.fixture
     def mock_fetch_page_text(self):
         with patch(
@@ -283,63 +297,58 @@ class TestFetchAndCleanTextFromUrl:
         with patch("meal_planner.main.HTML_CLEANER.handle") as mock_clean:
             yield mock_clean
 
+    @pytest.mark.parametrize(
+        "raised_exception, expected_caught_exception, expected_log_fragment",
+        [
+            pytest.param(
+                httpx.RequestError("ReqErr", request=httpx.Request("GET", TEST_URL)),
+                httpx.RequestError,
+                "HTTP Request Error",
+                id="request_error",
+            ),
+            pytest.param(
+                httpx.HTTPStatusError(
+                    "Not Found",
+                    request=httpx.Request("GET", TEST_URL),
+                    response=httpx.Response(
+                        404, request=httpx.Request("GET", TEST_URL)
+                    ),
+                ),
+                httpx.HTTPStatusError,
+                "HTTP Status Error",
+                id="status_error",
+            ),
+            pytest.param(
+                Exception("Generic Error"),
+                RuntimeError,
+                "Error fetching page text",
+                id="generic_exception",
+            ),
+        ],
+    )
     @patch("meal_planner.main.logger.error")
-    async def test_handles_request_error(
-        self, mock_logger_error, mock_fetch_page_text, mock_html_cleaner
+    async def test_fetch_and_clean_errors(
+        self,
+        mock_logger_error,
+        mock_fetch_page_text,
+        mock_html_cleaner,
+        raised_exception,
+        expected_caught_exception,
+        expected_log_fragment,
     ):
-        test_url = "http://example.com/req_error"
-        dummy_request = httpx.Request("GET", test_url)
-        exception = httpx.RequestError("ReqErr", request=dummy_request)
-        mock_fetch_page_text.side_effect = exception
+        mock_fetch_page_text.side_effect = raised_exception
 
-        with pytest.raises(httpx.RequestError):
-            await fetch_and_clean_text_from_url(test_url)
+        with pytest.raises(expected_caught_exception):
+            await fetch_and_clean_text_from_url(self.TEST_URL)
 
-        mock_logger_error.assert_called_once_with(
-            "HTTP Request Error fetching page text from %s: %s",
-            test_url,
-            exception,
-            exc_info=True,
-        )
-        mock_html_cleaner.assert_not_called()
-
-    @patch("meal_planner.main.logger.error")
-    async def test_handles_status_error(
-        self, mock_logger_error, mock_fetch_page_text, mock_html_cleaner
-    ):
-        test_url = "http://example.com/status_error"
-        dummy_request = httpx.Request("GET", test_url)
-        mock_response = httpx.Response(404, request=dummy_request)
-        exception = httpx.HTTPStatusError(
-            "Not Found", request=dummy_request, response=mock_response
-        )
-        mock_fetch_page_text.side_effect = exception
-
-        with pytest.raises(httpx.HTTPStatusError):
-            await fetch_and_clean_text_from_url(test_url)
-
-        mock_logger_error.assert_called_once_with(
-            "HTTP Status Error fetching page text from %s: %s",
-            test_url,
-            exception,
-            exc_info=True,
-        )
-        mock_html_cleaner.assert_not_called()
-
-    @patch("meal_planner.main.logger.error")
-    async def test_handles_generic_exception(
-        self, mock_logger_error, mock_fetch_page_text, mock_html_cleaner
-    ):
-        test_url = "http://example.com/generic_error"
-        exception = Exception("Generic Error")
-        mock_fetch_page_text.side_effect = exception
-
-        with pytest.raises(RuntimeError, match=r"Failed to fetch or process URL"):
-            await fetch_and_clean_text_from_url(test_url)
-
-        mock_logger_error.assert_called_once_with(
-            "Error fetching page text from %s: %s", test_url, exception, exc_info=True
-        )
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        log_message = args[0]
+        log_args = args[1:]
+        assert expected_log_fragment in log_message
+        assert log_args[0] == self.TEST_URL
+        assert raised_exception == log_args[1]
+        assert kwargs.get("exc_info") is True
         mock_html_cleaner.assert_not_called()
 
 
@@ -367,17 +376,12 @@ class TestPostprocessRecipeName:
         assert processed_recipe.name == expected_name
 
 
-mock_recipe_data = Recipe(
-    name="Mock Recipe",
-    ingredients=["mock ingredient 1", "mock ingredient 2"],
-    instructions=["mock instruction 1", "mock instruction 2"],
-)
-
-
 @pytest.mark.anyio
-async def test_extract_run_returns_save_form(client: AsyncClient, monkeypatch):
+async def test_extract_run_returns_save_form(
+    client: AsyncClient, monkeypatch, mock_recipe_data_fixture: Recipe
+):
     async def mock_extract(*args, **kwargs):
-        return mock_recipe_data
+        return mock_recipe_data_fixture
 
     monkeypatch.setattr(main_module, "extract_recipe_from_text", mock_extract)
 
@@ -388,15 +392,15 @@ async def test_extract_run_returns_save_form(client: AsyncClient, monkeypatch):
     html_content = response.text
 
     assert (
-        f'<input type="hidden" name="{FIELD_NAME}" value="{mock_recipe_data.name}">'
+        f'<input type="hidden" name="{FIELD_NAME}" value="{mock_recipe_data_fixture.name}">'
         in html_content
     )
-    for ing in mock_recipe_data.ingredients:
+    for ing in mock_recipe_data_fixture.ingredients:
         assert (
             f'<input type="hidden" name="{FIELD_INGREDIENTS}" value="{ing}">'
             in html_content
         )
-    for inst in mock_recipe_data.instructions:
+    for inst in mock_recipe_data_fixture.instructions:
         assert (
             f'<input type="hidden" name="{FIELD_INSTRUCTIONS}" value="{inst}">'
             in html_content
@@ -479,29 +483,31 @@ async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
     assert "Error saving recipe." in response.text
 
 
-RECIPES_MODIFY_URL = "/recipes/modify"
-FIELD_MODIFICATION_PROMPT = "modification_prompt"
-FIELD_ORIGINAL_NAME = "original_name"
-FIELD_ORIGINAL_INGREDIENTS = "original_ingredients"
-FIELD_ORIGINAL_INSTRUCTIONS = "original_instructions"
+@pytest.fixture
+def mock_original_recipe_fixture() -> Recipe:
+    return Recipe(
+        name="Original Recipe",
+        ingredients=["orig ing 1", "orig ing 2"],
+        instructions=["orig inst 1", "orig inst 2"],
+    )
 
-mock_original_recipe = Recipe(
-    name="Original Recipe",
-    ingredients=["orig ing 1", "orig ing 2"],
-    instructions=["orig inst 1", "orig inst 2"],
-)
 
-mock_current_recipe_before_modify = Recipe(
-    name="Current Recipe",
-    ingredients=["curr ing 1", "curr ing 2"],
-    instructions=["curr inst 1", "curr inst 2"],
-)
+@pytest.fixture
+def mock_current_recipe_before_modify_fixture() -> Recipe:
+    return Recipe(
+        name="Current Recipe",
+        ingredients=["curr ing 1", "curr ing 2"],
+        instructions=["curr inst 1", "curr inst 2"],
+    )
 
-mock_llm_modified_recipe = Recipe(
-    name="Modified Recipe",
-    ingredients=["mod ing 1", "mod ing 2"],
-    instructions=["mod inst 1", "mod inst 2"],
-)
+
+@pytest.fixture
+def mock_llm_modified_recipe_fixture() -> Recipe:
+    return Recipe(
+        name="Modified Recipe",
+        ingredients=["mod ing 1", "mod ing 2"],
+        instructions=["mod inst 1", "mod inst 2"],
+    )
 
 
 @pytest.mark.anyio
@@ -511,23 +517,39 @@ class TestRecipeModifyEndpoint:
         with patch("meal_planner.main.call_llm", new_callable=AsyncMock) as mock_llm:
             yield mock_llm
 
-    def _build_modify_form_data(self, modification_prompt: str | None = None) -> dict:
+    def _build_modify_form_data(
+        self,
+        current_recipe: Recipe,
+        original_recipe: Recipe,
+        modification_prompt: str | None = None,
+    ) -> dict:
         data = {
-            FIELD_NAME: mock_current_recipe_before_modify.name,
-            FIELD_INGREDIENTS: mock_current_recipe_before_modify.ingredients,
-            FIELD_INSTRUCTIONS: mock_current_recipe_before_modify.instructions,
-            FIELD_ORIGINAL_NAME: mock_original_recipe.name,
-            FIELD_ORIGINAL_INGREDIENTS: mock_original_recipe.ingredients,
-            FIELD_ORIGINAL_INSTRUCTIONS: mock_original_recipe.instructions,
+            FIELD_NAME: current_recipe.name,
+            FIELD_INGREDIENTS: current_recipe.ingredients,
+            FIELD_INSTRUCTIONS: current_recipe.instructions,
+            FIELD_ORIGINAL_NAME: original_recipe.name,
+            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
         }
         if modification_prompt is not None:
             data[FIELD_MODIFICATION_PROMPT] = modification_prompt
         return data
 
-    async def test_modify_success(self, client: AsyncClient, mock_call_llm):
-        mock_call_llm.return_value = mock_llm_modified_recipe
+    async def test_modify_success(
+        self,
+        client: AsyncClient,
+        mock_call_llm,
+        mock_current_recipe_before_modify_fixture: Recipe,
+        mock_original_recipe_fixture: Recipe,
+        mock_llm_modified_recipe_fixture: Recipe,
+    ):
+        mock_call_llm.return_value = mock_llm_modified_recipe_fixture
         test_prompt = "Make it spicier"
-        form_data = self._build_modify_form_data(test_prompt)
+        form_data = self._build_modify_form_data(
+            mock_current_recipe_before_modify_fixture,
+            mock_original_recipe_fixture,
+            test_prompt,
+        )
 
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
@@ -535,30 +557,38 @@ class TestRecipeModifyEndpoint:
         mock_call_llm.assert_called_once_with(prompt=ANY, response_model=Recipe)
         call_args, call_kwargs = mock_call_llm.call_args
         prompt_arg = call_kwargs.get("prompt", call_args[0] if call_args else None)
-        assert mock_current_recipe_before_modify.markdown in prompt_arg
+        assert mock_current_recipe_before_modify_fixture.markdown in prompt_arg
         assert test_prompt in prompt_arg
 
         assert (
             f'<input type="hidden" name="{FIELD_NAME}"'
-            f' value="{mock_llm_modified_recipe.name}">' in response.text
+            f' value="{mock_llm_modified_recipe_fixture.name}">' in response.text
         )
-        for ing in mock_llm_modified_recipe.ingredients:
+        for ing in mock_llm_modified_recipe_fixture.ingredients:
             assert (
                 f'<input type="hidden" name="{FIELD_INGREDIENTS}" value="{ing}">'
                 in response.text
             )
-        for inst in mock_llm_modified_recipe.instructions:
+        for inst in mock_llm_modified_recipe_fixture.instructions:
             assert (
                 f'<input type="hidden" name="{FIELD_INSTRUCTIONS}" value="{inst}">'
                 in response.text
             )
         assert (
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
-            f' value="{mock_original_recipe.name}">' in response.text
+            f' value="{mock_original_recipe_fixture.name}">' in response.text
         )
 
-    async def test_modify_no_prompt(self, client: AsyncClient, mock_call_llm):
-        form_data = self._build_modify_form_data(modification_prompt="")
+    async def test_modify_no_prompt(
+        self,
+        client: AsyncClient,
+        mock_call_llm,
+        mock_current_recipe_before_modify_fixture: Recipe,
+        mock_original_recipe_fixture: Recipe,
+    ):
+        form_data = self._build_modify_form_data(
+            mock_current_recipe_before_modify_fixture, mock_original_recipe_fixture, ""
+        )
 
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
@@ -567,18 +597,29 @@ class TestRecipeModifyEndpoint:
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
         assert (
             f'<input type="hidden" name="{FIELD_NAME}"'
-            f' value="{mock_current_recipe_before_modify.name}">' in response.text
+            f' value="{mock_current_recipe_before_modify_fixture.name}">'
+            in response.text
         )
         assert (
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
-            f' value="{mock_original_recipe.name}">' in response.text
+            f' value="{mock_original_recipe_fixture.name}">' in response.text
         )
         mock_call_llm.assert_not_called()
 
-    async def test_modify_llm_error(self, client: AsyncClient, mock_call_llm):
+    async def test_modify_llm_error(
+        self,
+        client: AsyncClient,
+        mock_call_llm,
+        mock_current_recipe_before_modify_fixture: Recipe,
+        mock_original_recipe_fixture: Recipe,
+    ):
         mock_call_llm.side_effect = Exception("LLM modification error")
         test_prompt = "Cause an error"
-        form_data = self._build_modify_form_data(test_prompt)
+        form_data = self._build_modify_form_data(
+            mock_current_recipe_before_modify_fixture,
+            mock_original_recipe_fixture,
+            test_prompt,
+        )
 
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
@@ -589,11 +630,12 @@ class TestRecipeModifyEndpoint:
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
         assert (
             f'<input type="hidden" name="{FIELD_NAME}"'
-            f' value="{mock_current_recipe_before_modify.name}">' in response.text
+            f' value="{mock_current_recipe_before_modify_fixture.name}">'
+            in response.text
         )
         assert (
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
-            f' value="{mock_original_recipe.name}">' in response.text
+            f' value="{mock_original_recipe_fixture.name}">' in response.text
         )
         mock_call_llm.assert_called_once()
 
