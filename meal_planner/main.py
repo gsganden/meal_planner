@@ -420,11 +420,9 @@ def _create_button_with_indicator(
 
 def _parse_recipe_from_form(form_data: FormData, prefix: str = "") -> Recipe:
     """Parses recipe data from form fields with an optional prefix."""
-    # Ensure name is a string, default to empty if not or if UploadFile
     name_value = form_data.get(f"{prefix}name")
     name = name_value if isinstance(name_value, str) else ""
 
-    # Filter out UploadFile objects from lists
     ingredients_values = form_data.getlist(f"{prefix}ingredients")
     ingredients = [ing for ing in ingredients_values if isinstance(ing, str)]
 
