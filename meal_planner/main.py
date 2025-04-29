@@ -1,9 +1,9 @@
+import difflib
 import html
 import json
 import logging
 import os
 import re
-import difflib
 from pathlib import Path
 from typing import TypeVar
 
@@ -13,11 +13,11 @@ import httpx
 import instructor
 import monsterui.all as mu
 from fastapi import FastAPI
+from fasthtml.common import NotStr
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from starlette.datastructures import FormData
 from starlette.requests import Request
-from fasthtml.common import NotStr
 
 from meal_planner.api.recipes import api_router, recipes_table
 from meal_planner.models import Recipe
@@ -133,21 +133,17 @@ def with_layout(content):
 
 @rt("/recipes/extract")
 def get():
-    # URL Input Group: Revised alignment
-    url_input_component = fh.Div(  # Changed variable name for clarity
-        fh.Label(
-            "Recipe URL (Optional)", cls="block mb-1 text-sm font-medium"
-        ),  # Explicit label above
-        fh.Div(  # Container for input + button group
+    url_input_component = fh.Div(
+        fh.Label("Recipe URL (Optional)", cls="block mb-1 text-sm font-medium"),
+        fh.Div(
             mu.Input(
                 id="recipe_url",
                 name="recipe_url",
                 type="url",
                 placeholder="https://example.com/recipe",
-                # label removed from here
-                cls="flex-grow mr-2",  # Allow input to grow, add right margin
+                cls="flex-grow mr-2",
             ),
-            fh.Div(  # Wrap button and loader
+            fh.Div(
                 mu.Button(
                     "Fetch Text from URL",
                     hx_post="/recipes/fetch-text",
@@ -155,17 +151,15 @@ def get():
                     hx_swap="outerHTML",
                     hx_include="[name='recipe_url']",
                     hx_indicator="#fetch-indicator",
-                    # margin removed from here
                 ),
                 mu.Loading(id="fetch-indicator", cls="htmx-indicator ml-2"),
-                cls="flex items-center",  # Center button and loader vertically within this div
+                cls="flex items-center",
             ),
-            cls="flex items-end",  # Align bottom of input and button div
+            cls="flex items-end",
         ),
-        cls="mb-4",  # Bottom margin for the whole component
+        cls="mb-4",
     )
 
-    # Recipe Text Area: Keep existing label, ensure margin
     text_area = mu.TextArea(
         id="recipe_text",
         name="recipe_text",
@@ -175,7 +169,6 @@ def get():
         cls="mb-4",
     )
 
-    # Extract Button: Ensure margin
     extract_button_group = fh.Div(
         mu.Button(
             "Extract Recipe",
@@ -189,12 +182,12 @@ def get():
         cls="mt-4",
     )
 
-    # --- Input Section ---
     input_section = fh.Div(
         fh.H2("Input", cls="text-3xl mb-4 mt-6"),
         fh.P(
-            "Enter a URL to fetch recipe text, or paste the recipe text directly into the text area below.",
-            cls="text-sm text-gray-600 mb-4",  # Added explanatory text
+            "Enter a URL to fetch recipe text, or paste the recipe text "
+            "directly into the text area below.",
+            cls="text-sm text-gray-600 mb-4",
         ),
         url_input_component,
         text_area,
@@ -428,10 +421,21 @@ def _create_button_with_indicator(
 
 def _parse_recipe_from_form(form_data: FormData, prefix: str = "") -> Recipe:
     """Parses recipe data from form fields with an optional prefix."""
+    # Ensure name is a string, default to empty if not or if UploadFile
+    name_value = form_data.get(f"{prefix}name")
+    name = name_value if isinstance(name_value, str) else ""
+
+    # Filter out UploadFile objects from lists
+    ingredients_values = form_data.getlist(f"{prefix}ingredients")
+    ingredients = [ing for ing in ingredients_values if isinstance(ing, str)]
+
+    instructions_values = form_data.getlist(f"{prefix}instructions")
+    instructions = [inst for inst in instructions_values if isinstance(inst, str)]
+
     return Recipe(
-        name=form_data.get(f"{prefix}name", ""),
-        ingredients=form_data.getlist(f"{prefix}ingredients"),
-        instructions=form_data.getlist(f"{prefix}instructions"),
+        name=name,
+        ingredients=ingredients,
+        instructions=instructions,
     )
 
 
@@ -471,7 +475,6 @@ def _build_edit_review_form(
 ):
     """Builds the simplified modification and review form."""
 
-    # Controls
     modification_input = mu.Input(
         id="modification_prompt",
         name="modification_prompt",
@@ -501,13 +504,11 @@ def _build_edit_review_form(
         cls="mb-6",
     )
 
-    # Diff View
     diff_content = fh.Div("Recipe will appear here after extraction.")
     if original_recipe:
         diff_content = _build_diff_content(original_recipe, current_recipe.markdown)
     diff_view_container = fh.Div(diff_content, id="diff-view-container")
 
-    # Save Button
     save_modified_button_container = _create_button_with_indicator(
         label="Save Current Recipe",
         hx_post="/recipes/save",
@@ -518,7 +519,6 @@ def _build_edit_review_form(
         extra_classes="mt-4",
     )
 
-    # Hidden Fields & Style
     diff_style = None
     original_hidden_fields = ()
     if original_recipe:
@@ -637,7 +637,8 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             "Recipe extraction failed. An unexpected error occurred during processing."
         )
 
-    # Build the initial Edit+Review form, passing the same recipe as current and original
+    # Build the initial Edit+Review form,
+    # passing the same recipe as current and original
     return _build_edit_review_form(processed_recipe, processed_recipe)
 
 
@@ -697,10 +698,12 @@ async def post_modify_recipe(request: Request):
         error_message = fh.Div(
             "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
         )
-        # Re-render form with error, keep current state
-        # Return only the form part for outerHTML swap
+        # Ensure modification_prompt is a string before passing
+        mod_prompt_str = (
+            modification_prompt if isinstance(modification_prompt, str) else ""
+        )
         form_content = _build_edit_review_form(
-            current_recipe, original_recipe, modification_prompt, error_message
+            current_recipe, original_recipe, mod_prompt_str, error_message
         )
         return form_content.children[0]  # Assuming form is the first child of the Div
 
@@ -716,10 +719,9 @@ async def post_modify_recipe(request: Request):
 
         modified_recipe: Recipe = await call_llm(
             prompt=modification_full_prompt,
-            response_model=Recipe,  # Assuming the LLM can return the full Recipe structure
+            response_model=Recipe,
         )
         logger.info("LLM modification successful for prompt: %s", modification_prompt)
-        # Re-run postprocessing on the modified recipe
         processed_recipe = postprocess_recipe(modified_recipe)
 
     except Exception as e:
@@ -733,14 +735,14 @@ async def post_modify_recipe(request: Request):
             "Recipe modification failed. An unexpected error occurred.",
             cls=f"{CSS_ERROR_CLASS} mt-2",
         )
-        # Re-render form with error, show original vs current (before failed modification)
-        # Return only the form part for outerHTML swap
+        # Ensure modification_prompt is a string before passing
+        mod_prompt_str = (
+            modification_prompt if isinstance(modification_prompt, str) else ""
+        )
         form_content = _build_edit_review_form(
-            current_recipe, original_recipe, modification_prompt, error_message
+            current_recipe, original_recipe, mod_prompt_str, error_message
         )
         return form_content.children[0]  # Assuming form is the first child of the Div
 
-    # Re-render form with new current_recipe (processed_recipe) and original_recipe
-    # Return only the form part for outerHTML swap
     form_content = _build_edit_review_form(processed_recipe, original_recipe)
     return form_content.children[0]  # Assuming form is the first child of the Div
