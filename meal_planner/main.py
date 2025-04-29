@@ -634,8 +634,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             "Recipe extraction failed. An unexpected error occurred during processing."
         )
 
-    # Build the initial Edit+Review form,
-    # passing the same recipe as current and original
     return _build_edit_review_form(processed_recipe, processed_recipe)
 
 
