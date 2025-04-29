@@ -11,6 +11,7 @@ import html2text
 import httpx
 import instructor
 import monsterui.all as mu
+from fastapi import FastAPI
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from starlette.datastructures import FormData
@@ -43,8 +44,10 @@ aclient = instructor.from_openai(openai_client)
 app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
 
+api_app = FastAPI()
+api_app.include_router(api_router)
 
-app.mount("/api/v1", api_router)
+app.mount("/api", api_app)
 
 
 def create_html_cleaner() -> html2text.HTML2Text:

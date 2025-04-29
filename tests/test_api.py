@@ -21,7 +21,7 @@ class TestCreateRecipeSuccess:
     async def create_recipe_response(
         self, client: AsyncClient, valid_recipe_payload: dict
     ):
-        return await client.post("/api/v1/recipes", json=valid_recipe_payload)
+        return await client.post("/api/v0/recipes", json=valid_recipe_payload)
 
     async def test_create_recipe_returns_201(self, create_recipe_response: Response):
         assert create_recipe_response.status_code == 201
@@ -32,7 +32,7 @@ class TestCreateRecipeSuccess:
         assert "Location" in create_recipe_response.headers
         response_json = create_recipe_response.json()
         recipe_id_from_body = response_json["id"]
-        expected_location = f"/api/v1/recipes/{recipe_id_from_body}"
+        expected_location = f"/api/v0/recipes/{recipe_id_from_body}"
         assert create_recipe_response.headers["Location"] == expected_location
 
     async def test_create_recipe_returns_id_in_body(
@@ -55,7 +55,7 @@ class TestCreateRecipeSuccess:
 @pytest.mark.usefixtures("client")
 class TestCreateRecipeValidation:
     async def _post_recipe(self, client: AsyncClient, payload: dict):
-        return await client.post("/api/v1/recipes", json=payload)
+        return await client.post("/api/v0/recipes", json=payload)
 
     @pytest.mark.parametrize(
         "invalid_payload, expected_error_detail",
@@ -64,7 +64,7 @@ class TestCreateRecipeValidation:
                 {"ingredients": ["i1"], "instructions": ["s1"]},
                 [
                     {
-                        "loc": ("name",),
+                        "loc": ("body", "name"),
                         "msg": "Field required",
                         "type": "missing",
                     }
@@ -74,7 +74,7 @@ class TestCreateRecipeValidation:
                 {"name": "Test", "instructions": ["s1"]},
                 [
                     {
-                        "loc": ("ingredients",),
+                        "loc": ("body", "ingredients"),
                         "msg": "Field required",
                         "type": "missing",
                     }
@@ -84,7 +84,7 @@ class TestCreateRecipeValidation:
                 {"name": "Test", "ingredients": ["i1"]},
                 [
                     {
-                        "loc": ("instructions",),
+                        "loc": ("body", "instructions"),
                         "msg": "Field required",
                         "type": "missing",
                     }
@@ -98,7 +98,7 @@ class TestCreateRecipeValidation:
                 },
                 [
                     {
-                        "loc": ("name",),
+                        "loc": ("body", "name"),
                         "msg": "Input should be a valid string",
                         "type": "string_type",
                     }
@@ -112,7 +112,7 @@ class TestCreateRecipeValidation:
                 },
                 [
                     {
-                        "loc": ("ingredients",),
+                        "loc": ("body", "ingredients"),
                         "msg": "Input should be a valid list",
                         "type": "list_type",
                     }
@@ -126,7 +126,7 @@ class TestCreateRecipeValidation:
                 },
                 [
                     {
-                        "loc": ("instructions",),
+                        "loc": ("body", "instructions"),
                         "msg": "Input should be a valid list",
                         "type": "list_type",
                     }
@@ -163,12 +163,15 @@ class TestCreateRecipeValidation:
             '{"name": "Test", "ingredients": ["i1"], "instructions": ["s1"}'
         )
         response = await client.post(
-            "/api/v1/recipes",
+            "/api/v0/recipes",
             content=invalid_json_string,
             headers={"Content-Type": "application/json"},
         )
-        assert response.status_code == 400
-        assert "Invalid JSON payload" in response.text
+        assert response.status_code == 422
+        assert "detail" in response.json()
+        assert isinstance(response.json()["detail"], list)
+        assert len(response.json()["detail"]) > 0
+        assert "msg" in response.json()["detail"][0]
 
 
 @pytest.mark.usefixtures("client")
@@ -181,7 +184,7 @@ class TestCreateRecipeDBErrors:
 
         monkeypatch.setattr(recipes_api.recipes_table, "insert", mock_insert)
 
-        response = await client.post("/api/v1/recipes", json=valid_recipe_payload)
+        response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
 
         assert response.status_code == 500
         assert "Database error creating recipe" in response.text

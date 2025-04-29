@@ -3,12 +3,9 @@ import logging
 import os
 from pathlib import Path
 
+from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import JSONResponse
 from fastlite import database
-from pydantic import ValidationError
-from starlette.exceptions import HTTPException
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Route, Router
 
 from meal_planner.models import Recipe, RecipeRead
 
@@ -36,18 +33,15 @@ recipes_table.create(
     if_not_exists=True,
 )
 
+api_router = APIRouter()
 
-async def create_recipe(request: Request):
-    try:
-        payload = await request.json()
-        recipe_data = Recipe.model_validate(payload)
-    except ValidationError as e:
-        logger.warning("Validation failed for create recipe: %s", e.errors())
-        return JSONResponse(content={"detail": e.errors()}, status_code=422)
-    except Exception as e:
-        logger.error("Error parsing request JSON: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
 
+@api_router.post(
+    "/v0/recipes",
+    status_code=status.HTTP_201_CREATED,
+    response_model=RecipeRead,
+)
+async def create_recipe(recipe_data: Recipe):
     db_data = {
         "name": recipe_data.name,
         "ingredients": json.dumps(recipe_data.ingredients),
@@ -59,7 +53,8 @@ async def create_recipe(request: Request):
     except Exception as e:
         logger.error("Database error inserting recipe: %s", e, exc_info=True)
         raise HTTPException(
-            status_code=500, detail="Database error creating recipe"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error creating recipe",
         ) from e
 
     stored_recipe = RecipeRead(id=inserted_record["id"], **recipe_data.model_dump())
@@ -70,17 +65,10 @@ async def create_recipe(request: Request):
         stored_recipe.name,
     )
 
-    location_path = f"/api/v1/recipes/{str(stored_recipe.id)}"
+    location_path = f"/api/v0/recipes/{str(stored_recipe.id)}"
 
     return JSONResponse(
         content=stored_recipe.model_dump(mode="json"),
-        status_code=201,
+        status_code=status.HTTP_201_CREATED,
         headers={"Location": location_path},
     )
-
-
-api_router = Router(
-    [
-        Route("/recipes", endpoint=create_recipe, methods=["POST"]),
-    ]
-)
