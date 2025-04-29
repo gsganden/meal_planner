@@ -520,8 +520,8 @@ def _build_edit_review_form(
     original_hidden_fields = ()
     if original_recipe:
         diff_style = fh.Style("""
-            ins { background-color: #e6ffe6 !important; text-decoration: none; }
-            del { background-color: #ffe6e6 !important; text-decoration: none; }
+            ins { background-color: #e6ffe6; text-decoration: none; }
+            del { background-color: #ffe6e6; text-decoration: none; }
         """)
         original_hidden_fields = (
             fh.Input(type="hidden", name="original_name", value=original_recipe.name),
