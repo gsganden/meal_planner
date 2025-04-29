@@ -40,15 +40,6 @@ FIELD_ORIGINAL_INGREDIENTS = "original_ingredients"
 FIELD_ORIGINAL_INSTRUCTIONS = "original_instructions"
 
 
-@pytest.fixture
-def mock_recipe_data_fixture() -> Recipe:
-    return Recipe(
-        name="Mock Recipe",
-        ingredients=["mock ingredient 1", "mock ingredient 2"],
-        instructions=["mock instruction 1", "mock instruction 2"],
-    )
-
-
 @pytest.mark.anyio
 class TestSmokeEndpoints:
     async def test_root(self, client: AsyncClient):
@@ -374,6 +365,15 @@ class TestPostprocessRecipeName:
         )
         processed_recipe = postprocess_recipe(input_recipe)
         assert processed_recipe.name == expected_name
+
+
+@pytest.fixture
+def mock_recipe_data_fixture() -> Recipe:
+    return Recipe(
+        name="Mock Recipe",
+        ingredients=["mock ingredient 1", "mock ingredient 2"],
+        instructions=["mock instruction 1", "mock instruction 2"],
+    )
 
 
 @pytest.mark.anyio
