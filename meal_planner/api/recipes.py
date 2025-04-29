@@ -26,7 +26,6 @@ if DB_PATH == LOCAL_DB_PATH:
 db = database(DB_PATH)
 recipes_table = db.t.recipes
 
-# Ensure table exists regardless of path
 logger.info(f"Ensuring table exists in {DB_PATH.resolve()}")
 recipes_table.create(
     id=int,
