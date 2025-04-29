@@ -18,6 +18,7 @@ LOCAL_DB_PATH = Path("meal_planner_local.db")
 DB_PATH = Path(os.environ.get("MEAL_PLANNER_DB_PATH", str(LOCAL_DB_PATH)))
 
 logger.info(f"Using database path: {DB_PATH}")
+logger.info(f"Absolute database path: {DB_PATH.resolve()}")
 
 if DB_PATH == LOCAL_DB_PATH:
     LOCAL_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -25,17 +26,17 @@ if DB_PATH == LOCAL_DB_PATH:
 db = database(DB_PATH)
 recipes_table = db.t.recipes
 
-if DB_PATH == LOCAL_DB_PATH:
-    logger.info("Ensuring table exists for local DB")
-    recipes_table.create(
-        id=int,
-        name=str,
-        ingredients=str,
-        instructions=str,
-        pk="id",
-        replace=False,
-        if_not_exists=True,
-    )
+# Ensure table exists regardless of path
+logger.info(f"Ensuring table exists in {DB_PATH.resolve()}")
+recipes_table.create(
+    id=int,
+    name=str,
+    ingredients=str,
+    instructions=str,
+    pk="id",
+    replace=False,
+    if_not_exists=True,
+)
 
 
 async def create_recipe(request: Request):
