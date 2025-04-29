@@ -37,7 +37,7 @@ api_router = APIRouter()
 
 
 @api_router.post(
-    "/v1/recipes",
+    "/v0/recipes",
     status_code=status.HTTP_201_CREATED,
     response_model=RecipeRead,
 )
@@ -65,7 +65,7 @@ async def create_recipe(recipe_data: Recipe):
         stored_recipe.name,
     )
 
-    location_path = f"/api/v1/recipes/{str(stored_recipe.id)}"
+    location_path = f"/api/v0/recipes/{str(stored_recipe.id)}"
 
     return JSONResponse(
         content=stored_recipe.model_dump(mode="json"),
