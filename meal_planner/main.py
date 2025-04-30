@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 from starlette.datastructures import FormData
 from starlette.requests import Request
 from starlette.responses import Response
+from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import api_router, recipes_table
 from meal_planner.models import Recipe
@@ -26,6 +27,7 @@ MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250428_205830__include_parens.txt"
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +51,7 @@ api_app = FastAPI()
 api_app.include_router(api_router)
 
 app.mount("/api", api_app)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 def create_html_cleaner() -> html2text.HTML2Text:
@@ -127,42 +130,7 @@ def with_layout(content):
             fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
             fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
         ),
-        fh.Script("""
-            document.body.addEventListener('click', function(event) {
-                // Use closest to handle clicks on the icon inside the button
-                var deleteButton = event.target.closest('.delete-item-button');
-                if (deleteButton) {
-                    console.log('Delete button clicked:', deleteButton);
-                    event.preventDefault(); // Stop default button action
-
-                    var rowToRemove = deleteButton.closest('div');
-                    var form = document.getElementById('edit-review-form');
-
-                    if (!rowToRemove || !form) {
-                        console.error('Could not find row to remove or the form.');
-                        return;
-                    }
-
-                    console.log('Initiating DELETE request for row:', rowToRemove);
-                    htmx.ajax('DELETE', '/recipes/ui/remove-item', {
-                        target: rowToRemove,
-                        swap: 'outerHTML'
-                    }).then(function(response) {
-                        // This runs after the DELETE request is successful AND the swap has started
-                        // The DOM element might be gone, but the data should be reflected for the next request
-                        console.log('DELETE request successful. Initiating POST for diff update...');
-                        htmx.ajax('POST', '/recipes/ui/update-diff', {
-                            source: form,
-                            target: '#diff-content-wrapper',
-                            swap: 'innerHTML'
-                        });
-                        console.log('Update diff POST request triggered.');
-                    }).catch(function(error) {
-                        console.error('Error during DELETE or subsequent POST:', error);
-                    });
-                }
-            });
-        """),
+        fh.Script(src="/static/main.js"),
     )
 
 
@@ -240,7 +208,6 @@ def get():
         cls="space-y-4 mb-6 p-4 border rounded bg-gray-50 mt-6",
     )
 
-    # Add the empty div for the edit form target (outside input_section)
     edit_form_target_div = fh.Div(id="edit-form-target")
 
     return with_layout(
@@ -718,7 +685,7 @@ async def post_fetch_text(recipe_url: str | None = None):
             exc_info=False,
         )
         return fh.Div(
-            f"Error fetching URL: {e}. Check URL/connection.",
+            "Error fetching URL. Please check the URL and your connection.",
             cls=CSS_ERROR_CLASS,
         )
     except httpx.HTTPStatusError as e:
@@ -726,14 +693,16 @@ async def post_fetch_text(recipe_url: str | None = None):
             "HTTP Status Error fetching text from %s: %s", recipe_url, e, exc_info=False
         )
         return fh.Div(
-            f"HTTP Error {e.response.status_code} fetching URL.",
+            "Error fetching URL: The server returned an error.",
             cls=CSS_ERROR_CLASS,
         )
     except RuntimeError as e:
         logger.error(
             "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return fh.Div(f"Failed to process URL: {e}", cls=CSS_ERROR_CLASS)
+        return fh.Div(
+            "Failed to process the content from the URL.", cls=CSS_ERROR_CLASS
+        )
     except Exception as e:
         logger.error(
             "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
@@ -817,17 +786,14 @@ async def post_save_recipe(request: Request):
     form_data: FormData = await request.form()
     try:
         parsed_data = _parse_recipe_form_data(form_data)
-        # Validate parsed data with Pydantic model first
         recipe_obj = Recipe(**parsed_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
-        # Provide a user-friendly summary of validation errors
-        error_summary = "; ".join(
-            [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
+        # Generic message, details logged
+        return fh.Span(
+            "Invalid recipe data. Please check the fields.", cls=CSS_ERROR_CLASS
         )
-        return fh.Span(f"Validation Error: {error_summary}", cls=CSS_ERROR_CLASS)
     except Exception as e:
-        # Catch potential errors during parsing itself (less likely)
         logger.error("Error parsing form data during save: %s", e, exc_info=True)
         return fh.Span("Error processing form data.", cls=CSS_ERROR_CLASS)
 
@@ -876,19 +842,11 @@ async def post_modify_recipe(request: Request):
 
     except ValidationError as e:
         logger.warning("Validation error on modify form submit: %s", e, exc_info=False)
-        error_summary = "; ".join(
-            [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
-        )
-
+        # Generic message, details logged
         error_div = fh.Div(
-            f"Form Validation Error: {error_summary}", cls=CSS_ERROR_CLASS
+            "Invalid recipe data. Please check the fields.", cls=CSS_ERROR_CLASS
         )
-        # Attempt to re-render form, might need more robust error handling state
-        # This assumes _build_edit_review_form can handle a potentially invalid current_for_render (dict)
-        # We need to adjust _build_edit_review_form call site or definition.
-        # Let's pass dicts and adjust _build_edit_review_form for now.
-        # return _build_edit_review_form(current_for_render, original_for_render, form_data.get("modification_prompt", ""), error_div).children[0]
-        return error_div  # Simpler error return for now
+        return error_div
     except Exception as e:
         logger.error("Error parsing modify form data: %s", e, exc_info=True)
         return fh.Div(
@@ -1079,6 +1037,3 @@ async def post_update_diff(request: Request):
             id="diff-content-wrapper",
             cls=CSS_ERROR_CLASS,
         )
-
-
-# --- Main Application Logic Endpoints ---

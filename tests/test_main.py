@@ -5,20 +5,20 @@ import httpx
 import pytest
 from fastlite import database
 from httpx import ASGITransport, AsyncClient, Request, Response
+from pydantic import ValidationError
+from starlette.datastructures import FormData
 
 import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
 from meal_planner.main import (
     CSS_ERROR_CLASS,
+    _parse_recipe_form_data,
     app,
     fetch_and_clean_text_from_url,
     fetch_page_text,
     postprocess_recipe,
-    _parse_recipe_form_data,
 )
 from meal_planner.models import Recipe
-from starlette.datastructures import FormData
-from pydantic import ValidationError
 
 # Constants
 TRANSPORT = ASGITransport(app=app)
@@ -392,7 +392,7 @@ async def test_extract_run_returns_save_form(
     assert 'id="edit-review-form"' in html_content
     assert 'id="name"' in html_content
     assert f'value="{mock_recipe_data_fixture.name}"' in html_content
-    assert f"<input" in html_content
+    assert "<input" in html_content
     assert f'button hx-post="{RECIPES_SAVE_URL}"' in html_content
     assert ">Save Recipe</button>" in html_content
 
@@ -692,7 +692,6 @@ class TestRecipeModifyEndpoint:
             mock_original_recipe_fixture,
             "A valid prompt",
         )
-        # Introduce invalid data into the 'current' fields
         form_data[invalid_field] = invalid_value
 
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
@@ -701,8 +700,6 @@ class TestRecipeModifyEndpoint:
         assert "Form Validation Error:" in response.text
         assert expected_error_fragment in response.text
         assert f'class="{CSS_ERROR_CLASS}"' in response.text
-        # Ensure LLM was not called because validation failed first
-        # Note: Need to patch it here locally as it's removed from fixture params
         with patch(
             "meal_planner.main.call_llm", new_callable=AsyncMock
         ) as local_mock_llm:
@@ -745,22 +742,19 @@ class TestRecipeModifyEndpoint:
         This test primarily ensures the endpoint handles invalid original data without crashing,
         even though the specific error message relates to the current data validation order.
         """
-        # Make BOTH current and original data invalid
         form_data = {
-            FIELD_NAME: "",  # Invalid current name
-            FIELD_INGREDIENTS: ["curr ing"],  # Valid current
-            FIELD_INSTRUCTIONS: ["curr inst"],  # Valid current
+            FIELD_NAME: "",
+            FIELD_INGREDIENTS: ["curr ing"],
+            FIELD_INSTRUCTIONS: ["curr inst"],
             FIELD_ORIGINAL_NAME: mock_original_recipe_fixture.name,
             FIELD_ORIGINAL_INGREDIENTS: mock_original_recipe_fixture.ingredients,
             FIELD_ORIGINAL_INSTRUCTIONS: mock_original_recipe_fixture.instructions,
             FIELD_MODIFICATION_PROMPT: "Another valid prompt",
         }
-        # Introduce invalid data into the 'original' fields
         form_data[invalid_field] = invalid_value
 
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
-        # We expect the outer validation error message because current data is invalid
         assert response.status_code == 200
         assert "Form Validation Error:" in response.text
         assert expected_error_fragment in response.text
@@ -776,8 +770,6 @@ class TestRecipeModifyEndpoint:
 async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
     "Test generic exception during form parsing in post_modify_recipe."
     mock_parse.side_effect = Exception("Simulated parsing error")
-    # Form data content doesn't matter as parsing is mocked to fail
-    # Need enough fields to construct the URL target
     dummy_form_data = {FIELD_NAME: "Test", "original_name": "Orig"}
 
     response = await client.post(RECIPES_MODIFY_URL, data=dummy_form_data)
@@ -785,7 +777,6 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
     assert response.status_code == 200
     assert "Error processing modification request form." in response.text
     assert f'class="{CSS_ERROR_CLASS}"' in response.text
-    # Expect it to be called once: the first call raises the exception
     assert mock_parse.call_count == 1
 
 
@@ -1185,12 +1176,5 @@ async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
 def test_build_edit_review_form_no_original():
     "Test hitting the `original_recipe = current_recipe` line."
     current = Recipe(name="Test", ingredients=["i"], instructions=["s"])
-    # Call with only current_recipe, original_recipe should default to None
     result = main_module._build_edit_review_form(current)
-    # Assert that the hidden field for original name contains the current name
-    # This implies the assignment happened correctly.
-    # We need to render the result or parse the structure to check accurately.
-    # For now, just ensure it runs without error, coverage should confirm the line hit.
     assert result is not None
-    # hidden_input = find_tag(result, lambda t: t.attrs.get("name") == "original_name")
-    # assert hidden_input.attrs.get("value") == current.name
