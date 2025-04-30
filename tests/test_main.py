@@ -413,7 +413,6 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
     assert response.status_code == 200
     assert "Current Recipe Saved!" in response.text
 
-    # Verify using fastlite connected to the test db file
     verify_db = database(db_path)
     verify_table = verify_db.t.recipes
     all_recipes = verify_table()
@@ -430,7 +429,7 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
     recipe_id = saved_db_recipe["id"]
     assert isinstance(recipe_id, int)
 
-    verify_db.conn.close()  # Close the verification connection
+    verify_db.conn.close()
 
 
 @pytest.mark.anyio
@@ -662,7 +661,6 @@ class TestRecipeModifyEndpoint:
             mock_original_recipe_fixture,
             "A valid prompt",
         )
-        # Introduce a validation error (empty name)
         form_data[FIELD_NAME] = ""
 
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
@@ -670,7 +668,6 @@ class TestRecipeModifyEndpoint:
         assert response.status_code == 200
         assert "Invalid recipe data. Please check the fields." in response.text
         assert CSS_ERROR_CLASS in response.text
-        # Ensure LLM was not called if validation failed
         with patch(
             "meal_planner.main.call_llm", new_callable=AsyncMock
         ) as local_mock_llm:
@@ -852,7 +849,6 @@ class TestPostprocessRecipe:
         ]
 
 
-# Add tests for UI fragment endpoints
 @pytest.mark.anyio
 class TestRecipeUIFragments:
     ADD_INGREDIENT_URL = "/recipes/ui/add-ingredient"
@@ -1031,7 +1027,7 @@ class TestRecipeUpdateDiff:
         "Test that update diff returns error state on validation failure."
         valid_recipe = Recipe(name="Valid", ingredients=["i"], instructions=["s"])
         form_data = self._build_diff_form_data(valid_recipe, valid_recipe)
-        form_data[invalid_field] = invalid_value  # Introduce invalid data
+        form_data[invalid_field] = invalid_value
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
 
@@ -1047,7 +1043,6 @@ class TestRecipeUpdateDiff:
 async def test_update_diff_parsing_exception(mock_parse, client: AsyncClient):
     "Test generic exception during form parsing in post_update_diff."
     mock_parse.side_effect = Exception("Simulated parsing error")
-    # Form data content doesn't matter here as parsing is mocked to fail
     dummy_form_data = {FIELD_NAME: "Test", "original_name": "Orig"}
 
     response = await client.post(
@@ -1058,7 +1053,6 @@ async def test_update_diff_parsing_exception(mock_parse, client: AsyncClient):
     assert "Error preparing data for diff" in response.text
     assert 'id="diff-content-wrapper"' in response.text
     assert CSS_ERROR_CLASS in response.text
-    # Expect it to be called once: the first call raises the exception
     assert mock_parse.call_count == 1
 
 
@@ -1067,7 +1061,6 @@ async def test_update_diff_parsing_exception(mock_parse, client: AsyncClient):
 async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
     "Test generic exception during form parsing in post_save_recipe."
     mock_parse.side_effect = Exception("Simulated parsing error")
-    # Form data content doesn't matter here as parsing is mocked to fail
     dummy_form_data = {
         FIELD_NAME: "Test",
         FIELD_INGREDIENTS: ["i"],
@@ -1080,9 +1073,6 @@ async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
     assert "Error processing form data." in response.text
     assert CSS_ERROR_CLASS in response.text
     mock_parse.assert_called_once()
-
-
-# --- Test helper functions directly ---
 
 
 def test_build_edit_review_form_no_original():
