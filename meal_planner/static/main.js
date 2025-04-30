@@ -28,4 +28,4 @@ document.body.addEventListener('click', function(event) {
             console.error('Error during DELETE or subsequent POST:', error);
         });
     }
-}); 
+});
