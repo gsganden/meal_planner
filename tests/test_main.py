@@ -12,15 +12,15 @@ from starlette.datastructures import FormData
 import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
 from meal_planner.main import (
+    ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
     CSS_ERROR_CLASS,
+    MODEL_NAME,
     _parse_recipe_form_data,
     app,
     call_llm,
     fetch_and_clean_text_from_url,
     fetch_page_text,
     postprocess_recipe,
-    MODEL_NAME,
-    ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
 )
 from meal_planner.models import Recipe
 
@@ -354,7 +354,8 @@ class TestFetchAndCleanTextFromUrl:
         assert raised_exception == log_args[1]
         assert kwargs.get("exc_info") is True
 
-        # If the raised exception was NOT an httpx error, html_cleaner shouldn't be called
+        # If the raised exception was NOT an httpx error, html_cleaner shouldn't
+        # be called
         if not isinstance(
             raised_exception, (httpx.RequestError, httpx.HTTPStatusError)
         ):
@@ -372,7 +373,8 @@ class TestFetchAndCleanTextFromUrl:
         mock_fetch_page_text,
         mock_html_cleaner,
     ):
-        """Test that a generic exception during HTML cleaning is caught and raises RuntimeError."""
+        """Test that a generic exception during HTML cleaning is caught and raises
+        RuntimeError."""
         mock_fetch_page_text.return_value = "<html></html>"  # Simulate successful fetch
         cleaning_exception = Exception("HTML cleaning failed!")
         mock_html_cleaner.side_effect = cleaning_exception
@@ -395,6 +397,16 @@ class TestFetchAndCleanTextFromUrl:
         # Verify mocks
         mock_fetch_page_text.assert_called_once_with(self.TEST_URL)
         mock_html_cleaner.assert_called_once_with("<html></html>")
+
+        found_log = False
+        for call in mock_logger_error.call_args_list:
+            if ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE in call.args:
+                found_log = True
+                break
+        assert found_log, (
+            f"Log message with prompt filename "
+            f"'{ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE}' not found."
+        )
 
 
 @pytest.mark.anyio
@@ -684,7 +696,8 @@ class TestRecipeModifyEndpoint:
                 found_log = True
                 break
         assert found_log, (
-            f"Log message with prompt filename '{ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE}' not found."
+            f"Log message with prompt filename "
+            f"'{ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE}' not found."
         )
 
     async def test_modify_no_prompt(
