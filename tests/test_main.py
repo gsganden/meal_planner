@@ -461,6 +461,7 @@ async def test_save_recipe_missing_data(
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
     assert "Invalid recipe data. Please check the fields." in response.text
+    assert CSS_ERROR_CLASS in response.text
 
 
 @pytest.mark.anyio
@@ -510,6 +511,7 @@ async def test_save_recipe_validation_error(
     response = await client.post(RECIPES_SAVE_URL, data=invalid_form_data)
     assert response.status_code == 200
     assert "Invalid recipe data. Please check the fields." in response.text
+    assert CSS_ERROR_CLASS in response.text
 
 
 @pytest.fixture
@@ -698,7 +700,7 @@ class TestRecipeModifyEndpoint:
 
         assert response.status_code == 200
         assert "Invalid recipe data. Please check the fields." in response.text
-        assert f'class="{CSS_ERROR_CLASS}"' in response.text
+        assert CSS_ERROR_CLASS in response.text
         with patch(
             "meal_planner.main.call_llm", new_callable=AsyncMock
         ) as local_mock_llm:
@@ -756,7 +758,7 @@ class TestRecipeModifyEndpoint:
 
         assert response.status_code == 200
         assert "Invalid recipe data. Please check the fields." in response.text
-        assert f'class="{CSS_ERROR_CLASS}"' in response.text
+        assert CSS_ERROR_CLASS in response.text
         with patch(
             "meal_planner.main.call_llm", new_callable=AsyncMock
         ) as local_mock_llm:
@@ -774,7 +776,7 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
 
     assert response.status_code == 200
     assert "Error processing modification request form." in response.text
-    assert f'class="{CSS_ERROR_CLASS}"' in response.text
+    assert CSS_ERROR_CLASS in response.text
     assert mock_parse.call_count == 1
 
 
@@ -1143,7 +1145,7 @@ async def test_update_diff_parsing_exception(mock_parse, client: AsyncClient):
     assert response.status_code == 200
     assert "Error preparing data for diff" in response.text
     assert 'id="diff-content-wrapper"' in response.text
-    assert f'class="{CSS_ERROR_CLASS}"' in response.text
+    assert CSS_ERROR_CLASS in response.text
     # Expect it to be called once: the first call raises the exception
     assert mock_parse.call_count == 1
 
@@ -1164,7 +1166,7 @@ async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
 
     assert response.status_code == 200
     assert "Error processing form data." in response.text
-    assert f'class="{CSS_ERROR_CLASS}"' in response.text
+    assert CSS_ERROR_CLASS in response.text
     mock_parse.assert_called_once()
 
 

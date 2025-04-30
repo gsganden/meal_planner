@@ -17,7 +17,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, ValidationError
 from starlette.datastructures import FormData
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response, HTMLResponse
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import api_router, recipes_table
@@ -464,11 +464,44 @@ def _build_edit_review_form(
     error_message_content=None,
 ):
     """Builds the structured, editable recipe form with live diff."""
-
     if original_recipe is None:
         original_recipe = current_recipe
 
-    # --- Modification Controls ---
+    controls_section = _build_modification_controls(
+        modification_prompt_value, error_message_content
+    )
+    original_hidden_fields = _build_original_hidden_fields(original_recipe)
+    editable_section = _build_editable_section(current_recipe)
+    review_section = _build_review_section(original_recipe, current_recipe)
+    save_button_container = _build_save_button()
+
+    combined_edit_section = fh.Div(
+        fh.H2("Edit Recipe", cls="text-3xl mb-4"),
+        controls_section,
+        editable_section,
+    )
+
+    diff_style = fh.Style("""
+        ins { background-color: #e6ffe6; text-decoration: none; }
+        del { background-color: #ffe6e6; text-decoration: none; }
+    """)
+
+    return fh.Div(
+        mu.Form(
+            combined_edit_section,
+            review_section,
+            save_button_container,
+            *original_hidden_fields,
+            id="edit-review-form",
+        ),
+        diff_style,
+    )
+
+
+def _build_modification_controls(
+    modification_prompt_value: str | None, error_message_content
+):
+    """Builds the 'Modify with AI' control section."""
     modification_input = mu.Input(
         id="modification_prompt",
         name="modification_prompt",
@@ -494,7 +527,7 @@ def _build_edit_review_form(
         "AI recipe modification is experimental. Review changes carefully.",
         cls="text-xs text-gray-500 mt-1 mb-4",
     )
-    controls_section = fh.Div(
+    return fh.Div(
         fh.H3("Modify with AI", cls="text-xl mb-2"),
         modification_input,
         modify_button_container,
@@ -503,8 +536,10 @@ def _build_edit_review_form(
         cls="mb-6",
     )
 
-    # --- Original Recipe Hidden Fields (Always included now) ---
-    original_hidden_fields = (
+
+def _build_original_hidden_fields(original_recipe: Recipe):
+    """Builds the hidden input fields for the original recipe data."""
+    return (
         fh.Input(type="hidden", name="original_name", value=original_recipe.name),
         *(
             fh.Input(type="hidden", name="original_ingredients", value=ing)
@@ -516,12 +551,28 @@ def _build_edit_review_form(
         ),
     )
 
-    # --- Editable Form Sections (Based on current_recipe) ---
-    name_input = mu.Input(
+
+def _build_editable_section(current_recipe: Recipe):
+    """Builds the 'Edit Manually' section with inputs for name, ingredients, and instructions."""
+    name_input = _build_name_input(current_recipe.name)
+    ingredients_section = _build_ingredients_section(current_recipe.ingredients)
+    instructions_section = _build_instructions_section(current_recipe.instructions)
+
+    return fh.Div(
+        fh.H3("Edit Manually", cls="text-xl mb-4"),
+        name_input,
+        ingredients_section,
+        instructions_section,
+    )
+
+
+def _build_name_input(name_value: str):
+    """Builds the input field for the recipe name."""
+    return mu.Input(
         id="name",
         name="name",
         label="Recipe Name",
-        value=current_recipe.name,
+        value=name_value,
         cls="mb-4 bg-white",
         hx_post="/recipes/ui/update-diff",
         hx_target="#diff-content-wrapper",
@@ -530,30 +581,11 @@ def _build_edit_review_form(
         hx_include="closest form",
     )
 
+
+def _build_ingredients_section(ingredients: list[str]):
+    """Builds the ingredients list section with inputs and add/remove buttons."""
     ingredient_inputs = fh.Div(
-        *(
-            fh.Div(
-                mu.Input(
-                    name="ingredients",
-                    value=ing,
-                    placeholder="Ingredient",
-                    cls="flex-grow mr-2 bg-white",
-                    hx_post="/recipes/ui/update-diff",
-                    hx_target="#diff-content-wrapper",
-                    hx_swap="innerHTML",
-                    hx_trigger="change, keyup changed delay:500ms",
-                    hx_include="closest form",
-                ),
-                mu.Button(
-                    mu.UkIcon("minus-circle"),
-                    cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
-                    type="button",
-                ),
-                cls="flex items-center mb-2",
-                id=f"ingredient-{i}",
-            )
-            for i, ing in enumerate(current_recipe.ingredients)
-        ),
+        *(_build_ingredient_input(i, ing) for i, ing in enumerate(ingredients)),
         id="ingredients-list",
         cls="mb-4",
     )
@@ -564,35 +596,41 @@ def _build_edit_review_form(
         hx_swap="beforeend",
         cls="mb-4 text-green-500 hover:text-green-600 uk-border-circle p-1 flex items-center justify-center",
     )
-    ingredients_section = fh.Div(
+    return fh.Div(
         fh.H3("Ingredients", cls="text-xl mb-2"),
         ingredient_inputs,
         add_ingredient_button,
     )
 
+
+def _build_ingredient_input(index: int, value: str):
+    """Builds a single ingredient input row."""
+    return fh.Div(
+        mu.Input(
+            name="ingredients",
+            value=value,
+            placeholder="Ingredient",
+            cls="flex-grow mr-2 bg-white",
+            hx_post="/recipes/ui/update-diff",
+            hx_target="#diff-content-wrapper",
+            hx_swap="innerHTML",
+            hx_trigger="change, keyup changed delay:500ms",
+            hx_include="closest form",
+        ),
+        mu.Button(
+            mu.UkIcon("minus-circle"),
+            cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
+            type="button",
+        ),
+        cls="flex items-center mb-2",
+        id=f"ingredient-{index}",
+    )
+
+
+def _build_instructions_section(instructions: list[str]):
+    """Builds the instructions list section with textareas and add/remove buttons."""
     instruction_items = [
-        fh.Div(
-            mu.TextArea(
-                inst,
-                name="instructions",
-                placeholder="Instruction Step",
-                rows=2,
-                cls="flex-grow mr-2 bg-white",
-                hx_post="/recipes/ui/update-diff",
-                hx_target="#diff-content-wrapper",
-                hx_swap="innerHTML",
-                hx_trigger="change, keyup changed delay:500ms",
-                hx_include="closest form",
-            ),
-            mu.Button(
-                mu.UkIcon("minus-circle"),
-                cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
-                type="button",
-            ),
-            cls="flex items-start mb-2",
-            id=f"instruction-{i}",
-        )
-        for i, inst in enumerate(current_recipe.instructions)
+        _build_instruction_input(i, inst) for i, inst in enumerate(instructions)
     ]
     instruction_inputs = fh.Div(
         *instruction_items,
@@ -606,41 +644,51 @@ def _build_edit_review_form(
         hx_swap="beforeend",
         cls="mb-4 text-green-500 hover:text-green-600 uk-border-circle p-1 flex items-center justify-center",
     )
-    instructions_section = fh.Div(
+    return fh.Div(
         fh.H3("Instructions", cls="text-xl mb-2"),
         instruction_inputs,
         add_instruction_button,
     )
 
-    editable_section = fh.Div(
-        fh.H3("Edit Manually", cls="text-xl mb-4"),
-        name_input,
-        ingredients_section,
-        instructions_section,
+
+def _build_instruction_input(index: int, value: str):
+    """Builds a single instruction textarea row."""
+    return fh.Div(
+        mu.TextArea(
+            value,  # Use the value directly
+            name="instructions",
+            placeholder="Instruction Step",
+            rows=2,
+            cls="flex-grow mr-2 bg-white",
+            hx_post="/recipes/ui/update-diff",
+            hx_target="#diff-content-wrapper",
+            hx_swap="innerHTML",
+            hx_trigger="change, keyup changed delay:500ms",
+            hx_include="closest form",
+        ),
+        mu.Button(
+            mu.UkIcon("minus-circle"),
+            cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
+            type="button",
+        ),
+        cls="flex items-start mb-2",
+        id=f"instruction-{index}",
     )
 
-    # --- Review Section (Always rendered now) ---
-    diff_content_wrapper = _build_diff_content(original_recipe, current_recipe.markdown)
-    diff_style = fh.Style("""
-        ins { background-color: #e6ffe6; text-decoration: none; }
-        del { background-color: #ffe6e6; text-decoration: none; }
-    """)
 
-    review_section = fh.Div(
+def _build_review_section(original_recipe: Recipe, current_recipe: Recipe):
+    """Builds the 'Review Changes' section with the diff view."""
+    diff_content_wrapper = _build_diff_content(original_recipe, current_recipe.markdown)
+    return fh.Div(
         fh.H2("Review Changes", cls="text-2xl mb-4"),
         diff_content_wrapper,
         cls="p-4 border rounded bg-gray-50 mt-6",
     )
 
-    # --- Combined Edit Box ---
-    combined_edit_section = fh.Div(
-        fh.H2("Edit Recipe", cls="text-3xl mb-4"),
-        controls_section,
-        editable_section,
-    )
 
-    # --- Save Button ---
-    save_button_container = fh.Div(
+def _build_save_button():
+    """Builds the save button container."""
+    return fh.Div(
         mu.Button(
             "Save Recipe",
             hx_post="/recipes/save",
@@ -653,17 +701,6 @@ def _build_edit_review_form(
         mu.Loading(id="save-indicator", cls="htmx-indicator ml-2"),
         id="save-button-container",
         cls="mt-6",
-    )
-
-    return fh.Div(
-        mu.Form(
-            combined_edit_section,
-            review_section,
-            save_button_container,
-            *original_hidden_fields,
-            id="edit-review-form",
-        ),
-        diff_style,
     )
 
 
@@ -829,48 +866,87 @@ async def post_save_recipe(request: Request):
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
     form_data: FormData = await request.form()
-    try:
-        # Parse form data first
-        current_data = _parse_recipe_form_data(form_data)
-        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+    (
+        current_recipe,
+        original_recipe,
+        modification_prompt,
+        error_response,
+    ) = _parse_and_validate_modify_form(form_data)
 
-        # Create Recipe objects for validation and use
-        # Original must be valid based on hidden fields
-        original_recipe = Recipe(**original_data)
-        # Current might fail validation if user created invalid state, handle it
-        current_recipe = Recipe(**current_data)
+    if error_response:
+        return error_response
 
-    except ValidationError as e:
-        logger.warning("Validation error on modify form submit: %s", e, exc_info=False)
-        # Generic message, details logged
-        error_div = fh.Div(
-            "Invalid recipe data. Please check the fields.", cls=CSS_ERROR_CLASS
-        )
-        return error_div
-    except Exception as e:
-        logger.error("Error parsing modify form data: %s", e, exc_info=True)
-        return fh.Div(
-            "Error processing modification request form.", cls=CSS_ERROR_CLASS
-        )
-
-    modification_prompt = form_data.get("modification_prompt", "")
-
+    # Handle empty prompt case
     if not modification_prompt:
         logger.info("Modification requested with empty prompt. Returning form.")
         error_message = fh.Div(
             "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
         )
-        # Pass the validated Recipe objects back to the form builder
         form_content = _build_edit_review_form(
             current_recipe,
             original_recipe,
             "",
-            error_message,  # Pass empty prompt string
+            error_message,
         )
         return form_content.children[0]
 
+    # Request modification from LLM
     logger.info("Modifying recipe with prompt: %s", modification_prompt)
+    modified_recipe, llm_error_message = await _request_recipe_modification(
+        current_recipe, modification_prompt
+    )
 
+    # Handle LLM failure by re-rendering form with an error
+    if llm_error_message:
+        error_message = fh.Div(
+            llm_error_message,
+            cls=f"{CSS_ERROR_CLASS} mt-2",
+        )
+        form_content = _build_edit_review_form(
+            current_recipe, original_recipe, modification_prompt, error_message
+        )
+        return form_content.children[0]
+
+    # Pass validated original and LLM-processed recipe to build form
+    form_content = _build_edit_review_form(modified_recipe, original_recipe)
+    return form_content.children[0]
+
+
+def _parse_and_validate_modify_form(
+    form_data: FormData,
+) -> tuple[Recipe | None, Recipe | None, str | None, HTMLResponse | None]:
+    """Parses and validates form data for the modify recipe request."""
+    try:
+        current_data = _parse_recipe_form_data(form_data)
+        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        modification_prompt = form_data.get("modification_prompt", "")
+
+        # Validate recipes
+        original_recipe = Recipe(**original_data)
+        current_recipe = Recipe(**current_data)
+
+        return current_recipe, original_recipe, modification_prompt, None
+
+    except ValidationError as e:
+        logger.warning("Validation error on modify form submit: %s", e, exc_info=False)
+        error_div = fh.Div(
+            "Invalid recipe data. Please check the fields.", cls=CSS_ERROR_CLASS
+        )
+        # Wrap error div in HTMLResponse for direct return
+        return None, None, None, HTMLResponse(content=str(error_div))
+    except Exception as e:
+        logger.error("Error parsing modify form data: %s", e, exc_info=True)
+        error_div = fh.Div(
+            "Error processing modification request form.", cls=CSS_ERROR_CLASS
+        )
+        # Wrap error div in HTMLResponse for direct return
+        return None, None, None, HTMLResponse(content=str(error_div))
+
+
+async def _request_recipe_modification(
+    current_recipe: Recipe, modification_prompt: str
+) -> tuple[Recipe | None, str | None]:
+    """Requests recipe modification from LLM and handles errors."""
     try:
         modification_template = (
             PROMPT_DIR / "recipe_modification" / "20250429_183353__initial.txt"
@@ -884,8 +960,8 @@ async def post_modify_recipe(request: Request):
             response_model=Recipe,
         )
         logger.info("LLM modification successful for prompt: %s", modification_prompt)
-        # Process the recipe returned by LLM
         processed_recipe = postprocess_recipe(modified_recipe)
+        return processed_recipe, None  # Return recipe, no error message
 
     except Exception as e:
         logger.error(
@@ -894,19 +970,8 @@ async def post_modify_recipe(request: Request):
             e,
             exc_info=True,
         )
-        error_message = fh.Div(
-            "Recipe modification failed. An unexpected error occurred.",
-            cls=f"{CSS_ERROR_CLASS} mt-2",
-        )
-        # Re-render form with current state before error and original recipe
-        form_content = _build_edit_review_form(
-            current_recipe, original_recipe, modification_prompt, error_message
-        )
-        return form_content.children[0]
-
-    # Pass validated original and LLM-processed recipe to build form
-    form_content = _build_edit_review_form(processed_recipe, original_recipe)
-    return form_content.children[0]
+        # Return None for recipe, and the error message
+        return None, "Recipe modification failed. An unexpected error occurred."
 
 
 # --- HTMX UI Fragment Endpoints ---
