@@ -1,6 +1,9 @@
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, Response
+import json
+from pathlib import Path
+from fastlite import database
 
 import meal_planner.api.recipes as recipes_api
 
@@ -188,3 +191,59 @@ class TestCreateRecipeDBErrors:
 
         assert response.status_code == 500
         assert "Database error creating recipe" in response.text
+
+
+@pytest.mark.usefixtures("client")
+class TestGetRecipes:
+    async def test_get_recipes_populated(
+        self, client: AsyncClient, test_db_session: Path
+    ):
+        """Test GET /api/recipes returns all recipes when the database is populated."""
+        db_path = test_db_session
+        db = database(db_path)
+        table = db.t.recipes
+
+        recipe1_data = {
+            "name": "Recipe One",
+            "ingredients": json.dumps(["ing1a", "ing1b"]),
+            "instructions": json.dumps(["step1a", "step1b"]),
+        }
+        recipe2_data = {
+            "name": "Recipe Two",
+            "ingredients": json.dumps(["ing2a"]),
+            "instructions": json.dumps(["step2a"]),
+        }
+        inserted1 = table.insert(recipe1_data)
+        inserted2 = table.insert(recipe2_data)
+        db.conn.close()
+
+        response = await client.get("/api/recipes")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert isinstance(response_json, list)
+        assert len(response_json) == 2
+
+        expected_recipe1 = {
+            "id": inserted1["id"],
+            "name": "Recipe One",
+            "ingredients": ["ing1a", "ing1b"],
+            "instructions": ["step1a", "step1b"],
+        }
+        expected_recipe2 = {
+            "id": inserted2["id"],
+            "name": "Recipe Two",
+            "ingredients": ["ing2a"],
+            "instructions": ["step2a"],
+        }
+
+        assert expected_recipe1 in response_json
+        assert expected_recipe2 in response_json
+
+    async def test_get_recipes_empty(self, client: AsyncClient, test_db_session: Path):
+        """Test GET /api/recipes returns an empty list when the database is empty."""
+        response = await client.get("/api/recipes")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json == []

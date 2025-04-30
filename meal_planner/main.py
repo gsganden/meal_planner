@@ -13,6 +13,7 @@ import httpx
 import instructor
 import monsterui.all as mu
 from fastapi import FastAPI
+from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, ValidationError
 from starlette.datastructures import FormData
@@ -20,7 +21,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 from starlette.staticfiles import StaticFiles
 
-from meal_planner.api.recipes import api_router, recipes_table
+from meal_planner.api.recipes import api_router, recipes_table, db
 from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
@@ -54,6 +55,11 @@ api_app.include_router(api_router)
 
 app.mount("/api", api_app)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Internal client for calling own API endpoints
+internal_client = httpx.AsyncClient(
+    transport=ASGITransport(app=app), base_url="http://test"
+)
 
 
 def create_html_cleaner() -> html2text.HTML2Text:
@@ -89,6 +95,14 @@ def sidebar():
                     fh.A(
                         "Create",
                         href="/recipes/extract",
+                        hx_target="#content",
+                        hx_push_url="true",
+                    )
+                ),
+                fh.Li(
+                    fh.A(
+                        "View All",
+                        href="/recipes",
                         hx_target="#content",
                         hx_push_url="true",
                     )
@@ -219,6 +233,121 @@ def get():
             id="content",
         )
     )
+
+
+@rt("/recipes")
+async def get_recipes_page():
+    try:
+        response = await internal_client.get("/api/recipes")
+        response.raise_for_status()  # Raise exception for 4xx or 5xx status codes
+        recipes_data = response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "API error fetching recipes: %s Response: %s",
+            e,
+            e.response.text,
+            exc_info=True,
+        )
+        return with_layout(
+            fh.Div("Error fetching recipes from API.", cls=CSS_ERROR_CLASS)
+        )
+    except Exception as e:
+        logger.error("Error fetching recipes: %s", e, exc_info=True)
+        return with_layout(
+            fh.Div(
+                "An unexpected error occurred while fetching recipes.",
+                cls=CSS_ERROR_CLASS,
+            )
+        )
+
+    if not recipes_data:
+        content = fh.Div("No recipes found.")
+    else:
+        # De-duplicate recipes based on name, keeping the first full object
+        seen_names = set()
+        unique_recipes = []
+        for recipe in recipes_data:
+            name = recipe.get("name")
+            recipe_id = recipe.get("id")  # Get the ID
+            if name and recipe_id is not None and name not in seen_names:
+                unique_recipes.append(recipe)  # Store the whole dict
+                seen_names.add(name)
+
+        # Render unique recipes as links
+        content = fh.Ul(
+            *[
+                fh.Li(
+                    fh.A(
+                        recipe["name"],  # Display name
+                        href=f"/recipes/{recipe['id']}",  # Link to /recipes/ID
+                        hx_target="#content",  # Load into main content area
+                        hx_push_url="true",  # Update browser history
+                    )
+                )
+                for recipe in unique_recipes  # Iterate over unique recipe dicts
+            ],
+            cls="list-disc list-inside",
+        )
+
+    return with_layout(mu.Titled("All Recipes", content, id="content"))
+
+
+@rt("/recipes/{recipe_id:int}")
+async def get_single_recipe_page(recipe_id: int):
+    """Displays a single recipe page."""
+    try:
+        # Call the new API endpoint
+        response = await internal_client.get(f"/api/v0/recipes/{recipe_id}")
+        response.raise_for_status()  # Handle 404, 500 from API
+        recipe_data = response.json()
+        # Optionally, validate with RecipeRead model if needed
+        # recipe = RecipeRead(**recipe_data)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            logger.warning("Recipe ID %s not found when loading page.", recipe_id)
+            return with_layout(
+                mu.Titled(
+                    "Recipe Not Found", fh.P("The requested recipe does not exist.")
+                )
+            )
+        else:
+            logger.error(
+                "API error fetching recipe ID %s: Status %s, Response: %s",
+                recipe_id,
+                e.response.status_code,
+                e.response.text,
+                exc_info=True,
+            )
+            return with_layout(
+                mu.Titled("Error", fh.P("Error fetching recipe from API."))
+            )
+    except Exception as e:
+        logger.error(
+            "Unexpected error fetching recipe ID %s for page: %s",
+            recipe_id,
+            e,
+            exc_info=True,
+        )
+        return with_layout(mu.Titled("Error", fh.P("An unexpected error occurred.")))
+
+    # Render the recipe details
+    content = fh.Div(
+        fh.H3(recipe_data["name"], cls="text-xl font-bold mb-3"),
+        fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
+        fh.Ul(
+            *[fh.Li(ing) for ing in recipe_data["ingredients"]],
+            cls="list-disc list-inside mb-3",
+        ),
+        fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
+        # Use fh.Div for instructions to better handle multi-line/formatted steps
+        fh.Div(
+            *[fh.Div(inst, cls="mb-2") for inst in recipe_data["instructions"]],
+            cls="mb-3",
+        ),
+        cls="p-4 border rounded bg-gray-50",  # Add some styling
+    )
+
+    return with_layout(mu.Titled(recipe_data["name"], content))
 
 
 async def fetch_page_text(recipe_url: str):
@@ -535,6 +664,7 @@ def _build_edit_review_form(
             id="edit-review-form",
         ),
         diff_style,
+        cls="p-4 border rounded bg-gray-50 mt-6",
     )
 
 
@@ -891,12 +1021,44 @@ async def post_save_recipe(request: Request):
     }
 
     try:
-        inserted_record = recipes_table.insert(db_data)
-        logger.info(
-            "Saved recipe via UI: %s, Name: %s",
-            inserted_record["id"],
-            recipe_obj.name,
+        # Use raw sqlite3 connection for reliable lastrowid
+        cursor = db.conn.cursor()
+        cursor.execute(
+            "INSERT INTO recipes (name, ingredients, instructions) VALUES (?, ?, ?)",
+            (
+                db_data["name"],
+                db_data["ingredients"],
+                db_data["instructions"],
+            ),
         )
+        # Get last inserted ID using apsw method on the connection
+        inserted_id = db.conn.last_insert_rowid()
+        cursor.close()  # Close the cursor
+
+        # Log the explicitly retrieved ID
+        logger.info("Inserted via raw SQL, lastrowid: %s", inserted_id)
+
+        # Check the ID retrieved from lastrowid
+        if isinstance(inserted_id, int):
+            logger.info(
+                "Saved recipe via UI (ID: %s), Name: %s",
+                inserted_id,
+                recipe_obj.name,
+            )
+        else:
+            # Log an error if the ID from insert() isn't an integer
+            logger.error(
+                "Inserted record ID is not an integer or missing: %s (%s). Name: %s",
+                inserted_id,
+                type(inserted_id),
+                recipe_obj.name,
+            )
+            return fh.Span(
+                "Error saving recipe (ID issue).",
+                cls=CSS_ERROR_CLASS,
+                id="save-modified-button-container",
+            )
+
     except Exception as e:
         logger.error("Database error saving recipe via UI: %s", e, exc_info=True)
         return fh.Span(

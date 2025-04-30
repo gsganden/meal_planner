@@ -4,6 +4,7 @@ from pathlib import Path
 import modal
 
 from meal_planner.main import app as fasthtml_app
+from meal_planner.api.recipes import db
 
 VOLUME_DB_PATH = Path("/data/meal_planner.db")
 
@@ -17,6 +18,7 @@ image = (
     .env({"MEAL_PLANNER_DB_PATH": str(VOLUME_DB_PATH)})
     .add_local_python_source("meal_planner")
     .add_local_dir("prompt_templates", remote_path="/root/prompt_templates")
+    .add_local_dir("scripts", remote_path="/root/scripts")
 )
 
 google_api_key_secret = modal.Secret.from_dict(
