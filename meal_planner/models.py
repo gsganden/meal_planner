@@ -1,9 +1,6 @@
 import textwrap
 
 from pydantic import BaseModel, Field
-from markdown_it import MarkdownIt
-
-md = MarkdownIt()
 
 
 class Recipe(BaseModel):
