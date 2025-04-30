@@ -665,7 +665,7 @@ def _build_instruction_input(index: int, value: str):
     """Builds a single instruction textarea row."""
     return fh.Div(
         mu.TextArea(
-            value,  # Use the value directly
+            value,
             name="instructions",
             placeholder="Instruction Step",
             rows=2,
@@ -759,7 +759,6 @@ async def post_fetch_text(recipe_url: str | None = None):
         )
         return fh.Div("Unexpected error fetching text.", cls=CSS_ERROR_CLASS)
 
-    # Return the TextArea wrapped in the container div, with styling
     return fh.Div(
         mu.TextArea(
             cleaned_text,
@@ -769,7 +768,7 @@ async def post_fetch_text(recipe_url: str | None = None):
             placeholder="Paste recipe text here, or fetch from URL above.",
             cls="mb-4 bg-white",
         ),
-        id="recipe_text_container",  # Match the original container ID
+        id="recipe_text_container",
     )
 
 
@@ -799,7 +798,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             "Recipe extraction failed. An unexpected error occurred during processing."
         )
 
-    # Build the rendered text view
     reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-2xl mb-2 mt-6")
     rendered_content_div = fh.Div(
         fh.H3(processed_recipe.name, cls="text-xl font-bold mb-3"),
@@ -839,7 +837,6 @@ async def post_save_recipe(request: Request):
         recipe_obj = Recipe(**parsed_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
-        # Generic message, details logged
         return fh.Span(
             "Invalid recipe data. Please check the fields.", cls=CSS_ERROR_CLASS
         )
@@ -847,7 +844,6 @@ async def post_save_recipe(request: Request):
         logger.error("Error parsing form data during save: %s", e, exc_info=True)
         return fh.Span("Error processing form data.", cls=CSS_ERROR_CLASS)
 
-    # Now that validation passed, we can proceed
     db_data = {
         "name": recipe_obj.name,
         "ingredients": json.dumps(recipe_obj.ingredients),
@@ -859,7 +855,7 @@ async def post_save_recipe(request: Request):
         logger.info(
             "Saved recipe via UI: %s, Name: %s",
             inserted_record["id"],
-            recipe_obj.name,  # Log parsed name
+            recipe_obj.name,
         )
     except Exception as e:
         logger.error("Database error saving recipe via UI: %s", e, exc_info=True)
@@ -871,7 +867,7 @@ async def post_save_recipe(request: Request):
 
     return fh.Span(
         "Current Recipe Saved!",
-        cls="text-green-500",  # Let's make save confirmation green again
+        cls="text-green-500",
         id="save-modified-button-container",
     )
 
@@ -914,9 +910,6 @@ async def post_modify_recipe(request: Request):
         )
         return form_content.children[0]
 
-    # Logic continues only if try succeeded and prompt was not empty
-
-    # Request modification from LLM
     try:
         modified_recipe = await _request_recipe_modification(
             current_recipe, modification_prompt
@@ -945,7 +938,6 @@ def _parse_and_validate_modify_form(
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
         modification_prompt = str(form_data.get("modification_prompt", ""))
 
-        # Validate recipes
         original_recipe = Recipe(**original_data)
         current_recipe = Recipe(**current_data)
 
@@ -997,9 +989,6 @@ async def _request_recipe_modification(
         )
         user_message = "Recipe modification failed. An unexpected error occurred."
         raise RecipeModificationError(user_message) from e
-
-
-# --- HTMX UI Fragment Endpoints ---
 
 
 @rt("/recipes/ui/add-ingredient", methods=["POST"])
@@ -1071,7 +1060,6 @@ async def post_touch_name(request: Request):
     """
     form_data = await request.form()
     name_value = form_data.get("name", "")
-    # Return the exact same input component structure as in _build_edit_review_form
     return mu.Input(
         id="name",
         name="name",
@@ -1094,23 +1082,19 @@ async def post_update_diff(request: Request):
         current_data = _parse_recipe_form_data(form_data)
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
 
-        # Validate both original and current data before generating diff
         original_recipe = Recipe(**original_data)
         current_recipe = Recipe(**current_data)
 
     except ValidationError as e:
-        # Handle case where form data is temporarily invalid during editing
         logger.debug(
             "Validation error during diff update (expected during edit): %s", e
         )
-        # Return the specific error state div
         return fh.Div(
             "Recipe state invalid for diff",
             id="diff-content-wrapper",
             cls="text-orange-500",
         )
     except Exception as e:
-        # Catch other potential errors (e.g., form parsing)
         logger.error("Error preparing data for diff view: %s", e, exc_info=True)
         return fh.Div(
             "Error preparing data for diff",
@@ -1118,7 +1102,6 @@ async def post_update_diff(request: Request):
             cls=CSS_ERROR_CLASS,
         )
 
-    # If validation passes, generate the diff
     try:
         logger.debug("Updating diff: Original vs Current")
         diff_content_wrapper = _build_diff_content(
@@ -1126,7 +1109,6 @@ async def post_update_diff(request: Request):
         )
         return diff_content_wrapper
     except Exception as e:
-        # Catch errors during diff generation itself
         logger.error("Error generating diff view: %s", e, exc_info=True)
         return fh.Div(
             "Error generating diff view",
