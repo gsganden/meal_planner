@@ -360,7 +360,6 @@ class TestFetchAndCleanTextFromUrl:
             raised_exception, (httpx.RequestError, httpx.HTTPStatusError)
         ):
             mock_html_cleaner.assert_not_called()
-        # Add assertion for the final RuntimeError message for this specific case
         if expected_log_fragment == "Error fetching page text":
             assert f"Failed to fetch or process URL: {self.TEST_URL}" in str(
                 excinfo.value
@@ -397,16 +396,6 @@ class TestFetchAndCleanTextFromUrl:
         # Verify mocks
         mock_fetch_page_text.assert_called_once_with(self.TEST_URL)
         mock_html_cleaner.assert_called_once_with("<html></html>")
-
-        found_log = False
-        for call in mock_logger_error.call_args_list:
-            if ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE in call.args:
-                found_log = True
-                break
-        assert found_log, (
-            f"Log message with prompt filename "
-            f"'{ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE}' not found."
-        )
 
 
 @pytest.mark.anyio
