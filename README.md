@@ -33,3 +33,23 @@ uv run modal serve meal_planner/main.py
 ```bash
 uv run modal deploy deploy.app
 ```
+
+## Running Tests
+
+To run all the tests:
+
+```bash
+uv run pytest --runslow
+```
+
+To skip tests that make slow LLM calls:
+
+```bash
+uv run pytest --runslow
+```
+
+To check test coverage with minimal LLM calls:
+
+```bash
+./run_fast_coverage.sh
+```
