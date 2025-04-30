@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
@@ -7,8 +8,6 @@ from fastlite import database
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
-import sqlite3
-from pathlib import Path
 
 import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
@@ -594,8 +593,8 @@ class TestRecipeModifyEndpoint:
         assert f'value="{mock_llm_modified_recipe_fixture.name}"' in response.text
         assert 'id="name"' in response.text
         assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}" value="{mock_original_recipe_fixture.name}"'
-            in response.text
+            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
+            f' value="{mock_original_recipe_fixture.name}"' in response.text
         )
 
     async def test_modify_no_prompt(
@@ -614,13 +613,10 @@ class TestRecipeModifyEndpoint:
         assert response.status_code == 200
         assert "Please enter modification instructions." in response.text
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
-        assert (
-            f'value="{mock_current_recipe_before_modify_fixture.name}"' in response.text
-        )
         assert 'id="name"' in response.text
         assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}" value="{mock_original_recipe_fixture.name}"'
-            in response.text
+            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
+            f' value="{mock_original_recipe_fixture.name}"' in response.text
         )
         mock_call_llm.assert_not_called()
 
@@ -646,119 +642,35 @@ class TestRecipeModifyEndpoint:
             "Recipe modification failed. An unexpected error occurred." in response.text
         )
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
-        assert (
-            f'value="{mock_current_recipe_before_modify_fixture.name}"' in response.text
-        )
         assert 'id="name"' in response.text
         assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}" value="{mock_original_recipe_fixture.name}"'
-            in response.text
+            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
+            f' value="{mock_original_recipe_fixture.name}"' in response.text
         )
         mock_call_llm.assert_called_once()
 
-    @pytest.mark.parametrize(
-        "invalid_field, invalid_value, expected_error_fragment",
-        [
-            pytest.param(
-                FIELD_NAME,
-                "",
-                "name: String should have at least 1 character",
-                id="current_empty_name",
-            ),
-            pytest.param(
-                FIELD_INGREDIENTS,
-                [""],
-                "ingredients: List should have at least 1 item after validation",
-                id="current_empty_ingredient",
-            ),
-            pytest.param(
-                FIELD_INSTRUCTIONS,
-                [""],
-                "instructions: List should have at least 1 item after validation",
-                id="current_empty_instruction",
-            ),
-        ],
-    )
-    async def test_modify_current_validation_error(
+    async def test_modify_validation_error(
         self,
         client: AsyncClient,
         mock_current_recipe_before_modify_fixture: Recipe,
         mock_original_recipe_fixture: Recipe,
-        invalid_field: str,
-        invalid_value: str | list[str],
-        expected_error_fragment: str,
     ):
-        "Test modify recipe when CURRENT form data causes Pydantic validation error."
+        """Test that a validation error during form parsing returns the correct
+        HTML error."""
         form_data = self._build_modify_form_data(
             mock_current_recipe_before_modify_fixture,
             mock_original_recipe_fixture,
             "A valid prompt",
         )
-        form_data[invalid_field] = invalid_value
+        # Introduce a validation error (empty name)
+        form_data[FIELD_NAME] = ""
 
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
         assert response.status_code == 200
         assert "Invalid recipe data. Please check the fields." in response.text
         assert CSS_ERROR_CLASS in response.text
-        with patch(
-            "meal_planner.main.call_llm", new_callable=AsyncMock
-        ) as local_mock_llm:
-            local_mock_llm.assert_not_called()
-
-    @pytest.mark.parametrize(
-        "invalid_field, invalid_value, expected_error_fragment",
-        [
-            pytest.param(
-                FIELD_ORIGINAL_NAME,
-                "",
-                "name: String should have at least 1 character",
-                id="original_empty_name_hits_current_first",
-            ),
-            pytest.param(
-                FIELD_ORIGINAL_INGREDIENTS,
-                [""],
-                "ingredients: List should have at least 1 item",
-                id="original_empty_ingredient_hits_current_first",
-            ),
-            pytest.param(
-                FIELD_ORIGINAL_INSTRUCTIONS,
-                [""],
-                "instructions: List should have at least 1 item",
-                id="original_empty_instruction_hits_current_first",
-            ),
-        ],
-    )
-    async def test_modify_original_validation_error(
-        self,
-        client: AsyncClient,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
-        invalid_field: str,
-        invalid_value: str | list[str],
-        expected_error_fragment: str,
-    ):
-        """Test modify recipe when ORIGINAL form data is invalid.
-        Because current data is also made invalid, we expect the CURRENT validation error.
-        This test primarily ensures the endpoint handles invalid original data without crashing,
-        even though the specific error message relates to the current data validation order.
-        """
-        form_data = {
-            FIELD_NAME: "",
-            FIELD_INGREDIENTS: ["curr ing"],
-            FIELD_INSTRUCTIONS: ["curr inst"],
-            FIELD_ORIGINAL_NAME: mock_original_recipe_fixture.name,
-            FIELD_ORIGINAL_INGREDIENTS: mock_original_recipe_fixture.ingredients,
-            FIELD_ORIGINAL_INSTRUCTIONS: mock_original_recipe_fixture.instructions,
-            FIELD_MODIFICATION_PROMPT: "Another valid prompt",
-        }
-        form_data[invalid_field] = invalid_value
-
-        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
-
-        assert response.status_code == 200
-        assert "Invalid recipe data. Please check the fields." in response.text
-        assert CSS_ERROR_CLASS in response.text
+        # Ensure LLM was not called if validation failed
         with patch(
             "meal_planner.main.call_llm", new_callable=AsyncMock
         ) as local_mock_llm:

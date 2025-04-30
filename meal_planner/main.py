@@ -17,7 +17,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, ValidationError
 from starlette.datastructures import FormData
 from starlette.requests import Request
-from starlette.responses import Response, HTMLResponse
+from starlette.responses import HTMLResponse, Response
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import api_router, recipes_table
@@ -553,7 +553,8 @@ def _build_original_hidden_fields(original_recipe: Recipe):
 
 
 def _build_editable_section(current_recipe: Recipe):
-    """Builds the 'Edit Manually' section with inputs for name, ingredients, and instructions."""
+    """Builds the 'Edit Manually' section with inputs for name, ingredients,
+    and instructions."""
     name_input = _build_name_input(current_recipe.name)
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
@@ -594,7 +595,10 @@ def _build_ingredients_section(ingredients: list[str]):
         hx_post="/recipes/ui/add-ingredient",
         hx_target="#ingredients-list",
         hx_swap="beforeend",
-        cls="mb-4 text-green-500 hover:text-green-600 uk-border-circle p-1 flex items-center justify-center",
+        cls=(
+            "mb-4 text-green-500 hover:text-green-600 uk-border-circle p-1 flex"
+            " items-center justify-center"
+        ),
     )
     return fh.Div(
         fh.H3("Ingredients", cls="text-xl mb-2"),
@@ -619,7 +623,10 @@ def _build_ingredient_input(index: int, value: str):
         ),
         mu.Button(
             mu.UkIcon("minus-circle"),
-            cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
+            cls=(
+                "ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex"
+                " items-center justify-center delete-item-button"
+            ),
             type="button",
         ),
         cls="flex items-center mb-2",
@@ -642,7 +649,10 @@ def _build_instructions_section(instructions: list[str]):
         hx_post="/recipes/ui/add-instruction",
         hx_target="#instructions-list",
         hx_swap="beforeend",
-        cls="mb-4 text-green-500 hover:text-green-600 uk-border-circle p-1 flex items-center justify-center",
+        cls=(
+            "mb-4 text-green-500 hover:text-green-600 uk-border-circle p-1 flex"
+            " items-center justify-center"
+        ),
     )
     return fh.Div(
         fh.H3("Instructions", cls="text-xl mb-2"),
@@ -668,7 +678,10 @@ def _build_instruction_input(index: int, value: str):
         ),
         mu.Button(
             mu.UkIcon("minus-circle"),
-            cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
+            cls=(
+                "ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex"
+                " items-center justify-center delete-item-button"
+            ),
             type="button",
         ),
         cls="flex items-start mb-2",
@@ -863,20 +876,31 @@ async def post_save_recipe(request: Request):
     )
 
 
+class ModifyFormError(Exception):
+    """Custom exception for errors during modification form parsing/validation."""
+
+    pass
+
+
+class RecipeModificationError(Exception):
+    """Custom exception for errors during LLM recipe modification."""
+
+    pass
+
+
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
     form_data: FormData = await request.form()
-    (
-        current_recipe,
-        original_recipe,
-        modification_prompt,
-        error_response,
-    ) = _parse_and_validate_modify_form(form_data)
+    try:
+        (
+            current_recipe,
+            original_recipe,
+            modification_prompt,
+        ) = _parse_and_validate_modify_form(form_data)
+    except ModifyFormError as e:
+        error_div = fh.Div(str(e), cls=CSS_ERROR_CLASS)
+        return HTMLResponse(content=str(error_div))
 
-    if error_response:
-        return error_response
-
-    # Handle empty prompt case
     if not modification_prompt:
         logger.info("Modification requested with empty prompt. Returning form.")
         error_message = fh.Div(
@@ -890,63 +914,64 @@ async def post_modify_recipe(request: Request):
         )
         return form_content.children[0]
 
-    # Request modification from LLM
-    logger.info("Modifying recipe with prompt: %s", modification_prompt)
-    modified_recipe, llm_error_message = await _request_recipe_modification(
-        current_recipe, modification_prompt
-    )
+    # Logic continues only if try succeeded and prompt was not empty
 
-    # Handle LLM failure by re-rendering form with an error
-    if llm_error_message:
-        error_message = fh.Div(
-            llm_error_message,
-            cls=f"{CSS_ERROR_CLASS} mt-2",
+    # Request modification from LLM
+    try:
+        modified_recipe = await _request_recipe_modification(
+            current_recipe, modification_prompt
         )
+    except RecipeModificationError as e:
+        error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         form_content = _build_edit_review_form(
             current_recipe, original_recipe, modification_prompt, error_message
         )
-        return form_content.children[0]
+        return form_content
 
-    # Pass validated original and LLM-processed recipe to build form
     form_content = _build_edit_review_form(modified_recipe, original_recipe)
     return form_content.children[0]
 
 
 def _parse_and_validate_modify_form(
     form_data: FormData,
-) -> tuple[Recipe | None, Recipe | None, str | None, HTMLResponse | None]:
-    """Parses and validates form data for the modify recipe request."""
+) -> tuple[Recipe, Recipe, str]:
+    """Parses and validates form data for the modify recipe request.
+
+    Raises:
+        ModifyFormError: If validation or parsing fails.
+    """
     try:
         current_data = _parse_recipe_form_data(form_data)
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
-        modification_prompt = form_data.get("modification_prompt", "")
+        modification_prompt = str(form_data.get("modification_prompt", ""))
 
         # Validate recipes
         original_recipe = Recipe(**original_data)
         current_recipe = Recipe(**current_data)
 
-        return current_recipe, original_recipe, modification_prompt, None
+        return current_recipe, original_recipe, modification_prompt
 
     except ValidationError as e:
         logger.warning("Validation error on modify form submit: %s", e, exc_info=False)
-        error_div = fh.Div(
-            "Invalid recipe data. Please check the fields.", cls=CSS_ERROR_CLASS
-        )
-        # Wrap error div in HTMLResponse for direct return
-        return None, None, None, HTMLResponse(content=str(error_div))
+        user_message = "Invalid recipe data. Please check the fields."
+        raise ModifyFormError(user_message) from e
     except Exception as e:
         logger.error("Error parsing modify form data: %s", e, exc_info=True)
-        error_div = fh.Div(
-            "Error processing modification request form.", cls=CSS_ERROR_CLASS
-        )
-        # Wrap error div in HTMLResponse for direct return
-        return None, None, None, HTMLResponse(content=str(error_div))
+        user_message = "Error processing modification request form."
+        raise ModifyFormError(user_message) from e
 
 
 async def _request_recipe_modification(
     current_recipe: Recipe, modification_prompt: str
-) -> tuple[Recipe | None, str | None]:
-    """Requests recipe modification from LLM and handles errors."""
+) -> Recipe:
+    """Requests recipe modification from LLM.
+
+    Returns:
+        The modified Recipe object.
+
+    Raises:
+        RecipeModificationError: If the LLM call or postprocessing fails.
+    """
     try:
         modification_template = (
             PROMPT_DIR / "recipe_modification" / "20250429_183353__initial.txt"
@@ -961,7 +986,7 @@ async def _request_recipe_modification(
         )
         logger.info("LLM modification successful for prompt: %s", modification_prompt)
         processed_recipe = postprocess_recipe(modified_recipe)
-        return processed_recipe, None  # Return recipe, no error message
+        return processed_recipe
 
     except Exception as e:
         logger.error(
@@ -970,8 +995,8 @@ async def _request_recipe_modification(
             e,
             exc_info=True,
         )
-        # Return None for recipe, and the error message
-        return None, "Recipe modification failed. An unexpected error occurred."
+        user_message = "Recipe modification failed. An unexpected error occurred."
+        raise RecipeModificationError(user_message) from e
 
 
 # --- HTMX UI Fragment Endpoints ---
@@ -993,7 +1018,10 @@ def post_add_ingredient_row():
         ),
         mu.Button(
             mu.UkIcon("minus-circle"),
-            cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
+            cls=(
+                "ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex"
+                " items-center justify-center delete-item-button"
+            ),
             type="button",
         ),
         cls="flex items-center mb-2",
@@ -1017,7 +1045,10 @@ def post_add_instruction_row():
         ),
         mu.Button(
             mu.UkIcon("minus-circle"),
-            cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
+            cls=(
+                "ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex"
+                " items-center justify-center delete-item-button"
+            ),
             type="button",
         ),
         cls="flex items-start mb-2",
