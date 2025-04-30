@@ -14,6 +14,7 @@ class Recipe(BaseModel):
                 """
             )
         ),
+        min_length=1,
     )
     ingredients: list[str] = Field(
         description="List of ingredients for the recipe, as raw strings.",

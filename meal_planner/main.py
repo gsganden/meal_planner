@@ -14,7 +14,7 @@ import instructor
 import monsterui.all as mu
 from fastapi import FastAPI
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from starlette.datastructures import FormData
 from starlette.requests import Request
 from starlette.responses import Response
@@ -436,29 +436,8 @@ def generate_diff_html(before_text: str, after_text: str) -> tuple[str, str]:
     return "\n".join(before_html), "\n".join(after_html)
 
 
-def _create_button_with_indicator(
-    label: str,
-    hx_post: str,
-    hx_target: str,
-    indicator_id: str,
-    include_selector: str,
-    container_id: str | None = None,
-    extra_classes: str = "",
-):
-    """Helper function to create a Div containing a Button and Loading indicator."""
-    button = mu.Button(
-        label,
-        hx_post=hx_post,
-        hx_include=include_selector,
-        hx_target=hx_target,
-        hx_indicator=f"#{indicator_id}",
-    )
-    loader = mu.Loading(id=indicator_id, cls="htmx-indicator ml-2")
-    return fh.Div(button, loader, id=container_id, cls=f"mt-2 {extra_classes}".strip())
-
-
-def _parse_recipe_from_form(form_data: FormData, prefix: str = "") -> Recipe:
-    """Parses recipe data from form fields with an optional prefix."""
+def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
+    """Parses recipe form data into a dictionary, handling optional prefix."""
     name_value = form_data.get(f"{prefix}name")
     name = name_value if isinstance(name_value, str) else ""
 
@@ -472,16 +451,18 @@ def _parse_recipe_from_form(form_data: FormData, prefix: str = "") -> Recipe:
         inst for inst in instructions_values if isinstance(inst, str) and inst.strip()
     ]
 
-    return Recipe(
-        name=name,
-        ingredients=ingredients,
-        instructions=instructions,
-    )
+    return {
+        "name": name,
+        "ingredients": ingredients,
+        "instructions": instructions,
+    }
 
 
-def _build_diff_content(original_recipe: Recipe, current_text: str):
+def _build_diff_content(original_recipe: Recipe, current_markdown: str):
     """Builds the inner content for the diff view container."""
-    before_html, after_html = generate_diff_html(original_recipe.markdown, current_text)
+    before_html, after_html = generate_diff_html(
+        original_recipe.markdown, current_markdown
+    )
     pre_style = "white-space: pre-wrap; overflow-wrap: break-word;"
 
     before_area = fh.Div(
@@ -517,7 +498,6 @@ def _build_edit_review_form(
 ):
     """Builds the structured, editable recipe form with live diff."""
 
-    # Ensure we always have an 'original' recipe object, even if it's same as current
     if original_recipe is None:
         original_recipe = current_recipe
 
@@ -647,30 +627,6 @@ def _build_edit_review_form(
         )
         for i, inst in enumerate(current_recipe.instructions)
     ]
-    if not instruction_items:
-        instruction_items.append(
-            fh.Div(
-                mu.TextArea(
-                    "",
-                    name="instructions",
-                    placeholder="Instruction Step",
-                    rows=2,
-                    cls="flex-grow mr-2 bg-white",
-                    hx_post="/recipes/ui/update-diff",
-                    hx_target="#diff-content-wrapper",
-                    hx_swap="innerHTML",
-                    hx_trigger="change, keyup changed delay:500ms",
-                    hx_include="closest form",
-                ),
-                mu.Button(
-                    mu.UkIcon("minus-circle"),
-                    cls="ml-2 text-red-500 hover:text-red-600 uk-border-circle p-1 flex items-center justify-center delete-item-button",
-                    type="button",
-                ),
-                cls="flex items-start mb-2",
-                id="instruction-empty",
-            )
-        )
     instruction_inputs = fh.Div(
         *instruction_items,
         id="instructions-list",
@@ -792,7 +748,7 @@ async def post_fetch_text(recipe_url: str | None = None):
             name="recipe_text",
             rows=15,
             placeholder="Paste recipe text here, or fetch from URL above.",
-            cls="mb-4 bg-white",  # Ensure white background
+            cls="mb-4 bg-white",
         ),
         id="recipe_text_container",  # Match the original container ID
     )
@@ -827,7 +783,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
     # Build the rendered text view
     reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-2xl mb-2 mt-6")
     rendered_content_div = fh.Div(
-        # Build structure using fasthtml components
         fh.H3(processed_recipe.name, cls="text-xl font-bold mb-3"),
         fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
         fh.Ul(
@@ -839,7 +794,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             *[fh.Li(inst) for inst in processed_recipe.instructions],
             cls="list-disc list-inside",
         ),
-        # Removed fh.Html(), apply box styling, removed prose
         cls="p-4 border rounded bg-gray-50 text-sm max-w-none",
     )
     rendered_recipe_html = fh.Div(
@@ -848,49 +802,40 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         cls="mb-6",
     )
 
-    # Build the editable form
     edit_form_html = _build_edit_review_form(processed_recipe, processed_recipe)
 
-    # Create a new wrapper div for the OOB swap
     oob_wrapper_div = fh.Div(
-        edit_form_html,  # Place the form inside the wrapper
-        # Add the OOB attribute to the wrapper itself
+        edit_form_html,
         hx_swap_oob="innerHTML:#edit-form-target",
     )
 
-    # Return the reference HTML normally, and the OOB wrapper div
     return rendered_recipe_html, oob_wrapper_div
 
 
 @rt("/recipes/save")
 async def post_save_recipe(request: Request):
     form_data: FormData = await request.form()
-
-    # Use the parsing function to get cleaned data
     try:
-        # Note: This assumes _parse_recipe_from_form handles potential errors
-        # or returns a Recipe object even with missing fields for validation below.
-        parsed_recipe = _parse_recipe_from_form(form_data)
+        parsed_data = _parse_recipe_form_data(form_data)
+        # Validate parsed data with Pydantic model first
+        recipe_obj = Recipe(**parsed_data)
+    except ValidationError as e:
+        logger.warning("Validation error saving recipe: %s", e, exc_info=False)
+        # Provide a user-friendly summary of validation errors
+        error_summary = "; ".join(
+            [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
+        )
+        return fh.Span(f"Validation Error: {error_summary}", cls=CSS_ERROR_CLASS)
     except Exception as e:
-        # If parsing itself fails unexpectedly
-        logger.error("Error parsing recipe from form during save: %s", e, exc_info=True)
+        # Catch potential errors during parsing itself (less likely)
+        logger.error("Error parsing form data during save: %s", e, exc_info=True)
         return fh.Span("Error processing form data.", cls=CSS_ERROR_CLASS)
 
-    # Validate using the parsed Recipe object
-    if not parsed_recipe.name:
-        return fh.Span(
-            "Error: Recipe name is required and must be text.", cls="text-red-500"
-        )
-    if not parsed_recipe.ingredients:
-        return fh.Span("Error: Missing recipe ingredients.", cls="text-red-500")
-    if not parsed_recipe.instructions:
-        return fh.Span("Error: Missing recipe instructions.", cls="text-red-500")
-
-    # Build db_data from the parsed Recipe object
+    # Now that validation passed, we can proceed
     db_data = {
-        "name": parsed_recipe.name,
-        "ingredients": json.dumps(parsed_recipe.ingredients),
-        "instructions": json.dumps(parsed_recipe.instructions),
+        "name": recipe_obj.name,
+        "ingredients": json.dumps(recipe_obj.ingredients),
+        "instructions": json.dumps(recipe_obj.instructions),
     }
 
     try:
@@ -898,7 +843,7 @@ async def post_save_recipe(request: Request):
         logger.info(
             "Saved recipe via UI: %s, Name: %s",
             inserted_record["id"],
-            parsed_recipe.name,  # Log parsed name
+            recipe_obj.name,  # Log parsed name
         )
     except Exception as e:
         logger.error("Database error saving recipe via UI: %s", e, exc_info=True)
@@ -918,21 +863,51 @@ async def post_save_recipe(request: Request):
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
     form_data: FormData = await request.form()
+    try:
+        # Parse form data first
+        current_data = _parse_recipe_form_data(form_data)
+        original_data = _parse_recipe_form_data(form_data, prefix="original_")
 
-    current_recipe = _parse_recipe_from_form(form_data)
-    original_recipe = _parse_recipe_from_form(form_data, prefix="original_")
+        # Create Recipe objects for validation and use
+        # Original must be valid based on hidden fields
+        original_recipe = Recipe(**original_data)
+        # Current might fail validation if user created invalid state, handle it
+        current_recipe = Recipe(**current_data)
+
+    except ValidationError as e:
+        logger.warning("Validation error on modify form submit: %s", e, exc_info=False)
+        error_summary = "; ".join(
+            [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
+        )
+
+        error_div = fh.Div(
+            f"Form Validation Error: {error_summary}", cls=CSS_ERROR_CLASS
+        )
+        # Attempt to re-render form, might need more robust error handling state
+        # This assumes _build_edit_review_form can handle a potentially invalid current_for_render (dict)
+        # We need to adjust _build_edit_review_form call site or definition.
+        # Let's pass dicts and adjust _build_edit_review_form for now.
+        # return _build_edit_review_form(current_for_render, original_for_render, form_data.get("modification_prompt", ""), error_div).children[0]
+        return error_div  # Simpler error return for now
+    except Exception as e:
+        logger.error("Error parsing modify form data: %s", e, exc_info=True)
+        return fh.Div(
+            "Error processing modification request form.", cls=CSS_ERROR_CLASS
+        )
 
     modification_prompt = form_data.get("modification_prompt", "")
 
     if not modification_prompt:
+        logger.info("Modification requested with empty prompt. Returning form.")
         error_message = fh.Div(
             "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
         )
-        mod_prompt_str = (
-            modification_prompt if isinstance(modification_prompt, str) else ""
-        )
+        # Pass the validated Recipe objects back to the form builder
         form_content = _build_edit_review_form(
-            current_recipe, original_recipe, mod_prompt_str, error_message
+            current_recipe,
+            original_recipe,
+            "",
+            error_message,  # Pass empty prompt string
         )
         return form_content.children[0]
 
@@ -942,17 +917,16 @@ async def post_modify_recipe(request: Request):
         modification_template = (
             PROMPT_DIR / "recipe_modification" / "20250429_183353__initial.txt"
         ).read_text()
-
         modification_full_prompt = modification_template.format(
             current_recipe_markdown=current_recipe.markdown,
             modification_prompt=modification_prompt,
         )
-
         modified_recipe: Recipe = await call_llm(
             prompt=modification_full_prompt,
             response_model=Recipe,
         )
         logger.info("LLM modification successful for prompt: %s", modification_prompt)
+        # Process the recipe returned by LLM
         processed_recipe = postprocess_recipe(modified_recipe)
 
     except Exception as e:
@@ -966,14 +940,13 @@ async def post_modify_recipe(request: Request):
             "Recipe modification failed. An unexpected error occurred.",
             cls=f"{CSS_ERROR_CLASS} mt-2",
         )
-        mod_prompt_str = (
-            modification_prompt if isinstance(modification_prompt, str) else ""
-        )
+        # Re-render form with current state before error and original recipe
         form_content = _build_edit_review_form(
-            current_recipe, original_recipe, mod_prompt_str, error_message
+            current_recipe, original_recipe, modification_prompt, error_message
         )
         return form_content.children[0]
 
+    # Pass validated original and LLM-processed recipe to build form
     form_content = _build_edit_review_form(processed_recipe, original_recipe)
     return form_content.children[0]
 
@@ -1064,20 +1037,47 @@ async def post_update_diff(request: Request):
     """Updates the diff view based on current form data."""
     form_data = await request.form()
     try:
-        current_recipe = _parse_recipe_from_form(form_data)
-        original_recipe = _parse_recipe_from_form(form_data, prefix="original_")
+        current_data = _parse_recipe_form_data(form_data)
+        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+
+        # Validate both original and current data before generating diff
+        original_recipe = Recipe(**original_data)
+        current_recipe = Recipe(**current_data)
+
+    except ValidationError as e:
+        # Handle case where form data is temporarily invalid during editing
+        logger.debug(
+            "Validation error during diff update (expected during edit): %s", e
+        )
+        # Return the specific error state div
+        return fh.Div(
+            "Recipe state invalid for diff",
+            id="diff-content-wrapper",
+            cls="text-orange-500",
+        )
+    except Exception as e:
+        # Catch other potential errors (e.g., form parsing)
+        logger.error("Error preparing data for diff view: %s", e, exc_info=True)
+        return fh.Div(
+            "Error preparing data for diff",
+            id="diff-content-wrapper",
+            cls=CSS_ERROR_CLASS,
+        )
+
+    # If validation passes, generate the diff
+    try:
         logger.debug("Updating diff: Original vs Current")
-        # logger.debug(f"Original: {original_recipe.markdown}")
-        # logger.debug(f"Current: {current_recipe.markdown}")
         diff_content_wrapper = _build_diff_content(
             original_recipe, current_recipe.markdown
         )
         return diff_content_wrapper
     except Exception as e:
-        logger.error("Error updating diff view: %s", e, exc_info=True)
-        # Return something innocuous or an error indicator for the diff area
+        # Catch errors during diff generation itself
+        logger.error("Error generating diff view: %s", e, exc_info=True)
         return fh.Div(
-            "Error updating diff", id="diff-content-wrapper", cls="text-red-500"
+            "Error generating diff view",
+            id="diff-content-wrapper",
+            cls=CSS_ERROR_CLASS,
         )
 
 
