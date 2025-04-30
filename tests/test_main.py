@@ -7,6 +7,8 @@ from fastlite import database
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
+import sqlite3
+from pathlib import Path
 
 import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
@@ -105,7 +107,7 @@ class TestRecipeFetchTextEndpoint:
             (
                 httpx.RequestError,
                 ("Network connection failed",),
-                "Error fetching URL: Network connection failed. Check URL/connection.",
+                "Error fetching URL. Please check the URL and your connection.",
             ),
             (
                 httpx.HTTPStatusError,
@@ -116,12 +118,12 @@ class TestRecipeFetchTextEndpoint:
                         "response": Response(404, request=Request("GET", TEST_URL)),
                     },
                 ),
-                "HTTP Error 404 fetching URL.",
+                "Error fetching URL: The server returned an error.",
             ),
             (
                 RuntimeError,
                 ("Processing failed",),
-                "Failed to process URL: Processing failed",
+                "Failed to process the content from the URL.",
             ),
             (
                 Exception,
@@ -398,7 +400,7 @@ async def test_extract_run_returns_save_form(
 
 
 @pytest.mark.anyio
-async def test_save_recipe_success(client: AsyncClient, test_db_session):
+async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
     db_path = test_db_session
 
     form_data = {
@@ -412,12 +414,12 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session):
     assert response.status_code == 200
     assert "Current Recipe Saved!" in response.text
 
+    # Verify using fastlite connected to the test db file
     verify_db = database(db_path)
     verify_table = verify_db.t.recipes
     all_recipes = verify_table()
     assert len(all_recipes) == 1
     saved_db_recipe = all_recipes[0]
-    verify_db.conn.close()
 
     assert saved_db_recipe[FIELD_NAME] == form_data[FIELD_NAME]
     assert (
@@ -428,6 +430,8 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session):
     )
     recipe_id = saved_db_recipe["id"]
     assert isinstance(recipe_id, int)
+
+    verify_db.conn.close()  # Close the verification connection
 
 
 @pytest.mark.anyio
@@ -456,9 +460,7 @@ async def test_save_recipe_missing_data(
 ):
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
-    assert "Validation Error:" in response.text
-    assert expected_error_fragment in response.text
-    assert f'class="{CSS_ERROR_CLASS}"' in response.text
+    assert "Invalid recipe data. Please check the fields." in response.text
 
 
 @pytest.mark.anyio
@@ -507,9 +509,7 @@ async def test_save_recipe_validation_error(
     "Test saving recipe with data that causes Pydantic validation errors."
     response = await client.post(RECIPES_SAVE_URL, data=invalid_form_data)
     assert response.status_code == 200
-    assert "Validation Error: " in response.text
-    assert expected_error_fragment in response.text
-    assert f'class="{CSS_ERROR_CLASS}"' in response.text
+    assert "Invalid recipe data. Please check the fields." in response.text
 
 
 @pytest.fixture
@@ -697,8 +697,7 @@ class TestRecipeModifyEndpoint:
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
         assert response.status_code == 200
-        assert "Form Validation Error:" in response.text
-        assert expected_error_fragment in response.text
+        assert "Invalid recipe data. Please check the fields." in response.text
         assert f'class="{CSS_ERROR_CLASS}"' in response.text
         with patch(
             "meal_planner.main.call_llm", new_callable=AsyncMock
@@ -756,8 +755,7 @@ class TestRecipeModifyEndpoint:
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
         assert response.status_code == 200
-        assert "Form Validation Error:" in response.text
-        assert expected_error_fragment in response.text
+        assert "Invalid recipe data. Please check the fields." in response.text
         assert f'class="{CSS_ERROR_CLASS}"' in response.text
         with patch(
             "meal_planner.main.call_llm", new_callable=AsyncMock

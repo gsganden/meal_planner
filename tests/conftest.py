@@ -10,18 +10,18 @@ import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
 from meal_planner.main import app
 
-# No longer using a file path
-# TEST_DB_PATH = Path("meal_planner_local.db")
+TEST_DB_PATH = Path("meal_planner_local.db")
 
 
 @pytest.fixture(scope="session")
-def test_db_connection():
-    # Use in-memory database
-    conn = sqlite3.connect(":memory:")
+def test_db_session():
+    if TEST_DB_PATH.exists():
+        TEST_DB_PATH.unlink()
+    conn = sqlite3.connect(TEST_DB_PATH)
     try:
         conn.execute(
             """
-            CREATE TABLE recipes (
+            CREATE TABLE IF NOT EXISTS recipes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT,
                 ingredients TEXT,
@@ -30,17 +30,18 @@ def test_db_connection():
             """
         )
         conn.commit()
-        yield conn  # Yield the connection itself
+        yield TEST_DB_PATH
     finally:
         conn.close()
+        if TEST_DB_PATH.exists():
+            TEST_DB_PATH.unlink()
 
 
 @pytest.fixture(autouse=True)
-def clean_test_db(test_db_connection):
-    # Use the connection from the session fixture
-    conn = test_db_connection
+def clean_test_db(test_db_session):
+    db_path = test_db_session
+    conn = sqlite3.connect(db_path)
     try:
-        # Ensure table exists (redundant but safe)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS recipes (
@@ -55,16 +56,13 @@ def clean_test_db(test_db_connection):
         conn.commit()
         yield
     finally:
-        # No need to close conn here, handled by session fixture
-        pass
+        conn.close()
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(test_db_connection, monkeypatch):
-    # Use the connection from the session fixture
-    conn = test_db_connection
-    # Create fastlite wrapper around the connection
-    test_db = fastlite.database(conn)
+async def client(test_db_session, monkeypatch):
+    test_db_path = test_db_session
+    test_db = fastlite.database(test_db_path)
     test_recipes_table = test_db.t.recipes
     monkeypatch.setattr(api_recipes_module, "recipes_table", test_recipes_table)
     monkeypatch.setattr(main_module, "recipes_table", test_recipes_table, raising=False)
@@ -74,7 +72,7 @@ async def client(test_db_connection, monkeypatch):
     ) as client:
         yield client
 
-    # No need to close conn here, handled by session fixture
+    test_db.conn.close()
 
 
 @pytest.fixture(scope="module")
