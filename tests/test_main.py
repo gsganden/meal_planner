@@ -15,9 +15,12 @@ from meal_planner.main import (
     CSS_ERROR_CLASS,
     _parse_recipe_form_data,
     app,
+    call_llm,
     fetch_and_clean_text_from_url,
     fetch_page_text,
     postprocess_recipe,
+    MODEL_NAME,
+    ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
 )
 from meal_planner.models import Recipe
 
@@ -191,9 +194,13 @@ class TestRecipeExtractRunEndpoint:
         assert "Actual step A" in response.text
         assert "Actual step B" in response.text
 
-    async def test_extraction_error(self, client: AsyncClient, mock_call_llm):
+    @patch("meal_planner.main.logger.error")
+    async def test_extraction_error(
+        self, mock_logger_error, client: AsyncClient, mock_call_llm
+    ):
         test_text = "Some recipe text that causes an LLM error."
-        mock_call_llm.side_effect = Exception("LLM failed on text input")
+        llm_exception = Exception("LLM failed on text input")
+        mock_call_llm.side_effect = llm_exception
 
         response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
@@ -204,6 +211,12 @@ class TestRecipeExtractRunEndpoint:
         )
         assert expected_error_msg in response.text
         mock_call_llm.assert_called_once()
+        mock_logger_error.assert_any_call(
+            "Error during recipe extraction call: %s",
+            MODEL_NAME,
+            llm_exception,
+            exc_info=True,
+        )
 
     async def test_no_text_input_provided(self, client: AsyncClient):
         response = await client.post(RECIPES_EXTRACT_RUN_URL, data={})
@@ -310,10 +323,10 @@ class TestFetchAndCleanTextFromUrl:
                 id="status_error",
             ),
             pytest.param(
-                Exception("Generic Error"),
+                Exception("Generic fetch error"),
                 RuntimeError,
                 "Error fetching page text",
-                id="generic_exception",
+                id="generic_fetch_exception",
             ),
         ],
     )
@@ -329,7 +342,7 @@ class TestFetchAndCleanTextFromUrl:
     ):
         mock_fetch_page_text.side_effect = raised_exception
 
-        with pytest.raises(expected_caught_exception):
+        with pytest.raises(expected_caught_exception) as excinfo:
             await fetch_and_clean_text_from_url(self.TEST_URL)
 
         mock_logger_error.assert_called_once()
@@ -340,7 +353,74 @@ class TestFetchAndCleanTextFromUrl:
         assert log_args[0] == self.TEST_URL
         assert raised_exception == log_args[1]
         assert kwargs.get("exc_info") is True
-        mock_html_cleaner.assert_not_called()
+
+        # If the raised exception was NOT an httpx error, html_cleaner shouldn't be called
+        if not isinstance(
+            raised_exception, (httpx.RequestError, httpx.HTTPStatusError)
+        ):
+            mock_html_cleaner.assert_not_called()
+        # Add assertion for the final RuntimeError message for this specific case
+        if expected_log_fragment == "Error fetching page text":
+            assert f"Failed to fetch or process URL: {self.TEST_URL}" in str(
+                excinfo.value
+            )
+
+    @patch("meal_planner.main.logger.error")
+    async def test_fetch_and_clean_html_cleaner_error(
+        self,
+        mock_logger_error,
+        mock_fetch_page_text,
+        mock_html_cleaner,
+    ):
+        """Test that a generic exception during HTML cleaning is caught and raises RuntimeError."""
+        mock_fetch_page_text.return_value = "<html></html>"  # Simulate successful fetch
+        cleaning_exception = Exception("HTML cleaning failed!")
+        mock_html_cleaner.side_effect = cleaning_exception
+
+        with pytest.raises(RuntimeError) as excinfo:
+            await fetch_and_clean_text_from_url(self.TEST_URL)
+
+        # Check that the RuntimeError includes the original exception
+        assert excinfo.value.__cause__ is cleaning_exception
+        assert f"Failed to process URL content: {self.TEST_URL}" in str(excinfo.value)
+
+        # Verify logging
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        assert "Error cleaning HTML text" in args[0]
+        assert args[1] == self.TEST_URL
+        assert args[2] is cleaning_exception
+        assert kwargs.get("exc_info") is True
+
+        # Verify mocks
+        mock_fetch_page_text.assert_called_once_with(self.TEST_URL)
+        mock_html_cleaner.assert_called_once_with("<html></html>")
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main.aclient.chat.completions.create", new_callable=AsyncMock)
+@patch("meal_planner.main.logger.error")
+async def test_call_llm_api_error(mock_logger_error, mock_create):
+    """Test that call_llm catches and logs errors during the API call."""
+    api_exception = Exception("Simulated API failure")
+    mock_create.side_effect = api_exception
+    test_prompt = "Test prompt"
+    test_model = Recipe  # Use a concrete model for testing
+
+    with pytest.raises(Exception) as excinfo:
+        await call_llm(prompt=test_prompt, response_model=test_model)
+
+    # Check that the original exception was re-raised
+    assert excinfo.value is api_exception
+
+    # Check that the error was logged correctly
+    mock_logger_error.assert_called_once_with(
+        "LLM Call Error: model=%s, response_model=%s, error=%s",
+        MODEL_NAME,
+        test_model.__name__,
+        api_exception,
+        exc_info=True,
+    )
 
 
 class TestPostprocessRecipeName:
@@ -564,8 +644,10 @@ class TestRecipeModifyEndpoint:
             data[FIELD_MODIFICATION_PROMPT] = modification_prompt
         return data
 
+    @patch("meal_planner.main.logger.info")
     async def test_modify_success(
         self,
+        mock_logger_info,
         client: AsyncClient,
         mock_call_llm,
         mock_current_recipe_before_modify_fixture: Recipe,
@@ -594,6 +676,15 @@ class TestRecipeModifyEndpoint:
         assert (
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
             f' value="{mock_original_recipe_fixture.name}"' in response.text
+        )
+
+        found_log = False
+        for call in mock_logger_info.call_args_list:
+            if ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE in call.args:
+                found_log = True
+                break
+        assert found_log, (
+            f"Log message with prompt filename '{ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE}' not found."
         )
 
     async def test_modify_no_prompt(

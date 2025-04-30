@@ -25,9 +25,11 @@ from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250428_205830__include_parens.txt"
+ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -246,14 +248,36 @@ T = TypeVar("T", bound=BaseModel)
 
 
 async def call_llm(prompt: str, response_model: type[T]) -> T:
-    response = await aclient.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "user", "content": prompt},
-        ],
-        response_model=response_model,
+    logger.info(
+        "LLM Call Start: model=%s, response_model=%s",
+        MODEL_NAME,
+        response_model.__name__,
     )
-    return response
+    logger.debug("LLM Prompt:\n%s", prompt)
+    try:
+        response = await aclient.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "user", "content": prompt},
+            ],
+            response_model=response_model,
+        )
+        logger.info(
+            "LLM Call Success: model=%s, response_model=%s",
+            MODEL_NAME,
+            response_model.__name__,
+        )
+        logger.debug("LLM Parsed Object: %r", response)
+        return response
+    except Exception as e:
+        logger.error(
+            "LLM Call Error: model=%s, response_model=%s, error=%s",
+            MODEL_NAME,
+            response_model.__name__,
+            e,
+            exc_info=True,
+        )
+        raise
 
 
 async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
@@ -284,32 +308,48 @@ async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
         )
         raise RuntimeError(f"Failed to fetch or process URL: {recipe_url}") from e
 
-    page_text = HTML_CLEANER.handle(raw_text)
-    logger.info("Cleaned HTML text from: %s", recipe_url)
-    return page_text
+    try:
+        page_text = HTML_CLEANER.handle(raw_text)
+        logger.info("Cleaned HTML text from: %s", recipe_url)
+        return page_text
+    except Exception as e:
+        logger.error(
+            "Error cleaning HTML text from %s: %s", recipe_url, e, exc_info=True
+        )
+        raise RuntimeError(f"Failed to process URL content: {recipe_url}") from e
 
 
 async def extract_recipe_from_text(page_text: str) -> Recipe:
     """Extracts and post-processes a recipe from text."""
+    logger.info("Starting recipe extraction from text:\n%s", page_text)
     try:
-        logging.info("Calling model %s for provided text", MODEL_NAME)
+        prompt_file_path = _get_prompt_path(
+            "recipe_extraction", ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
+        )
+        logger.info("Using extraction prompt file: %s", prompt_file_path.name)
+        prompt_text = prompt_file_path.read_text().format(page_text=page_text)
+
         extracted_recipe: Recipe = await call_llm(
-            prompt=(
-                PROMPT_DIR / "recipe_extraction" / ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
-            )
-            .read_text()
-            .format(page_text=page_text),
+            prompt=prompt_text,
             response_model=Recipe,
         )
-        logging.info("Call to model %s successful for text", MODEL_NAME)
     except Exception as e:
         logger.error(
-            "Error calling model %s for text: %s", MODEL_NAME, e, exc_info=True
+            "Error during recipe extraction call: %s", MODEL_NAME, e, exc_info=True
         )
         raise
     processed_recipe = postprocess_recipe(extracted_recipe)
-    logger.info("Extraction successful for source: %s", "provided text")
+    logger.info(
+        "Extraction and postprocessing successful. Recipe Name: %s",
+        processed_recipe.name,
+    )
+    logger.debug("Processed Recipe Object: %r", processed_recipe)
     return processed_recipe
+
+
+def _get_prompt_path(category: str, filename: str) -> Path:
+    """Constructs the full path to a prompt file."""
+    return PROMPT_DIR / category / filename
 
 
 async def extract_recipe_from_url(recipe_url: str) -> Recipe:
@@ -964,10 +1004,13 @@ async def _request_recipe_modification(
     Raises:
         RecipeModificationError: If the LLM call or postprocessing fails.
     """
+    logger.info("Starting recipe modification. Prompt: %s", modification_prompt)
     try:
-        modification_template = (
-            PROMPT_DIR / "recipe_modification" / "20250429_183353__initial.txt"
-        ).read_text()
+        prompt_file_path = _get_prompt_path(
+            "recipe_modification", ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE
+        )
+        logger.info("Using modification prompt file: %s", prompt_file_path.name)
+        modification_template = prompt_file_path.read_text()
         modification_full_prompt = modification_template.format(
             current_recipe_markdown=current_recipe.markdown,
             modification_prompt=modification_prompt,
@@ -976,8 +1019,12 @@ async def _request_recipe_modification(
             prompt=modification_full_prompt,
             response_model=Recipe,
         )
-        logger.info("LLM modification successful for prompt: %s", modification_prompt)
         processed_recipe = postprocess_recipe(modified_recipe)
+        logger.info(
+            "Modification and postprocessing successful. Recipe Name: %s",
+            processed_recipe.name,
+        )
+        logger.debug("Modified Recipe Object: %r", processed_recipe)
         return processed_recipe
 
     except Exception as e:
