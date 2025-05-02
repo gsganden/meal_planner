@@ -40,9 +40,9 @@ def test_db_session():
 @pytest.fixture(autouse=True)
 def clean_test_db(test_db_session):
     db_path = test_db_session
-    conn = sqlite3.connect(db_path)
+    db = fastlite.database(db_path)
     try:
-        conn.execute(
+        db.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS recipes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,11 +52,10 @@ def clean_test_db(test_db_session):
             )
             """
         )
-        conn.execute("DELETE FROM recipes")
-        conn.commit()
+        db.conn.execute("DELETE FROM recipes")
         yield
     finally:
-        conn.close()
+        db.conn.close()
 
 
 @pytest_asyncio.fixture(scope="function")

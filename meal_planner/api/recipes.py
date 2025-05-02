@@ -23,16 +23,30 @@ db = database(DB_PATH)
 
 
 logger.info(f"Ensuring table exists in {DB_PATH.resolve()}")
-recipes_table = db.t.recipes
-recipes_table.create(
-    id=int,
-    name=str,
-    ingredients=str,
-    instructions=str,
-    pk="id",
-    replace=False,
-    if_not_exists=True,
+# Use raw SQL to ensure AUTOINCREMENT is correctly specified
+db.conn.execute(
+    """CREATE TABLE IF NOT EXISTS recipes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        ingredients TEXT NOT NULL,
+        instructions TEXT NOT NULL
+    );"""
 )
+# Comment out or remove the fastlite table creation method
+# recipes_table = db.t.recipes
+# recipes_table.create(
+#     id=int,
+#     name=str,
+#     ingredients=str,
+#     instructions=str,
+#     pk="id",
+#     replace=False,
+#     if_not_exists=True,
+# )
+
+# We still need the table object for other operations if used elsewhere
+# Re-initialize it after ensuring the table exists via SQL
+recipes_table = db.t.recipes
 
 api_router = APIRouter()
 

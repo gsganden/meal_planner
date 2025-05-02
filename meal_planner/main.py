@@ -21,7 +21,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 from starlette.staticfiles import StaticFiles
 
-from meal_planner.api.recipes import api_router, recipes_table, db
+from meal_planner.api.recipes import api_router, db
 from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
@@ -1023,8 +1023,9 @@ async def post_save_recipe(request: Request):
     try:
         # Use raw sqlite3 connection for reliable lastrowid
         cursor = db.conn.cursor()
+        # Explicitly insert NULL for the ID column
         cursor.execute(
-            "INSERT INTO recipes (name, ingredients, instructions) VALUES (?, ?, ?)",
+            "INSERT INTO recipes (id, name, ingredients, instructions) VALUES (NULL, ?, ?, ?)",
             (
                 db_data["name"],
                 db_data["ingredients"],
@@ -1033,10 +1034,10 @@ async def post_save_recipe(request: Request):
         )
         # Get last inserted ID using apsw method on the connection
         inserted_id = db.conn.last_insert_rowid()
+        logger.info(
+            f"Raw last_insert_rowid() value: {inserted_id!r} (Type: {type(inserted_id)})"
+        )
         cursor.close()  # Close the cursor
-
-        # Log the explicitly retrieved ID
-        logger.info("Inserted via raw SQL, lastrowid: %s", inserted_id)
 
         # Check the ID retrieved from lastrowid
         if isinstance(inserted_id, int):
