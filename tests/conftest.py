@@ -64,7 +64,9 @@ async def client(test_db_session, monkeypatch):
     test_db_path = test_db_session
     test_db = fastlite.database(test_db_path)
     test_recipes_table = test_db.t.recipes
+    monkeypatch.setattr(api_recipes_module, "db", test_db)
     monkeypatch.setattr(api_recipes_module, "recipes_table", test_recipes_table)
+    monkeypatch.setattr(main_module, "db", test_db)
     monkeypatch.setattr(main_module, "recipes_table", test_recipes_table, raising=False)
 
     async with AsyncClient(

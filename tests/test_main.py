@@ -481,6 +481,7 @@ async def test_extract_run_returns_save_form(
 
 @pytest.mark.anyio
 async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
+    # Revert to original structure
     db_path = test_db_session
 
     form_data = {
@@ -494,9 +495,10 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
     assert response.status_code == 200
     assert "Current Recipe Saved!" in response.text
 
+    # Revert to creating a separate verification connection
     verify_db = database(db_path)
     verify_table = verify_db.t.recipes
-    all_recipes = verify_table()
+    all_recipes = list(verify_table())
     assert len(all_recipes) == 1
     saved_db_recipe = all_recipes[0]
 
@@ -510,6 +512,7 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
     recipe_id = saved_db_recipe["id"]
     assert isinstance(recipe_id, int)
 
+    # Close the verification connection
     verify_db.conn.close()
 
 
@@ -545,10 +548,21 @@ async def test_save_recipe_missing_data(
 
 @pytest.mark.anyio
 async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
-    def mock_insert_fail(*args, **kwargs):
-        raise Exception("Simulated DB Save Error")
+    # Create a mock connection object
+    mock_conn = MagicMock()
 
-    monkeypatch.setattr(api_recipes_module.recipes_table, "insert", mock_insert_fail)
+    # Mock the cursor method to return a mock cursor
+    mock_cursor = MagicMock()
+    # We don't need execute to do anything specific, just exist
+    mock_cursor.execute = MagicMock()
+    mock_cursor.close = MagicMock()
+    mock_conn.cursor = MagicMock(return_value=mock_cursor)
+
+    # Set last_insert_rowid to be a callable mock that returns None
+    mock_conn.last_insert_rowid = MagicMock(return_value=None)
+
+    # Patch the .conn attribute of the db object used in the main module
+    monkeypatch.setattr(main_module.db, "conn", mock_conn)
 
     form_data = {
         FIELD_NAME: "DB Error Recipe",
@@ -557,7 +571,10 @@ async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
     }
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
-    assert "Error saving recipe." in response.text
+    assert "Error saving recipe (ID issue)." in response.text
+
+    # Verify the mock cursor's execute was called
+    mock_cursor.execute.assert_called_once()
 
 
 @pytest.mark.anyio
