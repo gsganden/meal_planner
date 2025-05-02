@@ -875,8 +875,8 @@ def _build_save_button():
         mu.Button(
             "Save Recipe",
             hx_post="/recipes/save",
-            hx_target="#recipe-results",
-            hx_swap="innerHTML",
+            hx_target="#save-button-container",
+            hx_swap="outerHTML",
             hx_include="closest form",
             hx_indicator="#save-indicator",
             cls="bg-blue-500 hover:bg-blue-600 text-white",
@@ -1056,7 +1056,6 @@ async def post_save_recipe(request: Request):
             return fh.Span(
                 "Error saving recipe (ID issue).",
                 cls=CSS_ERROR_CLASS,
-                id="save-modified-button-container",
             )
 
     except Exception as e:
@@ -1064,13 +1063,11 @@ async def post_save_recipe(request: Request):
         return fh.Span(
             "Error saving recipe.",
             cls=CSS_ERROR_CLASS,
-            id="save-modified-button-container",
         )
 
     return fh.Span(
         "Current Recipe Saved!",
         cls="text-green-500",
-        id="save-modified-button-container",
     )
 
 
