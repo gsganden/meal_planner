@@ -1,6 +1,5 @@
 import difflib
 import html
-import json
 import logging
 import os
 import re
@@ -21,7 +20,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 from starlette.staticfiles import StaticFiles
 
-from meal_planner.api.recipes import api_router, db
+from meal_planner.api.recipes import api_router
 from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
@@ -1014,57 +1013,38 @@ async def post_save_recipe(request: Request):
         logger.error("Error parsing form data during save: %s", e, exc_info=True)
         return fh.Span("Error processing form data.", cls=CSS_ERROR_CLASS)
 
-    db_data = {
-        "name": recipe_obj.name,
-        "ingredients": json.dumps(recipe_obj.ingredients),
-        "instructions": json.dumps(recipe_obj.instructions),
-    }
-
+    # Call the API endpoint to save the recipe
     try:
-        # Use raw sqlite3 connection for reliable lastrowid
-        cursor = db.conn.cursor()
-        # Explicitly insert NULL for the ID column
-        cursor.execute(
-            "INSERT INTO recipes (id, name, ingredients, instructions) VALUES (NULL, ?, ?, ?)",
-            (
-                db_data["name"],
-                db_data["ingredients"],
-                db_data["instructions"],
-            ),
+        response = await internal_client.post(
+            "/api/v0/recipes", json=recipe_obj.model_dump()
         )
-        # Get last inserted ID using apsw method on the connection
-        inserted_id = db.conn.last_insert_rowid()
-        logger.info(
-            f"Raw last_insert_rowid() value: {inserted_id!r} (Type: {type(inserted_id)})"
+        response.raise_for_status()  # Raise exception for 4xx/5xx responses
+
+        # Optionally get the ID from the response if needed
+        # response_data = response.json()
+        # inserted_id = response_data.get('id')
+
+        logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
+
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "API error saving recipe via UI: Status %s, Response: %s",
+            e.response.status_code,
+            e.response.text,
+            exc_info=True,
         )
-        cursor.close()  # Close the cursor
-
-        # Check the ID retrieved from lastrowid
-        if isinstance(inserted_id, int):
-            logger.info(
-                "Saved recipe via UI (ID: %s), Name: %s",
-                inserted_id,
-                recipe_obj.name,
-            )
-        else:
-            # Log an error if the ID from insert() isn't an integer
-            logger.error(
-                "Inserted record ID is not an integer or missing: %s (%s). Name: %s",
-                inserted_id,
-                type(inserted_id),
-                recipe_obj.name,
-            )
-            return fh.Span(
-                "Error saving recipe (ID issue).",
-                cls=CSS_ERROR_CLASS,
-            )
-
-    except Exception as e:
-        logger.error("Database error saving recipe via UI: %s", e, exc_info=True)
         return fh.Span(
-            "Error saving recipe.",
+            f"Error saving recipe via API (Status: {e.response.status_code}).",
             cls=CSS_ERROR_CLASS,
         )
+    except Exception as e:
+        logger.error("Error calling save recipe API via UI: %s", e, exc_info=True)
+        return fh.Span(
+            "Unexpected error saving recipe.",
+            cls=CSS_ERROR_CLASS,
+        )
+
+    # Removed direct DB interaction logic
 
     return fh.Span(
         "Current Recipe Saved!",

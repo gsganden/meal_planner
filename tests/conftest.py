@@ -1,25 +1,31 @@
+import contextlib
+import logging
 import sqlite3
 from pathlib import Path
+from typing import AsyncGenerator
 
 import fastlite
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-import meal_planner.api.recipes as api_recipes_module
-import meal_planner.main as main_module
-from meal_planner.main import app
+from meal_planner.api.recipes import get_db
+from meal_planner.main import api_app, app
 
-TEST_DB_PATH = Path("meal_planner_local.db")
+TEST_DB_PATH = Path("meal_planner_test.db")
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="session")
 def test_db_session():
+    """Creates and cleans up the test database file for the entire session."""
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
     conn = sqlite3.connect(TEST_DB_PATH)
+    db_obj = fastlite.database(TEST_DB_PATH)
     try:
-        conn.execute(
+        # Ensure the table exists in the test DB
+        db_obj.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS recipes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,51 +35,57 @@ def test_db_session():
             )
             """
         )
-        conn.commit()
-        yield TEST_DB_PATH
+        yield TEST_DB_PATH  # Yield path for potential direct use if needed
     finally:
-        conn.close()
+        db_obj.conn.close()  # Close the fastlite connection
+        conn.close()  # Close the initial sqlite3 connection (redundant?)
         if TEST_DB_PATH.exists():
             TEST_DB_PATH.unlink()
 
 
-@pytest.fixture(autouse=True)
-def clean_test_db(test_db_session):
-    db_path = test_db_session
-    db = fastlite.database(db_path)
-    try:
-        db.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS recipes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                ingredients TEXT,
-                instructions TEXT
-            )
-            """
-        )
-        db.conn.execute("DELETE FROM recipes")
-        yield
-    finally:
-        db.conn.close()
-
-
 @pytest_asyncio.fixture(scope="function")
-async def client(test_db_session, monkeypatch):
-    test_db_path = test_db_session
-    test_db = fastlite.database(test_db_path)
-    test_recipes_table = test_db.t.recipes
-    monkeypatch.setattr(api_recipes_module, "db", test_db)
-    monkeypatch.setattr(api_recipes_module, "recipes_table", test_recipes_table)
-    monkeypatch.setattr(main_module, "db", test_db)
-    monkeypatch.setattr(main_module, "recipes_table", test_recipes_table, raising=False)
+async def client(test_db_session: Path) -> AsyncGenerator[AsyncClient, None]:
+    """Provides an HTTP client for testing the FastAPI app with overridden DB."""
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        yield client
+    # Create a single DB connection for the duration of the test function
+    db_conn_for_test = fastlite.database(test_db_session)
 
-    test_db.conn.close()
+    # Clear data at the beginning of the test using this connection
+    try:
+        db_conn_for_test.conn.execute("DELETE FROM recipes")
+    except Exception as e:
+        # Handle potential error during delete, maybe close connection and reraise?
+        logger.error(f"Error clearing test DB: {e}")
+        with contextlib.suppress(Exception):
+            db_conn_for_test.conn.close()
+        raise  # Reraise the exception to fail the test setup
+
+    # Define the override function within the fixture scope
+    def override_get_db_for_test():
+        """Dependency override that returns the function-scoped test database
+        connection."
+        """
+        # Simply return the connection created for this test function
+        return db_conn_for_test
+
+    # Apply the dependency override before creating the client
+    api_app.dependency_overrides[get_db] = override_get_db_for_test
+
+    try:
+        async with AsyncClient(
+            # Transport must target the main app which includes mounted API app
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            yield client  # Yield the client for the test to use
+    finally:
+        # Clean up the override after the test function finishes
+        api_app.dependency_overrides = {}
+        # Ensure the function-scoped connection is closed
+        try:
+            db_conn_for_test.conn.close()
+        except Exception as e:
+            logger.error(f"Error closing test DB connection: {e}")
 
 
 @pytest.fixture(scope="module")

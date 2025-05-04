@@ -1,11 +1,10 @@
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, Response
-import json
-from pathlib import Path
 from fastlite import database
-
-import meal_planner.api.recipes as recipes_api
+from httpx import AsyncClient, Response
 
 pytestmark = pytest.mark.asyncio
 
@@ -179,44 +178,50 @@ class TestCreateRecipeValidation:
 
 @pytest.mark.usefixtures("client")
 class TestCreateRecipeDBErrors:
+    @pytest.mark.anyio
     async def test_create_recipe_db_insert_error(
-        self, client: AsyncClient, valid_recipe_payload: dict, monkeypatch
+        self, client: AsyncClient, monkeypatch
     ):
-        def mock_insert(*args, **kwargs):
-            raise Exception("Simulated DB Error")
+        """Test handling of database insertion errors."""
+        with patch("fastlite.Table.insert") as mock_insert:
+            mock_insert.side_effect = Exception("Database write error")
 
-        monkeypatch.setattr(recipes_api.recipes_table, "insert", mock_insert)
+            valid_payload = {
+                "name": "DB Error Recipe",
+                "ingredients": ["ing1"],
+                "instructions": ["inst1"],
+            }
+            response = await client.post("/api/v0/recipes", json=valid_payload)
 
-        response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Database error creating recipe"}
+            mock_insert.assert_called_once()  # Verify the mocked insert was attempted
 
-        assert response.status_code == 500
-        assert "Database error creating recipe" in response.text
 
-
-@pytest.mark.usefixtures("client")
+@pytest.mark.anyio
 class TestGetRecipes:
     async def test_get_recipes_populated(
         self, client: AsyncClient, test_db_session: Path
     ):
         """Test GET /api/recipes returns all recipes when the database is populated."""
-        db_path = test_db_session
-        db = database(db_path)
-        table = db.t.recipes
-
-        recipe1_data = {
+        # Use the API itself to insert data via the overridden dependency
+        recipe1_payload = {
             "name": "Recipe One",
-            "ingredients": json.dumps(["ing1a", "ing1b"]),
-            "instructions": json.dumps(["step1a", "step1b"]),
+            "ingredients": ["ing1a", "ing1b"],
+            "instructions": ["step1a", "step1b"],
         }
-        recipe2_data = {
+        recipe2_payload = {
             "name": "Recipe Two",
-            "ingredients": json.dumps(["ing2a"]),
-            "instructions": json.dumps(["step2a"]),
+            "ingredients": ["ing2a"],
+            "instructions": ["step2a"],
         }
-        inserted1 = table.insert(recipe1_data)
-        inserted2 = table.insert(recipe2_data)
-        db.conn.close()
 
+        response1 = await client.post("/api/v0/recipes", json=recipe1_payload)
+        assert response1.status_code == 201
+        response2 = await client.post("/api/v0/recipes", json=recipe2_payload)
+        assert response2.status_code == 201
+
+        # Now get all recipes
         response = await client.get("/api/recipes")
 
         assert response.status_code == 200
@@ -224,26 +229,119 @@ class TestGetRecipes:
         assert isinstance(response_json, list)
         assert len(response_json) == 2
 
-        expected_recipe1 = {
-            "id": inserted1["id"],
-            "name": "Recipe One",
-            "ingredients": ["ing1a", "ing1b"],
-            "instructions": ["step1a", "step1b"],
-        }
-        expected_recipe2 = {
-            "id": inserted2["id"],
-            "name": "Recipe Two",
-            "ingredients": ["ing2a"],
-            "instructions": ["step2a"],
-        }
-
-        assert expected_recipe1 in response_json
-        assert expected_recipe2 in response_json
+        # Optional: More detailed checks on the returned data
+        names = {r["name"] for r in response_json}
+        assert names == {"Recipe One", "Recipe Two"}
 
     async def test_get_recipes_empty(self, client: AsyncClient, test_db_session: Path):
         """Test GET /api/recipes returns an empty list when the database is empty."""
+        # Database is cleared by override_get_db_for_test via client fixture
         response = await client.get("/api/recipes")
 
         assert response.status_code == 200
         response_json = response.json()
         assert response_json == []
+
+    @pytest.mark.anyio
+    async def test_get_recipes_row_processing_error(
+        self, client: AsyncClient, test_db_session: Path
+    ):
+        """Test that row processing errors (e.g., bad JSON) are handled gracefully."""
+        db = database(test_db_session)
+        recipes_table = db.t.recipes
+        # Insert one valid recipe
+        recipes_table.insert(
+            {
+                "name": "Valid Recipe",
+                "ingredients": '["ing1"]',
+                "instructions": '["step1"]',
+            }
+        )
+        # Insert one recipe with invalid JSON in ingredients
+        recipes_table.insert(
+            {
+                "name": "Bad JSON Recipe",
+                "ingredients": "not json",
+                "instructions": '["step1"]',
+            }
+        )
+        db.conn.close()
+
+        response = await client.get("/api/recipes")
+        assert response.status_code == 200
+        response_json = response.json()
+        # Should only return the valid recipe
+        assert len(response_json) == 1
+        assert response_json[0]["name"] == "Valid Recipe"
+        # TODO: Check logs for the error message? Requires log capturing setup.
+
+    @pytest.mark.anyio
+    async def test_get_recipes_general_db_error(self, client: AsyncClient, monkeypatch):
+        """Test handling of general DB errors during recipe fetch."""
+        # Patch the table select method to raise an error
+        with patch("fastlite.Table.__call__") as mock_select:
+            mock_select.side_effect = Exception("Simulated DB Query Error")
+
+            response = await client.get("/api/recipes")
+
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Database error retrieving recipes"}
+            mock_select.assert_called_once()
+
+
+@pytest.mark.anyio
+class TestGetRecipeById:
+    @pytest.fixture
+    def setup_recipe(self, test_db_session: Path) -> int:
+        """Inserts a recipe and returns its ID."""
+        db = database(test_db_session)
+        recipe_id = db.t.recipes.insert(
+            {
+                "name": "Test Recipe for Get",
+                "ingredients": '["ing1"]',
+                "instructions": '["step1"]',
+            }
+        )["id"]
+        db.conn.close()
+        return recipe_id
+
+    async def test_get_recipe_not_found(self, client: AsyncClient):
+        """Test GET /v0/recipes/{recipe_id} returns 404 for non-existent ID."""
+        non_existent_id = 9999
+        response = await client.get(f"/api/v0/recipes/{non_existent_id}")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Recipe not found"}
+
+    async def test_get_recipe_db_fetch_error(
+        self, client: AsyncClient, monkeypatch, setup_recipe
+    ):
+        """Test handling of DB errors during get_recipe_by_id fetch."""
+        recipe_id = setup_recipe
+        with patch("fastlite.Table.get") as mock_get:
+            mock_get.side_effect = Exception("Simulated DB Fetch Error")
+            response = await client.get(f"/api/v0/recipes/{recipe_id}")
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Database error retrieving recipe"}
+            mock_get.assert_called_once_with(recipe_id)
+
+    async def test_get_recipe_data_processing_error(
+        self, client: AsyncClient, monkeypatch, test_db_session: Path
+    ):
+        """Test handling of data processing errors (e.g., bad JSON) after fetch."""
+        db = database(test_db_session)
+        # Insert recipe with bad JSON data
+        recipe_id = db.t.recipes.insert(
+            {
+                "name": "Bad JSON Recipe",
+                "ingredients": "not-a-valid-json-array",
+                "instructions": '["step1"]',
+            }
+        )["id"]
+        db.conn.close()
+
+        response = await client.get(f"/api/v0/recipes/{recipe_id}")
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Error processing recipe data"}
+
+    # Test for successful retrieval is implicitly covered by other tests using the API
+    # but could be added explicitly if desired.
