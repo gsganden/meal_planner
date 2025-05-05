@@ -239,7 +239,7 @@ def get():
 async def get_recipes_htmx():
     try:
         response = await internal_client.get("/api/v0/recipes")
-        response.raise_for_status()  # Raise exception for 4xx or 5xx status codes
+        response.raise_for_status()
         recipes_data = response.json()
     except httpx.HTTPStatusError as e:
         logger.error(
@@ -335,7 +335,6 @@ async def get_single_recipe_page(recipe_id: int):
     return with_layout(content)
 
 
-# --- Helper function for displaying recipe details ---
 def _build_recipe_display(recipe_data: dict):
     """Builds a Div containing the formatted recipe details.
 
@@ -359,9 +358,6 @@ def _build_recipe_display(recipe_data: dict):
         ),
         cls="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-sm max-w-none",
     )
-
-
-# --- End Helper function ---
 
 
 async def fetch_page_text(recipe_url: str):
@@ -548,8 +544,6 @@ def _close_parenthesis(text: str) -> str:
     return text
 
 
-# CSS_ERROR_CLASS = "text-red-500 mb-4"
-# Try using Monster UI semantic text class for errors
 CSS_ERROR_CLASS = f"{mu.TextT.error} mb-4"
 
 
@@ -615,7 +609,10 @@ def _build_diff_content(original_recipe: RecipeData, current_markdown: str):
         fh.Strong("Initial Extracted Recipe (Reference)"),
         fh.Pre(
             fh.Html(fh.NotStr(before_html)),
-            cls="border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs",
+            cls=(
+                "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1"
+                " overflow-auto text-xs"
+            ),
             id="diff-before-pre",
             style=pre_style,
         ),
@@ -625,7 +622,10 @@ def _build_diff_content(original_recipe: RecipeData, current_markdown: str):
         fh.Strong("Current Edited Recipe"),
         fh.Pre(
             fh.Html(fh.NotStr(after_html)),
-            cls="border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs",
+            cls=(
+                "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1"
+                " overflow-auto text-xs"
+            ),
             id="diff-after-pre",
             style=pre_style,
         ),
@@ -652,7 +652,6 @@ def _build_edit_review_form(
     original_hidden_fields = _build_original_hidden_fields(original_recipe)
     editable_section = _build_editable_section(current_recipe)
     review_section = _build_review_section(original_recipe, current_recipe)
-    save_button_container = _build_save_button()
 
     combined_edit_section = fh.Div(
         fh.H2("Edit Recipe", cls="text-3xl mb-4"),
@@ -666,7 +665,6 @@ def _build_edit_review_form(
         del { @apply bg-red-100 dark:bg-red-700 dark:bg-opacity-40; }
     """)
 
-    # Create the main edit card, excluding the review_section
     main_edit_card = mu.Card(
         mu.Form(
             combined_edit_section,
@@ -676,7 +674,6 @@ def _build_edit_review_form(
         diff_style,
     )
 
-    # Return the main card and the review section card separately
     return main_edit_card, review_section
 
 
@@ -868,7 +865,6 @@ def _build_instruction_input(index: int, value: str):
 def _build_review_section(original_recipe: RecipeData, current_recipe: RecipeData):
     """Builds the 'Review Changes' section with the diff view."""
     diff_content_wrapper = _build_diff_content(original_recipe, current_recipe.markdown)
-    # Get the save button component
     save_button_container = _build_save_button()
     return mu.Card(
         fh.Div(
@@ -979,7 +975,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             cls=CSS_ERROR_CLASS,
         )
 
-    # --- Remove Pydantic validation block ---
     if not processed_recipe.ingredients:
         logger.warning(
             "Extraction resulted in empty ingredients. Filling placeholder. Name: %s",
@@ -993,7 +988,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             processed_recipe.name,
         )
         processed_recipe.instructions = ["No instructions found"]
-    # --- End placeholder check ---
 
     reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-2xl mb-2 mt-6")
     rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
@@ -1004,24 +998,20 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         cls="mb-6",
     )
 
-    # Get the two cards from the builder function
     edit_form_card, review_section_card = _build_edit_review_form(
         processed_recipe, processed_recipe
     )
 
-    # Create OOB swap for the edit form card
     edit_oob_div = fh.Div(
         edit_form_card,
         hx_swap_oob="innerHTML:#edit-form-target",
     )
 
-    # Create OOB swap for the review section card
     review_oob_div = fh.Div(
         review_section_card,
         hx_swap_oob="innerHTML:#review-section-target",
     )
 
-    # Return the reference HTML and the two OOB divs
     return rendered_recipe_html, edit_oob_div, review_oob_div
 
 
@@ -1033,20 +1023,16 @@ async def post_save_recipe(request: Request):
         recipe_obj = RecipeData(**parsed_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
-        # Return generic error message to UI
         return fh.Span(
             "Invalid recipe data. Please check the fields.",
             cls=CSS_ERROR_CLASS,
-            # Need id to replace the button container
             id="save-button-container",
         )
     except Exception as e:
         logger.error("Error parsing form data during save: %s", e, exc_info=True)
-        # Return generic error for unexpected parsing errors
         return fh.Span(
             "Error processing form data.",
             cls=CSS_ERROR_CLASS,
-            # Need id to replace the button container
             id="save-button-container",
         )
 
@@ -1076,12 +1062,10 @@ async def post_save_recipe(request: Request):
             cls=CSS_ERROR_CLASS,
         )
 
-    # On successful save, keep returning the success message in the container
     return fh.Span(
         "Current Recipe Saved!",
-        # Use Monster UI success text class
         cls=mu.TextT.success,
-        id="save-button-container",  # Ensure container ID is preserved
+        id="save-button-container",
     )
 
 
@@ -1108,24 +1092,18 @@ async def post_modify_recipe(request: Request):
             modification_prompt,
         ) = _parse_and_validate_modify_form(form_data)
     except ModifyFormError as e:
-        # On parsing error, we need original_recipe to rebuild the form
-        # Try to parse just the original data if validation failed
         try:
             original_data = _parse_recipe_form_data(form_data, prefix="original_")
             original_recipe = RecipeData(**original_data)
-            # Use a blank current_recipe for display
             current_recipe = RecipeData(name="", ingredients=[], instructions=[])
         except Exception:
-            # If we can't even get original data, return a simple error
             logger.error("Could not parse original data on modify error", exc_info=True)
-            return HTMLResponse(
-                content=f"<div class='{CSS_ERROR_CLASS}'>Critical error processing form.</div>"
-            )
+            error_content = f"<div class='{CSS_ERROR_CLASS}'>"
+            error_content += "Critical error processing form.</div>"
+            return HTMLResponse(content=error_content)
         error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         modification_prompt = str(form_data.get("modification_prompt", ""))
-        # Go straight to rebuilding the form with the error
 
-    # Rebuild form logic moved outside the try/except for errors
     if error_message:
         edit_form_card, review_section_card = _build_edit_review_form(
             current_recipe,
@@ -1133,12 +1111,10 @@ async def post_modify_recipe(request: Request):
             modification_prompt,
             error_message,
         )
-        # Return the edit card directly (replaces target) and review card via OOB
         return edit_form_card, fh.Div(
             review_section_card, hx_swap_oob="innerHTML:#review-section-target"
         )
 
-    # Proceed with modification if parsing was successful and no error message set
     if not modification_prompt:
         logger.info("Modification requested with empty prompt. Returning form.")
         error_message = fh.Div(
@@ -1167,7 +1143,6 @@ async def post_modify_recipe(request: Request):
 
     except RecipeModificationError as e:
         error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
-        # Rebuild form with the *current* (pre-modification) recipe and error
         edit_form_card, review_section_card = _build_edit_review_form(
             current_recipe,
             original_recipe,
