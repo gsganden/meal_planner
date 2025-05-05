@@ -484,39 +484,45 @@ async def test_extract_run_returns_save_form(
 
 @pytest.mark.anyio
 async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
-    # Revert to original structure
-    db_path = test_db_session
-
     form_data = {
         FIELD_NAME: "Saved Recipe Name",
         FIELD_INGREDIENTS: ["saved ing 1", "saved ing 2"],
         FIELD_INSTRUCTIONS: ["saved inst 1", "saved inst 2"],
     }
 
-    response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    # 1. Call the save endpoint
+    save_response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    assert save_response.status_code == 200
+    assert "Current Recipe Saved!" in save_response.text
 
-    assert response.status_code == 200
-    assert "Current Recipe Saved!" in response.text
+    # 2. Verify by fetching all recipes via API
+    get_all_response = await client.get("/api/v0/recipes")
+    assert get_all_response.status_code == 200
+    all_recipes_data = get_all_response.json()
 
-    # Revert to creating a separate verification connection
-    verify_db = database(db_path)
-    verify_table = verify_db.t.recipes
-    all_recipes = list(verify_table())
-    assert len(all_recipes) == 1
-    saved_db_recipe = all_recipes[0]
+    # 3. Find the saved recipe by name and get its ID
+    saved_recipe_api_data = None
+    for recipe in all_recipes_data:
+        if recipe["name"] == form_data[FIELD_NAME]:
+            saved_recipe_api_data = recipe
+            break
 
-    assert saved_db_recipe[FIELD_NAME] == form_data[FIELD_NAME]
-    assert (
-        json.loads(saved_db_recipe[FIELD_INGREDIENTS]) == form_data[FIELD_INGREDIENTS]
+    assert saved_recipe_api_data is not None, (
+        f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
     )
-    assert (
-        json.loads(saved_db_recipe[FIELD_INSTRUCTIONS]) == form_data[FIELD_INSTRUCTIONS]
-    )
-    recipe_id = saved_db_recipe["id"]
-    assert isinstance(recipe_id, int)
+    saved_recipe_id = saved_recipe_api_data["id"]
+    assert isinstance(saved_recipe_id, int)
 
-    # Close the verification connection
-    verify_db.conn.close()
+    # 4. Verify the specific recipe by fetching its ID via API
+    get_one_response = await client.get(f"/api/v0/recipes/{saved_recipe_id}")
+    assert get_one_response.status_code == 200
+    fetched_recipe = get_one_response.json()
+
+    # 5. Assert fetched data matches original form data
+    assert fetched_recipe["name"] == form_data[FIELD_NAME]
+    assert fetched_recipe["ingredients"] == form_data[FIELD_INGREDIENTS]
+    assert fetched_recipe["instructions"] == form_data[FIELD_INSTRUCTIONS]
+    assert fetched_recipe["id"] == saved_recipe_id
 
 
 @pytest.mark.anyio
@@ -552,7 +558,6 @@ async def test_save_recipe_missing_data(
 @pytest.mark.anyio
 async def test_save_recipe_api_call_error(client: AsyncClient, monkeypatch):
     """Test error handling when the internal API call fails."""
-    # Mock the internal_client.post call within main.py
     mock_post = AsyncMock(
         side_effect=httpx.HTTPStatusError(
             "API Error",
@@ -568,11 +573,9 @@ async def test_save_recipe_api_call_error(client: AsyncClient, monkeypatch):
         FIELD_INSTRUCTIONS: ["instruction"],
     }
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
-    assert response.status_code == 200  # The route itself returns 200
-    assert (
-        "Error saving recipe via API" in response.text
-    )  # Check for error message in HTML
-    mock_post.assert_awaited_once()  # Ensure the mocked post was called
+    assert response.status_code == 200
+    assert "Error saving recipe via API" in response.text
+    mock_post.assert_awaited_once()
 
 
 @pytest.mark.anyio
@@ -1204,12 +1207,8 @@ def test_build_edit_review_form_with_original():
     original = RecipeData(
         name="Original Name", ingredients=["i1"], instructions=["s1", "s2"]
     )
-    # Mock the necessary parts of fh if needed, or just check the output structure
-    # For now, just ensure it runs without error and returns something
     result = main_module._build_edit_review_form(current, original)
     assert result is not None
-    # TODO: Add more specific assertions about the generated HTML structure
-    # based on the expected differences if needed.
 
 
 @pytest.mark.anyio
@@ -1236,7 +1235,7 @@ class TestGetRecipesPageErrors:
     ):
         "Test error handling when the API call raises a generic exception."
         mock_api_get.side_effect = Exception("Unexpected API failure")
-        response = await client.get(RECIPES_LIST_PATH)  # Testing the page route
+        response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
         assert "An unexpected error occurred while fetching recipes." in response.text
         assert CSS_ERROR_CLASS in response.text
@@ -1277,7 +1276,7 @@ class TestGetSingleRecipePageErrors:
         response = await client.get(self.PAGE_URL)
         assert response.status_code == 200
         assert "Error fetching recipe from API." in response.text
-        assert "Error" in response.text  # Checks the title part too
+        assert "Error" in response.text
         mock_api_get.assert_awaited_once_with(self.API_URL)
 
     @patch("meal_planner.main.internal_client.get")
@@ -1289,14 +1288,13 @@ class TestGetSingleRecipePageErrors:
         response = await client.get(self.PAGE_URL)
         assert response.status_code == 200
         assert "An unexpected error occurred." in response.text
-        assert "Error" in response.text  # Checks the title part too
+        assert "Error" in response.text
         mock_api_get.assert_awaited_once_with(self.API_URL)
 
 
 @pytest.mark.anyio
 async def test_save_recipe_api_call_generic_error(client: AsyncClient, monkeypatch):
     """Test error handling when the internal API call raises a generic exception."""
-    # Mock the internal_client.post call to raise a generic Exception
     mock_post = AsyncMock(side_effect=Exception("Unexpected network issue"))
     monkeypatch.setattr("meal_planner.main.internal_client.post", mock_post)
 
@@ -1306,9 +1304,9 @@ async def test_save_recipe_api_call_generic_error(client: AsyncClient, monkeypat
         FIELD_INSTRUCTIONS: ["instruction"],
     }
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
-    assert response.status_code == 200  # Route returns 200
-    assert "Unexpected error saving recipe." in response.text  # Check error message
-    mock_post.assert_awaited_once()  # Ensure the mock was called
+    assert response.status_code == 200
+    assert "Unexpected error saving recipe." in response.text
+    mock_post.assert_awaited_once()
 
 
 @pytest.mark.anyio
@@ -1336,7 +1334,7 @@ class TestGetRecipesPageSuccess:
                 "instructions": ["s2"],
             },
         ]
-        mock_response.raise_for_status = MagicMock()  # Prevent raising for 200
+        mock_response.raise_for_status = MagicMock()
         mock_api_get.return_value = mock_response
 
         response = await client.get(page_url)
