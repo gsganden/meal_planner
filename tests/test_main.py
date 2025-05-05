@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from starlette.datastructures import FormData
 
 import meal_planner.main as main_module
-from meal_planner.api.recipes import RECIPES_PATH, RECIPE_ITEM_PATH
+from meal_planner.api.recipes import RECIPE_ITEM_PATH, RECIPES_PATH
 from meal_planner.main import (
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
     CSS_ERROR_CLASS,

@@ -32,9 +32,7 @@ def get_initialized_db(db_path_override: Path | None = None) -> fl.Database:
     Args:
         db_path_override: If provided, use this path instead of the default.
     """
-    target_db_path = db_path_override if db_path_override else DB_PATH
-
-    db_conn = fl.database(target_db_path)
+    db_conn = fl.database(db_path_override if db_path_override else DB_PATH)
 
     db_conn.conn.execute(
         """CREATE TABLE IF NOT EXISTS recipes (
@@ -49,7 +47,7 @@ def get_initialized_db(db_path_override: Path | None = None) -> fl.Database:
 
 
 @API_ROUTER.post(
-    "/v0/recipes",
+    RECIPES_PATH,
     status_code=status.HTTP_201_CREATED,
     response_model=RecipeRead,
 )
@@ -80,7 +78,7 @@ async def create_recipe(
         stored_recipe.name,
     )
 
-    location_path = f"/api/v0/recipes/{str(stored_recipe.id)}"
+    location_path = f"/api{RECIPES_PATH}/{str(stored_recipe.id)}"
 
     return JSONResponse(
         content=stored_recipe.model_dump(mode="json"),

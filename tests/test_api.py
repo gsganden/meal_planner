@@ -6,9 +6,7 @@ import pytest_asyncio
 from fastlite import database
 from httpx import AsyncClient, Response
 
-from meal_planner.api.recipes import get_initialized_db, RECIPES_PATH, RECIPE_ITEM_PATH
-from meal_planner.main import app
-from meal_planner.models import RecipeRead
+from meal_planner.api.recipes import RECIPES_PATH
 
 pytestmark = pytest.mark.asyncio
 

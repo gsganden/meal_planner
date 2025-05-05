@@ -6,14 +6,14 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import TypeVar, Annotated, Any, AsyncGenerator
+from typing import TypeVar
 
 import fasthtml.common as fh
 import html2text
 import httpx
 import instructor
 import monsterui.all as mu
-from fastapi import FastAPI, Request, Response, Depends
+from fastapi import FastAPI, Request, Response
 from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, ValidationError
@@ -21,14 +21,12 @@ from starlette.datastructures import FormData
 from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles
 
-import fastlite as fl
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.api.recipes import (
-    get_initialized_db,
-    RECIPES_PATH,
     RECIPE_ITEM_PATH,
+    RECIPES_PATH,
 )
-from meal_planner.models import Recipe, RecipeRead
+from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250428_205830__include_parens.txt"
