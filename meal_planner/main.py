@@ -348,16 +348,10 @@ async def fetch_page_text(recipe_url: str):
     return response.text
 
 
-class ContainsRecipe(BaseModel):
-    contains_recipe: bool = Field(
-        ..., description="Whether the provided text contains a recipe (True or False)"
-    )
-
-
 T = TypeVar("T", bound=BaseModel)
 
 
-async def call_llm(prompt: str, response_model: type[T]) -> T:
+async def get_structured_llm_response(prompt: str, response_model: type[T]) -> T:
     logger.info(
         "LLM Call Start: model=%s, response_model=%s",
         MODEL_NAME,
@@ -439,7 +433,7 @@ async def extract_recipe_from_text(page_text: str) -> RecipeData:
         logger.info("Using extraction prompt file: %s", prompt_file_path.name)
         prompt_text = prompt_file_path.read_text().format(page_text=page_text)
 
-        extracted_recipe: RecipeData = await call_llm(
+        extracted_recipe: RecipeData = await get_structured_llm_response(
             prompt=prompt_text,
             response_model=RecipeData,
         )
@@ -1134,7 +1128,7 @@ async def _request_recipe_modification(
             current_recipe_markdown=current_recipe.markdown,
             modification_prompt=modification_prompt,
         )
-        modified_recipe: RecipeData = await call_llm(
+        modified_recipe: RecipeData = await get_structured_llm_response(
             prompt=modification_full_prompt,
             response_model=RecipeData,
         )

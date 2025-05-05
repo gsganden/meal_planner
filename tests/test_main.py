@@ -16,7 +16,7 @@ from meal_planner.main import (
     MODEL_NAME,
     _parse_recipe_form_data,
     app,
-    call_llm,
+    get_structured_llm_response,
     fetch_and_clean_text_from_url,
     fetch_page_text,
     postprocess_recipe,
@@ -163,16 +163,18 @@ class TestRecipeFetchTextEndpoint:
 @pytest.mark.anyio
 class TestRecipeExtractRunEndpoint:
     @pytest.fixture
-    def mock_call_llm(self):
-        with patch("meal_planner.main.call_llm", new_callable=AsyncMock) as mock_llm:
+    def mock_get_structured_llm_response(self):
+        with patch(
+            "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
+        ) as mock_llm:
             yield mock_llm
 
-    async def test_success(self, client: AsyncClient, mock_call_llm):
+    async def test_success(self, client: AsyncClient, mock_get_structured_llm_response):
         test_text = (
             "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First "
             "step text\nStep 2: Second step text"
         )
-        mock_call_llm.return_value = RecipeData(
+        mock_get_structured_llm_response.return_value = RecipeData(
             name="Text Input Success Name",
             ingredients=["ingA", "ingB"],
             instructions=["1. Actual step A", "Step 2: Actual step B"],
@@ -182,7 +184,7 @@ class TestRecipeExtractRunEndpoint:
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
         )
         assert response.status_code == 200
-        mock_call_llm.assert_called_once_with(
+        mock_get_structured_llm_response.assert_called_once_with(
             prompt=ANY,
             response_model=RecipeData,
         )
@@ -196,11 +198,11 @@ class TestRecipeExtractRunEndpoint:
 
     @patch("meal_planner.main.logger.error")
     async def test_extraction_error(
-        self, mock_logger_error, client: AsyncClient, mock_call_llm
+        self, mock_logger_error, client: AsyncClient, mock_get_structured_llm_response
     ):
         test_text = "Some recipe text that causes an LLM error."
         llm_exception = Exception("LLM failed on text input")
-        mock_call_llm.side_effect = llm_exception
+        mock_get_structured_llm_response.side_effect = llm_exception
 
         response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
@@ -210,7 +212,7 @@ class TestRecipeExtractRunEndpoint:
             "Recipe extraction failed. An unexpected error occurred during processing."
         )
         assert expected_error_msg in response.text
-        mock_call_llm.assert_called_once()
+        mock_get_structured_llm_response.assert_called_once()
         mock_logger_error.assert_any_call(
             "Error during recipe extraction call: %s",
             MODEL_NAME,
@@ -401,15 +403,15 @@ class TestFetchAndCleanTextFromUrl:
 @pytest.mark.anyio
 @patch("meal_planner.main.aclient.chat.completions.create", new_callable=AsyncMock)
 @patch("meal_planner.main.logger.error")
-async def test_call_llm_api_error(mock_logger_error, mock_create):
-    """Test that call_llm catches and logs errors during the API call."""
+async def test_get_structured_llm_response_api_error(mock_logger_error, mock_create):
+    """Test that get_structured_llm_response catches and logs errors during the API call."""
     api_exception = Exception("Simulated API failure")
     mock_create.side_effect = api_exception
     test_prompt = "Test prompt"
     test_model = RecipeData  # Use a concrete model for testing
 
     with pytest.raises(Exception) as excinfo:
-        await call_llm(prompt=test_prompt, response_model=test_model)
+        await get_structured_llm_response(prompt=test_prompt, response_model=test_model)
 
     # Check that the original exception was re-raised
     assert excinfo.value is api_exception
@@ -635,8 +637,10 @@ def mock_llm_modified_recipe_fixture() -> RecipeData:
 @pytest.mark.anyio
 class TestRecipeModifyEndpoint:
     @pytest.fixture
-    def mock_call_llm(self):
-        with patch("meal_planner.main.call_llm", new_callable=AsyncMock) as mock_llm:
+    def mock_get_structured_llm_response(self):
+        with patch(
+            "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
+        ) as mock_llm:
             yield mock_llm
 
     def _build_modify_form_data(
@@ -662,12 +666,12 @@ class TestRecipeModifyEndpoint:
         self,
         mock_logger_info,
         client: AsyncClient,
-        mock_call_llm,
+        mock_get_structured_llm_response,
         mock_current_recipe_before_modify_fixture: RecipeData,
         mock_original_recipe_fixture: RecipeData,
         mock_llm_modified_recipe_fixture: RecipeData,
     ):
-        mock_call_llm.return_value = mock_llm_modified_recipe_fixture
+        mock_get_structured_llm_response.return_value = mock_llm_modified_recipe_fixture
         test_prompt = "Make it spicier"
         form_data = self._build_modify_form_data(
             mock_current_recipe_before_modify_fixture,
@@ -678,8 +682,10 @@ class TestRecipeModifyEndpoint:
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
         assert response.status_code == 200
-        mock_call_llm.assert_called_once_with(prompt=ANY, response_model=RecipeData)
-        call_args, call_kwargs = mock_call_llm.call_args
+        mock_get_structured_llm_response.assert_called_once_with(
+            prompt=ANY, response_model=RecipeData
+        )
+        call_args, call_kwargs = mock_get_structured_llm_response.call_args
         prompt_arg = call_kwargs.get("prompt", call_args[0] if call_args else None)
         assert mock_current_recipe_before_modify_fixture.markdown in prompt_arg
         assert test_prompt in prompt_arg
@@ -704,7 +710,7 @@ class TestRecipeModifyEndpoint:
     async def test_modify_no_prompt(
         self,
         client: AsyncClient,
-        mock_call_llm,
+        mock_get_structured_llm_response,
         mock_current_recipe_before_modify_fixture: RecipeData,
         mock_original_recipe_fixture: RecipeData,
     ):
@@ -722,16 +728,18 @@ class TestRecipeModifyEndpoint:
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
             f' value="{mock_original_recipe_fixture.name}"' in response.text
         )
-        mock_call_llm.assert_not_called()
+        mock_get_structured_llm_response.assert_not_called()
 
     async def test_modify_llm_error(
         self,
         client: AsyncClient,
-        mock_call_llm,
+        mock_get_structured_llm_response,
         mock_current_recipe_before_modify_fixture: RecipeData,
         mock_original_recipe_fixture: RecipeData,
     ):
-        mock_call_llm.side_effect = Exception("LLM modification error")
+        mock_get_structured_llm_response.side_effect = Exception(
+            "LLM modification error"
+        )
         test_prompt = "Cause an error"
         form_data = self._build_modify_form_data(
             mock_current_recipe_before_modify_fixture,
@@ -751,7 +759,7 @@ class TestRecipeModifyEndpoint:
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
             f' value="{mock_original_recipe_fixture.name}"' in response.text
         )
-        mock_call_llm.assert_called_once()
+        mock_get_structured_llm_response.assert_called_once()
 
     async def test_modify_validation_error(
         self,
@@ -774,7 +782,7 @@ class TestRecipeModifyEndpoint:
         assert "Invalid recipe data. Please check the fields." in response.text
         assert CSS_ERROR_CLASS in response.text
         with patch(
-            "meal_planner.main.call_llm", new_callable=AsyncMock
+            "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
         ) as local_mock_llm:
             local_mock_llm.assert_not_called()
 
