@@ -33,8 +33,6 @@ ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-RECIPES_LIST_PATH = "/recipes"
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -105,7 +103,7 @@ def sidebar():
                 fh.Li(
                     fh.A(
                         "View All",
-                        href=RECIPES_LIST_PATH,
+                        href="/recipes",
                         hx_target="#content",
                         hx_push_url="true",
                     )
@@ -238,7 +236,7 @@ def get():
     )
 
 
-@rt(RECIPES_LIST_PATH)
+@rt("/recipes")
 async def get_recipes_htmx():
     try:
         response = await internal_client.get(f"/api{RECIPES_API_PATH}")
@@ -1037,8 +1035,6 @@ async def post_save_recipe(request: Request):
             "Unexpected error saving recipe.",
             cls=CSS_ERROR_CLASS,
         )
-
-    # Removed direct DB interaction logic
 
     return fh.Span(
         "Current Recipe Saved!",

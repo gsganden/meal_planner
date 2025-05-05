@@ -21,7 +21,6 @@ from meal_planner.main import (
     fetch_and_clean_text_from_url,
     fetch_page_text,
     postprocess_recipe,
-    RECIPES_LIST_PATH,
 )
 from meal_planner.models import Recipe
 
@@ -30,6 +29,7 @@ TRANSPORT = ASGITransport(app=app)
 TEST_URL = "http://test-recipe.com"
 
 # URLs
+RECIPES_LIST_PATH = "/recipes"
 RECIPES_EXTRACT_URL = "/recipes/extract"
 RECIPES_FETCH_TEXT_URL = "/recipes/fetch-text"
 RECIPES_EXTRACT_RUN_URL = "/recipes/extract/run"
