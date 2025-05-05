@@ -14,7 +14,7 @@ import monsterui.all as mu
 from fastapi import FastAPI, Request, Response
 from httpx import ASGITransport
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ValidationError
 from starlette.datastructures import FormData
 from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles

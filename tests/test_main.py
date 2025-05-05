@@ -16,9 +16,9 @@ from meal_planner.main import (
     MODEL_NAME,
     _parse_recipe_form_data,
     app,
-    get_structured_llm_response,
     fetch_and_clean_text_from_url,
     fetch_page_text,
+    get_structured_llm_response,
     postprocess_recipe,
 )
 from meal_planner.models import RecipeData
@@ -404,7 +404,8 @@ class TestFetchAndCleanTextFromUrl:
 @patch("meal_planner.main.aclient.chat.completions.create", new_callable=AsyncMock)
 @patch("meal_planner.main.logger.error")
 async def test_get_structured_llm_response_api_error(mock_logger_error, mock_create):
-    """Test that get_structured_llm_response catches and logs errors during the API call."""
+    """Test that get_structured_llm_response catches and logs errors during the API
+    call."""
     api_exception = Exception("Simulated API failure")
     mock_create.side_effect = api_exception
     test_prompt = "Test prompt"
