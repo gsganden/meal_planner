@@ -993,11 +993,7 @@ async def post_save_recipe(request: Request):
         response = await internal_client.post(
             "/api/v0/recipes", json=recipe_obj.model_dump()
         )
-        response.raise_for_status()  # Raise exception for 4xx/5xx responses
-
-        # Optionally get the ID from the response if needed
-        # response_data = response.json()
-        # inserted_id = response_data.get('id')
+        response.raise_for_status()
 
         logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
 
