@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 # Assuming get_db is accessible like this, adjust if needed
-from meal_planner.api.recipes import get_db
+from meal_planner.api.recipes import get_initialized_db
 
 
 def test_get_db_creates_and_connects(tmp_path: Path):
@@ -20,7 +20,7 @@ def test_get_db_creates_and_connects(tmp_path: Path):
     # Call get_db with the override path
     db_conn = None
     try:
-        db_conn = get_db(db_path_override=test_db_file)
+        db_conn = get_initialized_db(db_path_override=test_db_file)
 
         # Assertions
         assert db_conn is not None
@@ -31,16 +31,13 @@ def test_get_db_creates_and_connects(tmp_path: Path):
 
         # Verify table exists by trying to access it
         try:
-            recipes_table = db_conn.t.recipes
-            # Perform a simple query (e.g., count) to be sure
+            recipes_table = db_conn.t.recipes  # type: ignore
             count = recipes_table.count
             assert count == 0
         except Exception as e:
             pytest.fail(f"Could not verify 'recipes' table existence: {e}")
 
     finally:
-        # Close connection if it was opened
-        if db_conn and hasattr(db_conn, "conn"):
+        if db_conn is not None and hasattr(db_conn, "conn"):
             with contextlib.suppress(Exception):
-                db_conn.conn.close()  # Ignore errors during cleanup closing
-        # No need to delete file/dir, tmp_path handles cleanup
+                db_conn.conn.close()  # type: ignore

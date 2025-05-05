@@ -6,42 +6,30 @@ from typing import Annotated, Any
 import apswutils.db
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from fastlite import database
+import fastlite as fl
 from pydantic import Field
 
 from meal_planner.models import Recipe, RecipeRead
 
 logger = logging.getLogger(__name__)
 
-# --- Database Configuration ---
 DB_NAME = "meal_planner.db"
-# Assume this file is in meal_planner/api/recipes.py
-# Path(__file__).parent = meal_planner/api
-# Path(__file__).parent.parent = meal_planner
-# Path(__file__).parent.parent.parent = project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DB_PATH = PROJECT_ROOT / "data" / DB_NAME
 
-# Global variable to hold the connection (optional, dependency injection handles it)
-# _db_connection = None
 
+def get_initialized_db(db_path_override: Path | None = None) -> fl.Database:
+    """Get a database connection.
 
-def get_db(db_path_override: Path | None = None):
-    """FastAPI dependency/utility to get a database connection.
+    Ensures that the database has been initialized with `recipes` table.
 
     Args:
         db_path_override: If provided, use this path instead of the default.
     """
     target_db_path = db_path_override if db_path_override else DB_PATH
 
-    # Ensure the directory exists (important for first run locally/in container)
-    target_db_path.parent.mkdir(parents=True, exist_ok=True)
+    db_conn = fl.database(target_db_path)
 
-    # Connect to the database
-    db_conn = database(target_db_path)
-
-    # Ensure the table exists - Removed redundant try/except again
-    # If this fails, let the error propagate.
     db_conn.conn.execute(
         """CREATE TABLE IF NOT EXISTS recipes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,11 +39,8 @@ def get_db(db_path_override: Path | None = None):
         );"""
     )
 
-    # Return the Fastlite object, not just the connection
     return db_conn
 
-
-# --- Removed global db and recipes_table initialization ---
 
 api_router = APIRouter()
 
@@ -65,7 +50,9 @@ api_router = APIRouter()
     status_code=status.HTTP_201_CREATED,
     response_model=RecipeRead,
 )
-async def create_recipe(recipe_data: Recipe, db: Annotated[Any, Depends(get_db)]):
+async def create_recipe(
+    recipe_data: Recipe, db: Annotated[Any, Depends(get_initialized_db)]
+):
     db_data = {
         "name": recipe_data.name,
         "ingredients": json.dumps(recipe_data.ingredients),
@@ -101,7 +88,7 @@ async def create_recipe(recipe_data: Recipe, db: Annotated[Any, Depends(get_db)]
 
 
 @api_router.get("/recipes", response_model=list[RecipeRead])
-async def get_all_recipes(db: Annotated[Any, Depends(get_db)]):
+async def get_all_recipes(db: Annotated[Any, Depends(get_initialized_db)]):
     all_recipes = []
     try:
         # Try using fastlite's table select method instead of raw SQL
@@ -138,7 +125,9 @@ async def get_all_recipes(db: Annotated[Any, Depends(get_db)]):
 
 
 @api_router.get("/v0/recipes/{recipe_id}", response_model=RecipeRead)
-async def get_recipe_by_id(recipe_id: int, db: Annotated[Any, Depends(get_db)]):
+async def get_recipe_by_id(
+    recipe_id: int, db: Annotated[Any, Depends(get_initialized_db)]
+):
     recipes_table = db.t.recipes  # Get table object from the connection
     try:
         # Use fastlite's get method which handles missing keys

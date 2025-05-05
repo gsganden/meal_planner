@@ -9,7 +9,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from meal_planner.api.recipes import get_db
+from meal_planner.api.recipes import get_initialized_db
 from meal_planner.main import api_app, app
 
 TEST_DB_PATH = Path("meal_planner_test.db")
@@ -69,7 +69,7 @@ async def client(test_db_session: Path) -> AsyncGenerator[AsyncClient, None]:
         return db_conn_for_test
 
     # Apply the dependency override before creating the client
-    api_app.dependency_overrides[get_db] = override_get_db_for_test
+    api_app.dependency_overrides[get_initialized_db] = override_get_db_for_test
 
     try:
         async with AsyncClient(
