@@ -169,20 +169,18 @@ class TestRecipeExtractRunEndpoint:
         ) as mock_llm:
             yield mock_llm
 
-    # Renamed fixture from mock_get_structured_llm_response
     async def test_success(self, client: AsyncClient, mock_structured_llm_response):
         test_text = (
             "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First "
             "step text\nStep 2: Second step text"
         )
-        # Use a simple RecipeData object; postprocessing will happen normally
         mock_structured_llm_response.return_value = RecipeData(
-            name=" text input success name recipe ",  # Raw name with spaces/suffix
-            ingredients=[" ingA ", "ingB, "],  # Raw ingredients
+            name=" text input success name recipe ",
+            ingredients=[" ingA ", "ingB, "],
             instructions=[
                 "1. Actual step A",
                 " Step 2: Actual step B ",
-            ],  # Raw instructions
+            ],
         )
 
         response = await client.post(
@@ -194,7 +192,6 @@ class TestRecipeExtractRunEndpoint:
             response_model=RecipeData,
         )
 
-        # Assert based on *post-processed* values using helper
         html_content = response.text
         assert (
             _extract_form_value(html_content, FIELD_NAME) == "Text Input Success Name"
@@ -265,7 +262,6 @@ class TestRecipeExtractRunEndpoint:
         mock_get_structured_llm_response.assert_called_once()
         mock_postprocess.assert_called_once_with(mock_recipe)
 
-        # Assert raw name/ingredients and placeholder instructions using helper
         html_content = response.text
         assert _extract_form_value(html_content, FIELD_NAME) == raw_name
         assert (
@@ -302,7 +298,6 @@ class TestRecipeExtractRunEndpoint:
         mock_get_structured_llm_response.assert_called_once()
         mock_postprocess.assert_called_once_with(mock_recipe)
 
-        # Assert raw name/instructions and placeholder ingredients using helper
         html_content = response.text
         assert _extract_form_value(html_content, FIELD_NAME) == raw_name
         assert _extract_form_list_values(html_content, FIELD_INGREDIENTS) == [
@@ -442,8 +437,6 @@ class TestFetchAndCleanTextFromUrl:
         assert raised_exception == log_args[1]
         assert kwargs.get("exc_info") is True
 
-        # If the raised exception was NOT an httpx error, html_cleaner shouldn't
-        # be called
         if not isinstance(
             raised_exception, (httpx.RequestError, httpx.HTTPStatusError)
         ):
@@ -462,18 +455,16 @@ class TestFetchAndCleanTextFromUrl:
     ):
         """Test that a generic exception during HTML cleaning is caught and raises
         RuntimeError."""
-        mock_fetch_page_text.return_value = "<html></html>"  # Simulate successful fetch
+        mock_fetch_page_text.return_value = "<html></html>"
         cleaning_exception = Exception("HTML cleaning failed!")
         mock_html_cleaner.side_effect = cleaning_exception
 
         with pytest.raises(RuntimeError) as excinfo:
             await fetch_and_clean_text_from_url(self.TEST_URL)
 
-        # Check that the RuntimeError includes the original exception
         assert excinfo.value.__cause__ is cleaning_exception
         assert f"Failed to process URL content: {self.TEST_URL}" in str(excinfo.value)
 
-        # Verify logging
         mock_logger_error.assert_called_once()
         args, kwargs = mock_logger_error.call_args
         assert "Error cleaning HTML text" in args[0]
@@ -481,7 +472,6 @@ class TestFetchAndCleanTextFromUrl:
         assert args[2] is cleaning_exception
         assert kwargs.get("exc_info") is True
 
-        # Verify mocks
         mock_fetch_page_text.assert_called_once_with(self.TEST_URL)
         mock_html_cleaner.assert_called_once_with("<html></html>")
 
@@ -495,15 +485,13 @@ async def test_get_structured_llm_response_api_error(mock_logger_error, mock_cre
     api_exception = Exception("Simulated API failure")
     mock_create.side_effect = api_exception
     test_prompt = "Test prompt"
-    test_model = RecipeData  # Use a concrete model for testing
+    test_model = RecipeData
 
     with pytest.raises(Exception) as excinfo:
         await get_structured_llm_response(prompt=test_prompt, response_model=test_model)
 
-    # Check that the original exception was re-raised
     assert excinfo.value is api_exception
 
-    # Check that the error was logged correctly
     mock_logger_error.assert_called_once_with(
         "LLM Call Error: model=%s, response_model=%s, error=%s",
         MODEL_NAME,
@@ -576,35 +564,30 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
         FIELD_INSTRUCTIONS: ["saved inst 1", "saved inst 2"],
     }
 
-    # 1. Call the save endpoint
     save_response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert save_response.status_code == 200
     assert "Current Recipe Saved!" in save_response.text
 
-    # 2. Verify by fetching all recipes via API
     get_all_response = await client.get("/api/v0/recipes")
     assert get_all_response.status_code == 200
     all_recipes_data = get_all_response.json()
 
-    # 3. Find the saved recipe by name and get its ID
     saved_recipe_api_data = None
     for recipe in all_recipes_data:
         if recipe["name"] == form_data[FIELD_NAME]:
             saved_recipe_api_data = recipe
             break
 
-    assert (
-        saved_recipe_api_data is not None
-    ), f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
+    assert saved_recipe_api_data is not None, (
+        f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
+    )
     saved_recipe_id = saved_recipe_api_data["id"]
     assert isinstance(saved_recipe_id, int)
 
-    # 4. Verify the specific recipe by fetching its ID via API
     get_one_response = await client.get(f"/api/v0/recipes/{saved_recipe_id}")
     assert get_one_response.status_code == 200
     fetched_recipe = get_one_response.json()
 
-    # 5. Assert fetched data matches original form data
     assert fetched_recipe["name"] == form_data[FIELD_NAME]
     assert fetched_recipe["ingredients"] == form_data[FIELD_INGREDIENTS]
     assert fetched_recipe["instructions"] == form_data[FIELD_INSTRUCTIONS]
@@ -1485,7 +1468,6 @@ def _extract_form_value(html_text: str, name: str) -> str | None:
     form_start = html_text.find('<div hx-swap-oob="innerHTML:#edit-form-target">')
     if form_start == -1:
         return None
-    # Simplified regex for input value attribute
     input_pattern = re.compile(rf'<input[^>]*name="{name}"[^>]*value="([^"]*)"[^>]*>')
     textarea_pattern = re.compile(
         rf'<textarea[^>]*name="{name}"[^>]*>([^<]*)</textarea>'
@@ -1505,7 +1487,6 @@ def _extract_form_list_values(html_text: str, name: str) -> list[str]:
     form_start = html_text.find('<div hx-swap-oob="innerHTML:#edit-form-target">')
     if form_start == -1:
         return []
-    # Simplified regex for input value attribute
     input_pattern = re.compile(rf'<input[^>]*name="{name}"[^>]*value="([^"]*)"[^>]*>')
     textarea_pattern = re.compile(
         rf'<textarea[^>]*name="{name}"[^>]*>([^<]*)</textarea>'
