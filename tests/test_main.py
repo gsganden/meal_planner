@@ -1311,57 +1311,54 @@ async def test_save_recipe_api_call_generic_error(client: AsyncClient, monkeypat
 
 @pytest.mark.anyio
 class TestGetRecipesPageSuccess:
-    @patch("meal_planner.main.internal_client.get")
     async def test_get_recipes_page_success_with_data(
-        self, mock_api_get, client: AsyncClient
+        self, client: AsyncClient, test_db_session: Path
     ):
-        """Test successful loading of /recipes page with data."""
-        api_url = "/api/v0/recipes"
-        page_url = RECIPES_LIST_PATH
-        mock_response = AsyncMock(spec=httpx.Response)
-        mock_response.status_code = 200
-        mock_response.json.return_value = [
-            {
-                "id": 1,
-                "name": "Recipe One",
-                "ingredients": ["i1"],
-                "instructions": ["s1"],
-            },
-            {
-                "id": 2,
-                "name": "Recipe Two",
-                "ingredients": ["i2"],
-                "instructions": ["s2"],
-            },
-        ]
-        mock_response.raise_for_status = MagicMock()
-        mock_api_get.return_value = mock_response
+        # 1. Create recipes via API
+        recipe1_payload = {
+            "name": "Recipe One For Page Test",
+            "ingredients": ["i1"],
+            "instructions": ["s1"],
+        }
+        recipe2_payload = {
+            "name": "Recipe Two For Page Test",
+            "ingredients": ["i2"],
+            "instructions": ["s2"],
+        }
+        create_resp1 = await client.post("/api/v0/recipes", json=recipe1_payload)
+        assert create_resp1.status_code == 201
+        recipe1_id = create_resp1.json()["id"]
 
+        create_resp2 = await client.post("/api/v0/recipes", json=recipe2_payload)
+        assert create_resp2.status_code == 201
+        recipe2_id = create_resp2.json()["id"]
+
+        # 2. Get the recipes page
+        page_url = RECIPES_LIST_PATH
         response = await client.get(page_url)
         assert response.status_code == 200
-        assert "Recipe One" in response.text
-        assert 'href="/recipes/1"' in response.text
-        assert "Recipe Two" in response.text
-        assert 'href="/recipes/2"' in response.text
-        mock_api_get.assert_awaited_once_with(api_url)
+        html_content = response.text
 
-    @patch("meal_planner.main.internal_client.get")
+        # 3. Verify rendered content
+        assert recipe1_payload["name"] in html_content
+        assert f'href="/recipes/{recipe1_id}"' in html_content
+        assert recipe2_payload["name"] in html_content
+        assert f'href="/recipes/{recipe2_id}"' in html_content
+        assert "No recipes found." not in html_content
+
     async def test_get_recipes_page_success_no_data(
-        self, mock_api_get, client: AsyncClient
+        self, client: AsyncClient, test_db_session: Path
     ):
-        """Test successful loading of /recipes page when API returns empty list."""
-        api_url = "/api/v0/recipes"
-        page_url = RECIPES_LIST_PATH
-        mock_response = AsyncMock(spec=httpx.Response)
-        mock_response.status_code = 200
-        mock_response.json.return_value = []
-        mock_response.raise_for_status = MagicMock()
-        mock_api_get.return_value = mock_response
+        # DB should be empty thanks to client fixture setup
 
+        # 1. Get the recipes page
+        page_url = RECIPES_LIST_PATH
         response = await client.get(page_url)
         assert response.status_code == 200
-        assert "No recipes found." in response.text
-        mock_api_get.assert_awaited_once_with(api_url)
+        html_content = response.text
+
+        # 2. Verify "No recipes" message
+        assert "No recipes found." in html_content
 
 
 @pytest.mark.anyio
@@ -1370,28 +1367,28 @@ class TestGetSingleRecipePageSuccess:
     API_URL = f"/api/v0/recipes/{RECIPE_ID}"
     PAGE_URL = f"/recipes/{RECIPE_ID}"
 
-    @patch("meal_planner.main.internal_client.get")
     async def test_get_single_recipe_page_success(
-        self, mock_api_get, client: AsyncClient
+        self, client: AsyncClient, test_db_session: Path
     ):
-        """Test successful loading of a single recipe page."""
-        mock_recipe_data = {
-            "id": self.RECIPE_ID,
-            "name": "Specific Recipe",
+        # 1. Create a recipe via API
+        recipe_payload = {
+            "name": "Specific Recipe Page Test",
             "ingredients": ["Specific Ing 1", "Specific Ing 2"],
             "instructions": ["Specific Step 1.", "Specific Step 2."],
         }
-        mock_response = AsyncMock(spec=httpx.Response)
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_recipe_data
-        mock_response.raise_for_status = MagicMock()
-        mock_api_get.return_value = mock_response
+        create_resp = await client.post("/api/v0/recipes", json=recipe_payload)
+        assert create_resp.status_code == 201
+        created_recipe_id = create_resp.json()["id"]
 
-        response = await client.get(self.PAGE_URL)
+        # 2. Get the specific recipe page
+        page_url = f"/recipes/{created_recipe_id}"
+        response = await client.get(page_url)
         assert response.status_code == 200
-        assert "Specific Recipe" in response.text
-        assert "Specific Ing 1" in response.text
-        assert "Specific Ing 2" in response.text
-        assert "Specific Step 1." in response.text
-        assert "Specific Step 2." in response.text
-        mock_api_get.assert_awaited_once_with(self.API_URL)
+        html_content = response.text
+
+        # 3. Verify rendered content
+        assert recipe_payload["name"] in html_content
+        assert recipe_payload["ingredients"][0] in html_content
+        assert recipe_payload["ingredients"][1] in html_content
+        assert recipe_payload["instructions"][0] in html_content
+        assert recipe_payload["instructions"][1] in html_content
