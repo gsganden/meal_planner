@@ -204,7 +204,7 @@ def get():
     disclaimer = fh.P(
         "Recipe extraction uses AI and may not be perfectly accurate. Always "
         "double-check the results.",
-        cls="text-xs text-gray-500 mt-1",
+        cls=f"{mu.TextT.muted} text-xs mt-1",
     )
 
     results_div = fh.Div(id="recipe-results")
@@ -305,7 +305,13 @@ async def get_single_recipe_page(recipe_id: int):
                 exc_info=True,
             )
             return with_layout(
-                mu.Titled("Error", fh.P("Error fetching recipe from API."))
+                mu.Titled(
+                    "Error",
+                    fh.P(
+                        "Error fetching recipe from API.",
+                        cls=CSS_ERROR_CLASS,
+                    ),
+                )
             )
     except Exception as e:
         logger.error(
@@ -314,7 +320,15 @@ async def get_single_recipe_page(recipe_id: int):
             e,
             exc_info=True,
         )
-        return with_layout(mu.Titled("Error", fh.P("An unexpected error occurred.")))
+        return with_layout(
+            mu.Titled(
+                "Error",
+                fh.P(
+                    "An unexpected error occurred.",
+                    cls=CSS_ERROR_CLASS,
+                ),
+            )
+        )
 
     content = _build_recipe_display(recipe_data)
 
@@ -343,7 +357,6 @@ def _build_recipe_display(recipe_data: dict):
             *[fh.Li(inst) for inst in recipe_data.get("instructions", [])],
             cls="list-disc list-inside mb-3",
         ),
-        # Apply consistent styling from extract reference view
         cls="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-sm max-w-none",
     )
 
@@ -535,7 +548,9 @@ def _close_parenthesis(text: str) -> str:
     return text
 
 
-CSS_ERROR_CLASS = "text-red-500 mb-4"
+# CSS_ERROR_CLASS = "text-red-500 mb-4"
+# Try using Monster UI semantic text class for errors
+CSS_ERROR_CLASS = f"{mu.TextT.error} mb-4"
 
 
 def generate_diff_html(before_text: str, after_text: str) -> tuple[str, str]:
@@ -692,7 +707,7 @@ def _build_modification_controls(
     )
     edit_disclaimer = fh.P(
         "AI recipe modification is experimental. Review changes carefully.",
-        cls="text-xs text-gray-500 mt-1 mb-4",
+        cls=f"{mu.TextT.muted} text-xs mt-1 mb-4",
     )
     return fh.Div(
         fh.H3("Modify with AI", cls="text-xl mb-2"),
@@ -941,7 +956,7 @@ async def post_fetch_text(recipe_url: str | None = None):
 async def post(recipe_url: str | None = None, recipe_text: str | None = None):
     if not recipe_text:
         logging.error("Recipe extraction called without text.")
-        return fh.Div("No text content provided for extraction.")
+        return fh.Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
 
     try:
         log_source = "provided text"
@@ -964,7 +979,7 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             cls=CSS_ERROR_CLASS,
         )
 
-    # --- Check for empty fields and fill placeholders ---
+    # --- Remove Pydantic validation block ---
     if not processed_recipe.ingredients:
         logger.warning(
             "Extraction resulted in empty ingredients. Filling placeholder. Name: %s",
@@ -980,7 +995,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         processed_recipe.instructions = ["No instructions found"]
     # --- End placeholder check ---
 
-    # --- Proceed with potentially modified recipe ---
     reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-2xl mb-2 mt-6")
     rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
 
@@ -1065,7 +1079,8 @@ async def post_save_recipe(request: Request):
     # On successful save, keep returning the success message in the container
     return fh.Span(
         "Current Recipe Saved!",
-        cls="text-green-500",
+        # Use Monster UI success text class
+        cls=mu.TextT.success,
         id="save-button-container",  # Ensure container ID is preserved
     )
 
@@ -1085,7 +1100,7 @@ class RecipeModificationError(Exception):
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
     form_data: FormData = await request.form()
-    error_message = None  # Initialize error message
+    error_message = None
     try:
         (
             current_recipe,
@@ -1132,7 +1147,7 @@ async def post_modify_recipe(request: Request):
         edit_form_card, review_section_card = _build_edit_review_form(
             current_recipe,
             original_recipe,
-            "",  # Clear prompt value
+            "",
             error_message,
         )
         return edit_form_card, fh.Div(
@@ -1143,7 +1158,6 @@ async def post_modify_recipe(request: Request):
         modified_recipe = await _request_recipe_modification(
             current_recipe, modification_prompt
         )
-        # Build form with the successfully modified recipe
         edit_form_card, review_section_card = _build_edit_review_form(
             modified_recipe, original_recipe
         )
@@ -1339,7 +1353,7 @@ async def post_update_diff(request: Request):
         return fh.Div(
             "Recipe state invalid for diff",
             id="diff-content-wrapper",
-            cls="text-orange-500",
+            cls=CSS_ERROR_CLASS,
         )
     except Exception as e:
         logger.error("Error preparing data for diff view: %s", e, exc_info=True)
