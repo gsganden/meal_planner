@@ -3,7 +3,7 @@ from pathlib import Path
 import fastlite as fl
 
 DB_NAME = "meal_planner.db"
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "data" / DB_NAME
 
 
