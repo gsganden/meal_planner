@@ -282,9 +282,8 @@ async def get_recipes_htmx():
 async def get_single_recipe_page(recipe_id: int):
     """Displays a single recipe page."""
     try:
-        api_path = f"/api/v0/recipes/{recipe_id}"
-        response = await internal_client.get(api_path)
-        response.raise_for_status()  # Handle 404, 500 from API
+        response = await internal_client.get(f"/api/v0/recipes/{recipe_id}")
+        response.raise_for_status()
         recipe_data = response.json()
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
@@ -314,7 +313,6 @@ async def get_single_recipe_page(recipe_id: int):
         )
         return with_layout(mu.Titled("Error", fh.P("An unexpected error occurred.")))
 
-    # Render the recipe details
     content = fh.Div(
         fh.H3(recipe_data["name"], cls="text-xl font-bold mb-3"),
         fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
@@ -323,12 +321,11 @@ async def get_single_recipe_page(recipe_id: int):
             cls="list-disc list-inside mb-3",
         ),
         fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
-        # Use fh.Div for instructions to better handle multi-line/formatted steps
         fh.Div(
             *[fh.Div(inst, cls="mb-2") for inst in recipe_data["instructions"]],
             cls="mb-3",
         ),
-        cls="p-4 border rounded bg-gray-50",  # Add some styling
+        cls="p-4 border rounded bg-gray-50",
     )
 
     return with_layout(mu.Titled(recipe_data["name"], content))
@@ -998,7 +995,6 @@ async def post_save_recipe(request: Request):
         logger.error("Error parsing form data during save: %s", e, exc_info=True)
         return fh.Span("Error processing form data.", cls=CSS_ERROR_CLASS)
 
-    # Call the API endpoint to save the recipe
     try:
         response = await internal_client.post(
             "/api/v0/recipes", json=recipe_obj.model_dump()
