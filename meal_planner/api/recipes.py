@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from meal_planner.db import get_initialized_db
-from meal_planner.models import RecipeData, RecipeId, Recipe
+from meal_planner.models import Recipe, RecipeData, RecipeId
 
 logger = logging.getLogger(__name__)
 
