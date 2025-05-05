@@ -21,7 +21,7 @@ from meal_planner.main import (
     fetch_page_text,
     postprocess_recipe,
 )
-from meal_planner.models import Recipe
+from meal_planner.models import RecipeData
 
 # Constants
 TRANSPORT = ASGITransport(app=app)
@@ -172,7 +172,7 @@ class TestRecipeExtractRunEndpoint:
             "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First "
             "step text\nStep 2: Second step text"
         )
-        mock_call_llm.return_value = Recipe(
+        mock_call_llm.return_value = RecipeData(
             name="Text Input Success Name",
             ingredients=["ingA", "ingB"],
             instructions=["1. Actual step A", "Step 2: Actual step B"],
@@ -184,7 +184,7 @@ class TestRecipeExtractRunEndpoint:
         assert response.status_code == 200
         mock_call_llm.assert_called_once_with(
             prompt=ANY,
-            response_model=Recipe,
+            response_model=RecipeData,
         )
         assert "# Text Input Success Name" in response.text
         assert "## Ingredients" in response.text
@@ -406,7 +406,7 @@ async def test_call_llm_api_error(mock_logger_error, mock_create):
     api_exception = Exception("Simulated API failure")
     mock_create.side_effect = api_exception
     test_prompt = "Test prompt"
-    test_model = Recipe  # Use a concrete model for testing
+    test_model = RecipeData  # Use a concrete model for testing
 
     with pytest.raises(Exception) as excinfo:
         await call_llm(prompt=test_prompt, response_model=test_model)
@@ -438,7 +438,7 @@ class TestPostprocessRecipeName:
         ],
     )
     def test_postprocess_recipe_name(self, input_name: str, expected_name: str):
-        input_recipe = Recipe(
+        input_recipe = RecipeData(
             name=input_name,
             ingredients=self.DUMMY_INGREDIENTS,
             instructions=self.DUMMY_INSTRUCTIONS,
@@ -448,8 +448,8 @@ class TestPostprocessRecipeName:
 
 
 @pytest.fixture
-def mock_recipe_data_fixture() -> Recipe:
-    return Recipe(
+def mock_recipe_data_fixture() -> RecipeData:
+    return RecipeData(
         name="Mock Recipe",
         ingredients=["mock ingredient 1"],
         instructions=["mock instruction 1"],
@@ -458,7 +458,7 @@ def mock_recipe_data_fixture() -> Recipe:
 
 @pytest.mark.anyio
 async def test_extract_run_returns_save_form(
-    client: AsyncClient, monkeypatch, mock_recipe_data_fixture: Recipe
+    client: AsyncClient, monkeypatch, mock_recipe_data_fixture: RecipeData
 ):
     async def mock_extract(*args, **kwargs):
         return mock_recipe_data_fixture
@@ -606,8 +606,8 @@ async def test_save_recipe_validation_error(
 
 
 @pytest.fixture
-def mock_original_recipe_fixture() -> Recipe:
-    return Recipe(
+def mock_original_recipe_fixture() -> RecipeData:
+    return RecipeData(
         name="Original Recipe",
         ingredients=["orig ing 1"],
         instructions=["orig inst 1"],
@@ -615,8 +615,8 @@ def mock_original_recipe_fixture() -> Recipe:
 
 
 @pytest.fixture
-def mock_current_recipe_before_modify_fixture() -> Recipe:
-    return Recipe(
+def mock_current_recipe_before_modify_fixture() -> RecipeData:
+    return RecipeData(
         name="Current Recipe",
         ingredients=["curr ing 1"],
         instructions=["curr inst 1"],
@@ -624,8 +624,8 @@ def mock_current_recipe_before_modify_fixture() -> Recipe:
 
 
 @pytest.fixture
-def mock_llm_modified_recipe_fixture() -> Recipe:
-    return Recipe(
+def mock_llm_modified_recipe_fixture() -> RecipeData:
+    return RecipeData(
         name="Modified",
         ingredients=["mod ing 1"],
         instructions=["mod inst 1"],
@@ -641,8 +641,8 @@ class TestRecipeModifyEndpoint:
 
     def _build_modify_form_data(
         self,
-        current_recipe: Recipe,
-        original_recipe: Recipe,
+        current_recipe: RecipeData,
+        original_recipe: RecipeData,
         modification_prompt: str | None = None,
     ) -> dict:
         data = {
@@ -663,9 +663,9 @@ class TestRecipeModifyEndpoint:
         mock_logger_info,
         client: AsyncClient,
         mock_call_llm,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
-        mock_llm_modified_recipe_fixture: Recipe,
+        mock_current_recipe_before_modify_fixture: RecipeData,
+        mock_original_recipe_fixture: RecipeData,
+        mock_llm_modified_recipe_fixture: RecipeData,
     ):
         mock_call_llm.return_value = mock_llm_modified_recipe_fixture
         test_prompt = "Make it spicier"
@@ -678,7 +678,7 @@ class TestRecipeModifyEndpoint:
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
         assert response.status_code == 200
-        mock_call_llm.assert_called_once_with(prompt=ANY, response_model=Recipe)
+        mock_call_llm.assert_called_once_with(prompt=ANY, response_model=RecipeData)
         call_args, call_kwargs = mock_call_llm.call_args
         prompt_arg = call_kwargs.get("prompt", call_args[0] if call_args else None)
         assert mock_current_recipe_before_modify_fixture.markdown in prompt_arg
@@ -705,8 +705,8 @@ class TestRecipeModifyEndpoint:
         self,
         client: AsyncClient,
         mock_call_llm,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
+        mock_current_recipe_before_modify_fixture: RecipeData,
+        mock_original_recipe_fixture: RecipeData,
     ):
         form_data = self._build_modify_form_data(
             mock_current_recipe_before_modify_fixture, mock_original_recipe_fixture, ""
@@ -728,8 +728,8 @@ class TestRecipeModifyEndpoint:
         self,
         client: AsyncClient,
         mock_call_llm,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
+        mock_current_recipe_before_modify_fixture: RecipeData,
+        mock_original_recipe_fixture: RecipeData,
     ):
         mock_call_llm.side_effect = Exception("LLM modification error")
         test_prompt = "Cause an error"
@@ -756,8 +756,8 @@ class TestRecipeModifyEndpoint:
     async def test_modify_validation_error(
         self,
         client: AsyncClient,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
+        mock_current_recipe_before_modify_fixture: RecipeData,
+        mock_original_recipe_fixture: RecipeData,
     ):
         """Test that a validation error during form parsing returns the correct
         HTML error."""
@@ -848,7 +848,7 @@ class TestParseRecipeFormData:
             "ingredients": ["Ing 1", "Ing 2"],
             "instructions": ["Step 1", "Step 2"],
         }
-        Recipe(**parsed_data)
+        RecipeData(**parsed_data)
 
     def test_parse_with_prefix(self):
         form_data = FormData(
@@ -865,7 +865,7 @@ class TestParseRecipeFormData:
             "ingredients": ["Orig Ing 1"],
             "instructions": ["Orig Step 1"],
         }
-        Recipe(**parsed_data)
+        RecipeData(**parsed_data)
 
     def test_parse_missing_fields(self):
         form_data = FormData([("name", "Only Name")])
@@ -876,7 +876,7 @@ class TestParseRecipeFormData:
             "instructions": [],
         }
         with pytest.raises(ValidationError):
-            Recipe(**parsed_data)
+            RecipeData(**parsed_data)
 
     def test_parse_empty_strings_and_whitespace(self):
         form_data = FormData(
@@ -896,19 +896,19 @@ class TestParseRecipeFormData:
             "ingredients": ["Real Ing"],
             "instructions": ["Real Step"],
         }
-        Recipe(**parsed_data)
+        RecipeData(**parsed_data)
 
     def test_parse_empty_form(self):
         form_data = FormData([])
         parsed_data = _parse_recipe_form_data(form_data)
         assert parsed_data == {"name": "", "ingredients": [], "instructions": []}
         with pytest.raises(ValidationError):
-            Recipe(**parsed_data)
+            RecipeData(**parsed_data)
 
 
 class TestPostprocessRecipe:
     def test_postprocess_ingredients(self):
-        recipe = Recipe(
+        recipe = RecipeData(
             name="Test Name",
             ingredients=[
                 "  Ingredient 1 ",
@@ -930,7 +930,7 @@ class TestPostprocessRecipe:
         ]
 
     def test_postprocess_instructions(self):
-        recipe = Recipe(
+        recipe = RecipeData(
             name="Test Name",
             ingredients=["Ing 1"],
             instructions=[
@@ -1015,11 +1015,11 @@ class TestRecipeUpdateDiff:
     UPDATE_DIFF_URL = "/recipes/ui/update-diff"
 
     def _build_diff_form_data(
-        self, current: Recipe, original: Recipe | None = None
+        self, current: RecipeData, original: RecipeData | None = None
     ) -> dict:
-        Recipe(**current.model_dump())
+        RecipeData(**current.model_dump())
         if original:
-            Recipe(**original.model_dump())
+            RecipeData(**original.model_dump())
         else:
             original = current
         form_data = {
@@ -1033,7 +1033,7 @@ class TestRecipeUpdateDiff:
         return form_data
 
     async def test_diff_no_changes(self, client: AsyncClient):
-        recipe = Recipe(name="Same", ingredients=["i1"], instructions=["s1"])
+        recipe = RecipeData(name="Same", ingredients=["i1"], instructions=["s1"])
         form_data = self._build_diff_form_data(recipe, recipe)
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
@@ -1047,8 +1047,8 @@ class TestRecipeUpdateDiff:
         assert "- s1" in html
 
     async def test_diff_addition(self, client: AsyncClient):
-        original = Recipe(name="Orig", ingredients=["i1"], instructions=["s1"])
-        current = Recipe(
+        original = RecipeData(name="Orig", ingredients=["i1"], instructions=["s1"])
+        current = RecipeData(
             name="Current", ingredients=["i1", "i2"], instructions=["s1", "s2"]
         )
         form_data = self._build_diff_form_data(current, original)
@@ -1064,10 +1064,10 @@ class TestRecipeUpdateDiff:
         assert "<ins>- s2</ins>" in html
 
     async def test_diff_deletion(self, client: AsyncClient):
-        original = Recipe(
+        original = RecipeData(
             name="Orig", ingredients=["i1", "i2"], instructions=["s1", "s2"]
         )
-        current = Recipe(name="Current", ingredients=["i1"], instructions=["s1"])
+        current = RecipeData(name="Current", ingredients=["i1"], instructions=["s1"])
         form_data = self._build_diff_form_data(current, original)
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
@@ -1081,8 +1081,8 @@ class TestRecipeUpdateDiff:
         assert "<del>- s2</del>" in html
 
     async def test_diff_modification(self, client: AsyncClient):
-        original = Recipe(name="Orig", ingredients=["i1"], instructions=["s1"])
-        current = Recipe(
+        original = RecipeData(name="Orig", ingredients=["i1"], instructions=["s1"])
+        current = RecipeData(
             name="Current", ingredients=["i1_mod"], instructions=["s1_mod"]
         )
         form_data = self._build_diff_form_data(current, original)
@@ -1100,7 +1100,7 @@ class TestRecipeUpdateDiff:
     @patch("meal_planner.main._build_diff_content")
     async def test_diff_generation_error(self, mock_build_diff, client: AsyncClient):
         mock_build_diff.side_effect = Exception("Simulated diff error")
-        recipe = Recipe(name="Error Recipe", ingredients=["i"], instructions=["s"])
+        recipe = RecipeData(name="Error Recipe", ingredients=["i"], instructions=["s"])
         form_data = self._build_diff_form_data(recipe, recipe)
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
@@ -1130,7 +1130,7 @@ class TestRecipeUpdateDiff:
         self, client: AsyncClient, invalid_field: str, invalid_value: str | list[str]
     ):
         "Test that update diff returns error state on validation failure."
-        valid_recipe = Recipe(name="Valid", ingredients=["i"], instructions=["s"])
+        valid_recipe = RecipeData(name="Valid", ingredients=["i"], instructions=["s"])
         form_data = self._build_diff_form_data(valid_recipe, valid_recipe)
         form_data[invalid_field] = invalid_value
 
@@ -1182,15 +1182,17 @@ async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
 
 def test_build_edit_review_form_no_original():
     "Test hitting the `original_recipe = current_recipe` line."
-    current = Recipe(name="Test", ingredients=["i"], instructions=["s"])
+    current = RecipeData(name="Test", ingredients=["i"], instructions=["s"])
     result = main_module._build_edit_review_form(current)
     assert result is not None
 
 
 def test_build_edit_review_form_with_original():
     """Test hitting the logic where original_recipe is provided."""
-    current = Recipe(name="Updated Name", ingredients=["i1", "i2"], instructions=["s1"])
-    original = Recipe(
+    current = RecipeData(
+        name="Updated Name", ingredients=["i1", "i2"], instructions=["s1"]
+    )
+    original = RecipeData(
         name="Original Name", ingredients=["i1"], instructions=["s1", "s2"]
     )
     # Mock the necessary parts of fh if needed, or just check the output structure

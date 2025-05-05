@@ -16,7 +16,7 @@ RecipeName = Annotated[
 ]
 
 
-class Recipe(BaseModel):
+class RecipeData(BaseModel):
     name: RecipeName
     ingredients: RecipeIngredients
     instructions: RecipeInstructions
@@ -32,5 +32,5 @@ class Recipe(BaseModel):
         )
 
 
-class RecipeRead(Recipe):
+class Recipe(RecipeData):
     id: RecipeId

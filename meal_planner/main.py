@@ -20,7 +20,7 @@ from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
-from meal_planner.models import Recipe
+from meal_planner.models import RecipeData
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250428_205830__include_parens.txt"
@@ -282,13 +282,10 @@ async def get_recipes_htmx():
 async def get_single_recipe_page(recipe_id: int):
     """Displays a single recipe page."""
     try:
-        # Call the new API endpoint
         api_path = f"/api/v0/recipes/{recipe_id}"
         response = await internal_client.get(api_path)
         response.raise_for_status()  # Handle 404, 500 from API
         recipe_data = response.json()
-        # Optionally, validate with RecipeRead model if needed
-        # recipe = RecipeRead(**recipe_data)
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             logger.warning("Recipe ID %s not found when loading page.", recipe_id)
@@ -435,7 +432,7 @@ async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
         raise RuntimeError(f"Failed to process URL content: {recipe_url}") from e
 
 
-async def extract_recipe_from_text(page_text: str) -> Recipe:
+async def extract_recipe_from_text(page_text: str) -> RecipeData:
     """Extracts and post-processes a recipe from text."""
     logger.info("Starting recipe extraction from text:\n%s", page_text)
     try:
@@ -445,9 +442,9 @@ async def extract_recipe_from_text(page_text: str) -> Recipe:
         logger.info("Using extraction prompt file: %s", prompt_file_path.name)
         prompt_text = prompt_file_path.read_text().format(page_text=page_text)
 
-        extracted_recipe: Recipe = await call_llm(
+        extracted_recipe: RecipeData = await call_llm(
             prompt=prompt_text,
-            response_model=Recipe,
+            response_model=RecipeData,
         )
     except Exception as e:
         logger.error(
@@ -468,14 +465,14 @@ def _get_prompt_path(category: str, filename: str) -> Path:
     return PROMPT_DIR / category / filename
 
 
-async def extract_recipe_from_url(recipe_url: str) -> Recipe:
+async def extract_recipe_from_url(recipe_url: str) -> RecipeData:
     """Fetches text from a URL and extracts a recipe from it."""
     return await extract_recipe_from_text(
         await fetch_and_clean_text_from_url(recipe_url)
     )
 
 
-def postprocess_recipe(recipe: Recipe) -> Recipe:
+def postprocess_recipe(recipe: RecipeData) -> RecipeData:
     """Post-processes the extracted recipe data."""
     if recipe.name:
         recipe.name = _postprocess_recipe_name(recipe.name)
@@ -581,7 +578,7 @@ def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
     }
 
 
-def _build_diff_content(original_recipe: Recipe, current_markdown: str):
+def _build_diff_content(original_recipe: RecipeData, current_markdown: str):
     """Builds the inner content for the diff view container."""
     before_html, after_html = generate_diff_html(
         original_recipe.markdown, current_markdown
@@ -614,8 +611,8 @@ def _build_diff_content(original_recipe: Recipe, current_markdown: str):
 
 
 def _build_edit_review_form(
-    current_recipe: Recipe,
-    original_recipe: Recipe | None = None,
+    current_recipe: RecipeData,
+    original_recipe: RecipeData | None = None,
     modification_prompt_value: str | None = None,
     error_message_content=None,
 ):
@@ -694,7 +691,7 @@ def _build_modification_controls(
     )
 
 
-def _build_original_hidden_fields(original_recipe: Recipe):
+def _build_original_hidden_fields(original_recipe: RecipeData):
     """Builds the hidden input fields for the original recipe data."""
     return (
         fh.Input(type="hidden", name="original_name", value=original_recipe.name),
@@ -709,7 +706,7 @@ def _build_original_hidden_fields(original_recipe: Recipe):
     )
 
 
-def _build_editable_section(current_recipe: Recipe):
+def _build_editable_section(current_recipe: RecipeData):
     """Builds the 'Edit Manually' section with inputs for name, ingredients,
     and instructions."""
     name_input = _build_name_input(current_recipe.name)
@@ -846,7 +843,7 @@ def _build_instruction_input(index: int, value: str):
     )
 
 
-def _build_review_section(original_recipe: Recipe, current_recipe: Recipe):
+def _build_review_section(original_recipe: RecipeData, current_recipe: RecipeData):
     """Builds the 'Review Changes' section with the diff view."""
     diff_content_wrapper = _build_diff_content(original_recipe, current_recipe.markdown)
     return fh.Div(
@@ -991,7 +988,7 @@ async def post_save_recipe(request: Request):
     form_data: FormData = await request.form()
     try:
         parsed_data = _parse_recipe_form_data(form_data)
-        recipe_obj = Recipe(**parsed_data)
+        recipe_obj = RecipeData(**parsed_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
         return fh.Span(
@@ -1093,7 +1090,7 @@ async def post_modify_recipe(request: Request):
 
 def _parse_and_validate_modify_form(
     form_data: FormData,
-) -> tuple[Recipe, Recipe, str]:
+) -> tuple[RecipeData, RecipeData, str]:
     """Parses and validates form data for the modify recipe request.
 
     Raises:
@@ -1104,8 +1101,8 @@ def _parse_and_validate_modify_form(
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
         modification_prompt = str(form_data.get("modification_prompt", ""))
 
-        original_recipe = Recipe(**original_data)
-        current_recipe = Recipe(**current_data)
+        original_recipe = RecipeData(**original_data)
+        current_recipe = RecipeData(**current_data)
 
         return current_recipe, original_recipe, modification_prompt
 
@@ -1120,8 +1117,8 @@ def _parse_and_validate_modify_form(
 
 
 async def _request_recipe_modification(
-    current_recipe: Recipe, modification_prompt: str
-) -> Recipe:
+    current_recipe: RecipeData, modification_prompt: str
+) -> RecipeData:
     """Requests recipe modification from LLM.
 
     Returns:
@@ -1141,9 +1138,9 @@ async def _request_recipe_modification(
             current_recipe_markdown=current_recipe.markdown,
             modification_prompt=modification_prompt,
         )
-        modified_recipe: Recipe = await call_llm(
+        modified_recipe: RecipeData = await call_llm(
             prompt=modification_full_prompt,
-            response_model=Recipe,
+            response_model=RecipeData,
         )
         processed_recipe = postprocess_recipe(modified_recipe)
         logger.info(
@@ -1255,8 +1252,8 @@ async def post_update_diff(request: Request):
         current_data = _parse_recipe_form_data(form_data)
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
 
-        original_recipe = Recipe(**original_data)
-        current_recipe = Recipe(**current_data)
+        original_recipe = RecipeData(**original_data)
+        current_recipe = RecipeData(**current_data)
 
     except ValidationError as e:
         logger.debug(

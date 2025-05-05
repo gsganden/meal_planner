@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from meal_planner.db import get_initialized_db
-from meal_planner.models import Recipe, RecipeId, RecipeRead
+from meal_planner.models import RecipeData, RecipeId, Recipe
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +18,10 @@ API_ROUTER = APIRouter()
 @API_ROUTER.post(
     "/v0/recipes",
     status_code=status.HTTP_201_CREATED,
-    response_model=RecipeRead,
+    response_model=Recipe,
 )
 async def create_recipe(
-    recipe_data: Recipe, db: Annotated[fl.Database, Depends(get_initialized_db)]
+    recipe_data: RecipeData, db: Annotated[fl.Database, Depends(get_initialized_db)]
 ):
     db_data = {
         "name": recipe_data.name,
@@ -39,7 +39,7 @@ async def create_recipe(
             detail="Database error creating recipe",
         ) from e
 
-    stored_recipe = RecipeRead(id=inserted_record["id"], **recipe_data.model_dump())
+    stored_recipe = Recipe(id=inserted_record["id"], **recipe_data.model_dump())
 
     logger.info(
         "Created recipe with ID: %s, Name: %s",
@@ -56,7 +56,7 @@ async def create_recipe(
     )
 
 
-@API_ROUTER.get("/v0/recipes", response_model=list[RecipeRead])
+@API_ROUTER.get("/v0/recipes", response_model=list[Recipe])
 async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)]):
     all_recipes = []
     try:
@@ -64,7 +64,7 @@ async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)
         for recipe_dict in recipes_table():
             try:
                 all_recipes.append(
-                    RecipeRead(
+                    Recipe(
                         id=recipe_dict["id"],
                         name=recipe_dict["name"],
                         ingredients=json.loads(recipe_dict["ingredients"]),
@@ -86,7 +86,7 @@ async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)
         ) from e
 
 
-@API_ROUTER.get("/v0/recipes/{recipe_id}", response_model=RecipeRead)
+@API_ROUTER.get("/v0/recipes/{recipe_id}", response_model=Recipe)
 async def get_recipe_by_id(
     recipe_id: RecipeId, db: Annotated[fl.Database, Depends(get_initialized_db)]
 ):
@@ -108,7 +108,7 @@ async def get_recipe_by_id(
         ) from e
 
     try:
-        return RecipeRead(
+        return Recipe(
             id=recipe_dict["id"],
             name=recipe_dict["name"],
             ingredients=json.loads(recipe_dict["ingredients"]),
