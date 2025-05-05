@@ -8,5 +8,6 @@ uv run pytest \
     --cov-report term-missing \
     tests/test_main.py \
     tests/test_api.py \
+    tests/test_db.py \
     'tests/test_main_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]' \
     --runslow

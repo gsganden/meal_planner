@@ -22,3 +22,5 @@ wheels/
 *.db-lock
 *.db-shm
 *.db-trace
+
+scripts/

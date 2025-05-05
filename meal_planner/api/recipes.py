@@ -1,52 +1,34 @@
 import json
 import logging
-import os
-from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+import apswutils.db
+import fastlite as fl
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from fastlite import database
 
-from meal_planner.models import Recipe, RecipeRead
+from meal_planner.db import get_initialized_db
+from meal_planner.models import Recipe, RecipeData, RecipeId
 
 logger = logging.getLogger(__name__)
 
-LOCAL_DB_PATH = Path("meal_planner_local.db")
-DB_PATH = Path(os.environ.get("MEAL_PLANNER_DB_PATH", str(LOCAL_DB_PATH)))
-
-logger.info(f"Absolute database path: {DB_PATH.resolve()}")
-
-if DB_PATH == LOCAL_DB_PATH:
-    LOCAL_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-db = database(DB_PATH)
-recipes_table = db.t.recipes
-
-logger.info(f"Ensuring table exists in {DB_PATH.resolve()}")
-recipes_table.create(
-    id=int,
-    name=str,
-    ingredients=str,
-    instructions=str,
-    pk="id",
-    replace=False,
-    if_not_exists=True,
-)
-
-api_router = APIRouter()
+API_ROUTER = APIRouter()
 
 
-@api_router.post(
+@API_ROUTER.post(
     "/v0/recipes",
     status_code=status.HTTP_201_CREATED,
-    response_model=RecipeRead,
+    response_model=Recipe,
 )
-async def create_recipe(recipe_data: Recipe):
+async def create_recipe(
+    recipe_data: RecipeData, db: Annotated[fl.Database, Depends(get_initialized_db)]
+):
     db_data = {
         "name": recipe_data.name,
         "ingredients": json.dumps(recipe_data.ingredients),
         "instructions": json.dumps(recipe_data.instructions),
     }
+    recipes_table = db.t.recipes  # type: ignore
 
     try:
         inserted_record = recipes_table.insert(db_data)
@@ -57,7 +39,7 @@ async def create_recipe(recipe_data: Recipe):
             detail="Database error creating recipe",
         ) from e
 
-    stored_recipe = RecipeRead(id=inserted_record["id"], **recipe_data.model_dump())
+    stored_recipe = Recipe(id=inserted_record["id"], **recipe_data.model_dump())
 
     logger.info(
         "Created recipe with ID: %s, Name: %s",
@@ -72,3 +54,75 @@ async def create_recipe(recipe_data: Recipe):
         status_code=status.HTTP_201_CREATED,
         headers={"Location": location_path},
     )
+
+
+@API_ROUTER.get("/v0/recipes", response_model=list[Recipe])
+async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)]):
+    all_recipes = []
+    try:
+        recipes_table = db.t.recipes  # type: ignore
+        for recipe_dict in recipes_table():
+            try:
+                all_recipes.append(
+                    Recipe(
+                        id=recipe_dict["id"],
+                        name=recipe_dict["name"],
+                        ingredients=json.loads(recipe_dict["ingredients"]),
+                        instructions=json.loads(recipe_dict["instructions"]),
+                    )
+                )
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+                logger.error(
+                    f"Error processing recipe row from DB: {e} - Data: {recipe_dict}",
+                    exc_info=False,
+                )
+                continue
+        return all_recipes
+    except Exception as e:
+        logger.error("Database error querying all recipes: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error retrieving recipes",
+        ) from e
+
+
+@API_ROUTER.get("/v0/recipes/{recipe_id}", response_model=Recipe)
+async def get_recipe_by_id(
+    recipe_id: RecipeId, db: Annotated[fl.Database, Depends(get_initialized_db)]
+):
+    recipes_table = db.t.recipes  # type: ignore
+    try:
+        recipe_dict = recipes_table.get(recipe_id)
+    except apswutils.db.NotFoundError:
+        logger.warning("Recipe with ID %s not found.", recipe_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found"
+        ) from None
+    except Exception as e:
+        logger.error(
+            "Database error fetching recipe ID %s: %s", recipe_id, e, exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error retrieving recipe",
+        ) from e
+
+    try:
+        return Recipe(
+            id=recipe_dict["id"],
+            name=recipe_dict["name"],
+            ingredients=json.loads(recipe_dict["ingredients"]),
+            instructions=json.loads(recipe_dict["instructions"]),
+        )
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        logger.error(
+            "Error processing recipe data for ID %s: %s. Data: %s",
+            recipe_id,
+            e,
+            recipe_dict,
+            exc_info=False,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error processing recipe data",
+        ) from e

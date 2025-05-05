@@ -1,15 +1,12 @@
-import json
 from pathlib import Path
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from fastlite import database
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
 
-import meal_planner.api.recipes as api_recipes_module
 import meal_planner.main as main_module
 from meal_planner.main import (
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
@@ -17,18 +14,19 @@ from meal_planner.main import (
     MODEL_NAME,
     _parse_recipe_form_data,
     app,
-    call_llm,
     fetch_and_clean_text_from_url,
     fetch_page_text,
+    get_structured_llm_response,
     postprocess_recipe,
 )
-from meal_planner.models import Recipe
+from meal_planner.models import RecipeData
 
 # Constants
 TRANSPORT = ASGITransport(app=app)
 TEST_URL = "http://test-recipe.com"
 
 # URLs
+RECIPES_LIST_PATH = "/recipes"
 RECIPES_EXTRACT_URL = "/recipes/extract"
 RECIPES_FETCH_TEXT_URL = "/recipes/fetch-text"
 RECIPES_EXTRACT_RUN_URL = "/recipes/extract/run"
@@ -163,16 +161,18 @@ class TestRecipeFetchTextEndpoint:
 @pytest.mark.anyio
 class TestRecipeExtractRunEndpoint:
     @pytest.fixture
-    def mock_call_llm(self):
-        with patch("meal_planner.main.call_llm", new_callable=AsyncMock) as mock_llm:
+    def mock_get_structured_llm_response(self):
+        with patch(
+            "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
+        ) as mock_llm:
             yield mock_llm
 
-    async def test_success(self, client: AsyncClient, mock_call_llm):
+    async def test_success(self, client: AsyncClient, mock_get_structured_llm_response):
         test_text = (
             "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First "
             "step text\nStep 2: Second step text"
         )
-        mock_call_llm.return_value = Recipe(
+        mock_get_structured_llm_response.return_value = RecipeData(
             name="Text Input Success Name",
             ingredients=["ingA", "ingB"],
             instructions=["1. Actual step A", "Step 2: Actual step B"],
@@ -182,9 +182,9 @@ class TestRecipeExtractRunEndpoint:
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
         )
         assert response.status_code == 200
-        mock_call_llm.assert_called_once_with(
+        mock_get_structured_llm_response.assert_called_once_with(
             prompt=ANY,
-            response_model=Recipe,
+            response_model=RecipeData,
         )
         assert "# Text Input Success Name" in response.text
         assert "## Ingredients" in response.text
@@ -196,11 +196,11 @@ class TestRecipeExtractRunEndpoint:
 
     @patch("meal_planner.main.logger.error")
     async def test_extraction_error(
-        self, mock_logger_error, client: AsyncClient, mock_call_llm
+        self, mock_logger_error, client: AsyncClient, mock_get_structured_llm_response
     ):
         test_text = "Some recipe text that causes an LLM error."
         llm_exception = Exception("LLM failed on text input")
-        mock_call_llm.side_effect = llm_exception
+        mock_get_structured_llm_response.side_effect = llm_exception
 
         response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
@@ -210,7 +210,7 @@ class TestRecipeExtractRunEndpoint:
             "Recipe extraction failed. An unexpected error occurred during processing."
         )
         assert expected_error_msg in response.text
-        mock_call_llm.assert_called_once()
+        mock_get_structured_llm_response.assert_called_once()
         mock_logger_error.assert_any_call(
             "Error during recipe extraction call: %s",
             MODEL_NAME,
@@ -401,15 +401,16 @@ class TestFetchAndCleanTextFromUrl:
 @pytest.mark.anyio
 @patch("meal_planner.main.aclient.chat.completions.create", new_callable=AsyncMock)
 @patch("meal_planner.main.logger.error")
-async def test_call_llm_api_error(mock_logger_error, mock_create):
-    """Test that call_llm catches and logs errors during the API call."""
+async def test_get_structured_llm_response_api_error(mock_logger_error, mock_create):
+    """Test that get_structured_llm_response catches and logs errors during the API
+    call."""
     api_exception = Exception("Simulated API failure")
     mock_create.side_effect = api_exception
     test_prompt = "Test prompt"
-    test_model = Recipe  # Use a concrete model for testing
+    test_model = RecipeData  # Use a concrete model for testing
 
     with pytest.raises(Exception) as excinfo:
-        await call_llm(prompt=test_prompt, response_model=test_model)
+        await get_structured_llm_response(prompt=test_prompt, response_model=test_model)
 
     # Check that the original exception was re-raised
     assert excinfo.value is api_exception
@@ -438,7 +439,7 @@ class TestPostprocessRecipeName:
         ],
     )
     def test_postprocess_recipe_name(self, input_name: str, expected_name: str):
-        input_recipe = Recipe(
+        input_recipe = RecipeData(
             name=input_name,
             ingredients=self.DUMMY_INGREDIENTS,
             instructions=self.DUMMY_INSTRUCTIONS,
@@ -448,8 +449,8 @@ class TestPostprocessRecipeName:
 
 
 @pytest.fixture
-def mock_recipe_data_fixture() -> Recipe:
-    return Recipe(
+def mock_recipe_data_fixture() -> RecipeData:
+    return RecipeData(
         name="Mock Recipe",
         ingredients=["mock ingredient 1"],
         instructions=["mock instruction 1"],
@@ -458,7 +459,7 @@ def mock_recipe_data_fixture() -> Recipe:
 
 @pytest.mark.anyio
 async def test_extract_run_returns_save_form(
-    client: AsyncClient, monkeypatch, mock_recipe_data_fixture: Recipe
+    client: AsyncClient, monkeypatch, mock_recipe_data_fixture: RecipeData
 ):
     async def mock_extract(*args, **kwargs):
         return mock_recipe_data_fixture
@@ -481,36 +482,45 @@ async def test_extract_run_returns_save_form(
 
 @pytest.mark.anyio
 async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
-    db_path = test_db_session
-
     form_data = {
         FIELD_NAME: "Saved Recipe Name",
         FIELD_INGREDIENTS: ["saved ing 1", "saved ing 2"],
         FIELD_INSTRUCTIONS: ["saved inst 1", "saved inst 2"],
     }
 
-    response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    # 1. Call the save endpoint
+    save_response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    assert save_response.status_code == 200
+    assert "Current Recipe Saved!" in save_response.text
 
-    assert response.status_code == 200
-    assert "Current Recipe Saved!" in response.text
+    # 2. Verify by fetching all recipes via API
+    get_all_response = await client.get("/api/v0/recipes")
+    assert get_all_response.status_code == 200
+    all_recipes_data = get_all_response.json()
 
-    verify_db = database(db_path)
-    verify_table = verify_db.t.recipes
-    all_recipes = verify_table()
-    assert len(all_recipes) == 1
-    saved_db_recipe = all_recipes[0]
+    # 3. Find the saved recipe by name and get its ID
+    saved_recipe_api_data = None
+    for recipe in all_recipes_data:
+        if recipe["name"] == form_data[FIELD_NAME]:
+            saved_recipe_api_data = recipe
+            break
 
-    assert saved_db_recipe[FIELD_NAME] == form_data[FIELD_NAME]
     assert (
-        json.loads(saved_db_recipe[FIELD_INGREDIENTS]) == form_data[FIELD_INGREDIENTS]
-    )
-    assert (
-        json.loads(saved_db_recipe[FIELD_INSTRUCTIONS]) == form_data[FIELD_INSTRUCTIONS]
-    )
-    recipe_id = saved_db_recipe["id"]
-    assert isinstance(recipe_id, int)
+        saved_recipe_api_data is not None
+    ), f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
+    saved_recipe_id = saved_recipe_api_data["id"]
+    assert isinstance(saved_recipe_id, int)
 
-    verify_db.conn.close()
+    # 4. Verify the specific recipe by fetching its ID via API
+    get_one_response = await client.get(f"/api/v0/recipes/{saved_recipe_id}")
+    assert get_one_response.status_code == 200
+    fetched_recipe = get_one_response.json()
+
+    # 5. Assert fetched data matches original form data
+    assert fetched_recipe["name"] == form_data[FIELD_NAME]
+    assert fetched_recipe["ingredients"] == form_data[FIELD_INGREDIENTS]
+    assert fetched_recipe["instructions"] == form_data[FIELD_INSTRUCTIONS]
+    assert fetched_recipe["id"] == saved_recipe_id
 
 
 @pytest.mark.anyio
@@ -544,20 +554,26 @@ async def test_save_recipe_missing_data(
 
 
 @pytest.mark.anyio
-async def test_save_recipe_db_error(client: AsyncClient, monkeypatch):
-    def mock_insert_fail(*args, **kwargs):
-        raise Exception("Simulated DB Save Error")
-
-    monkeypatch.setattr(api_recipes_module.recipes_table, "insert", mock_insert_fail)
+async def test_save_recipe_api_call_error(client: AsyncClient, monkeypatch):
+    """Test error handling when the internal API call fails."""
+    mock_post = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            "API Error",
+            request=httpx.Request("POST", "/api/v0/recipes"),
+            response=httpx.Response(500, content=b"Internal Server Error"),
+        )
+    )
+    monkeypatch.setattr("meal_planner.main.internal_client.post", mock_post)
 
     form_data = {
-        FIELD_NAME: "DB Error Recipe",
-        FIELD_INGREDIENTS: ["i1"],
-        FIELD_INSTRUCTIONS: ["s1"],
+        FIELD_NAME: "API Error Test",
+        FIELD_INGREDIENTS: ["ingredient"],
+        FIELD_INSTRUCTIONS: ["instruction"],
     }
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
-    assert "Error saving recipe." in response.text
+    assert "Error saving recipe via API" in response.text
+    mock_post.assert_awaited_once()
 
 
 @pytest.mark.anyio
@@ -594,8 +610,8 @@ async def test_save_recipe_validation_error(
 
 
 @pytest.fixture
-def mock_original_recipe_fixture() -> Recipe:
-    return Recipe(
+def mock_original_recipe_fixture() -> RecipeData:
+    return RecipeData(
         name="Original Recipe",
         ingredients=["orig ing 1"],
         instructions=["orig inst 1"],
@@ -603,8 +619,8 @@ def mock_original_recipe_fixture() -> Recipe:
 
 
 @pytest.fixture
-def mock_current_recipe_before_modify_fixture() -> Recipe:
-    return Recipe(
+def mock_current_recipe_before_modify_fixture() -> RecipeData:
+    return RecipeData(
         name="Current Recipe",
         ingredients=["curr ing 1"],
         instructions=["curr inst 1"],
@@ -612,8 +628,8 @@ def mock_current_recipe_before_modify_fixture() -> Recipe:
 
 
 @pytest.fixture
-def mock_llm_modified_recipe_fixture() -> Recipe:
-    return Recipe(
+def mock_llm_modified_recipe_fixture() -> RecipeData:
+    return RecipeData(
         name="Modified",
         ingredients=["mod ing 1"],
         instructions=["mod inst 1"],
@@ -623,14 +639,16 @@ def mock_llm_modified_recipe_fixture() -> Recipe:
 @pytest.mark.anyio
 class TestRecipeModifyEndpoint:
     @pytest.fixture
-    def mock_call_llm(self):
-        with patch("meal_planner.main.call_llm", new_callable=AsyncMock) as mock_llm:
+    def mock_get_structured_llm_response(self):
+        with patch(
+            "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
+        ) as mock_llm:
             yield mock_llm
 
     def _build_modify_form_data(
         self,
-        current_recipe: Recipe,
-        original_recipe: Recipe,
+        current_recipe: RecipeData,
+        original_recipe: RecipeData,
         modification_prompt: str | None = None,
     ) -> dict:
         data = {
@@ -650,12 +668,12 @@ class TestRecipeModifyEndpoint:
         self,
         mock_logger_info,
         client: AsyncClient,
-        mock_call_llm,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
-        mock_llm_modified_recipe_fixture: Recipe,
+        mock_get_structured_llm_response,
+        mock_current_recipe_before_modify_fixture: RecipeData,
+        mock_original_recipe_fixture: RecipeData,
+        mock_llm_modified_recipe_fixture: RecipeData,
     ):
-        mock_call_llm.return_value = mock_llm_modified_recipe_fixture
+        mock_get_structured_llm_response.return_value = mock_llm_modified_recipe_fixture
         test_prompt = "Make it spicier"
         form_data = self._build_modify_form_data(
             mock_current_recipe_before_modify_fixture,
@@ -666,8 +684,10 @@ class TestRecipeModifyEndpoint:
         response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
         assert response.status_code == 200
-        mock_call_llm.assert_called_once_with(prompt=ANY, response_model=Recipe)
-        call_args, call_kwargs = mock_call_llm.call_args
+        mock_get_structured_llm_response.assert_called_once_with(
+            prompt=ANY, response_model=RecipeData
+        )
+        call_args, call_kwargs = mock_get_structured_llm_response.call_args
         prompt_arg = call_kwargs.get("prompt", call_args[0] if call_args else None)
         assert mock_current_recipe_before_modify_fixture.markdown in prompt_arg
         assert test_prompt in prompt_arg
@@ -692,9 +712,9 @@ class TestRecipeModifyEndpoint:
     async def test_modify_no_prompt(
         self,
         client: AsyncClient,
-        mock_call_llm,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
+        mock_get_structured_llm_response,
+        mock_current_recipe_before_modify_fixture: RecipeData,
+        mock_original_recipe_fixture: RecipeData,
     ):
         form_data = self._build_modify_form_data(
             mock_current_recipe_before_modify_fixture, mock_original_recipe_fixture, ""
@@ -710,16 +730,18 @@ class TestRecipeModifyEndpoint:
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
             f' value="{mock_original_recipe_fixture.name}"' in response.text
         )
-        mock_call_llm.assert_not_called()
+        mock_get_structured_llm_response.assert_not_called()
 
     async def test_modify_llm_error(
         self,
         client: AsyncClient,
-        mock_call_llm,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
+        mock_get_structured_llm_response,
+        mock_current_recipe_before_modify_fixture: RecipeData,
+        mock_original_recipe_fixture: RecipeData,
     ):
-        mock_call_llm.side_effect = Exception("LLM modification error")
+        mock_get_structured_llm_response.side_effect = Exception(
+            "LLM modification error"
+        )
         test_prompt = "Cause an error"
         form_data = self._build_modify_form_data(
             mock_current_recipe_before_modify_fixture,
@@ -739,13 +761,13 @@ class TestRecipeModifyEndpoint:
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
             f' value="{mock_original_recipe_fixture.name}"' in response.text
         )
-        mock_call_llm.assert_called_once()
+        mock_get_structured_llm_response.assert_called_once()
 
     async def test_modify_validation_error(
         self,
         client: AsyncClient,
-        mock_current_recipe_before_modify_fixture: Recipe,
-        mock_original_recipe_fixture: Recipe,
+        mock_current_recipe_before_modify_fixture: RecipeData,
+        mock_original_recipe_fixture: RecipeData,
     ):
         """Test that a validation error during form parsing returns the correct
         HTML error."""
@@ -762,7 +784,7 @@ class TestRecipeModifyEndpoint:
         assert "Invalid recipe data. Please check the fields." in response.text
         assert CSS_ERROR_CLASS in response.text
         with patch(
-            "meal_planner.main.call_llm", new_callable=AsyncMock
+            "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
         ) as local_mock_llm:
             local_mock_llm.assert_not_called()
 
@@ -836,7 +858,7 @@ class TestParseRecipeFormData:
             "ingredients": ["Ing 1", "Ing 2"],
             "instructions": ["Step 1", "Step 2"],
         }
-        Recipe(**parsed_data)
+        RecipeData(**parsed_data)
 
     def test_parse_with_prefix(self):
         form_data = FormData(
@@ -853,7 +875,7 @@ class TestParseRecipeFormData:
             "ingredients": ["Orig Ing 1"],
             "instructions": ["Orig Step 1"],
         }
-        Recipe(**parsed_data)
+        RecipeData(**parsed_data)
 
     def test_parse_missing_fields(self):
         form_data = FormData([("name", "Only Name")])
@@ -864,7 +886,7 @@ class TestParseRecipeFormData:
             "instructions": [],
         }
         with pytest.raises(ValidationError):
-            Recipe(**parsed_data)
+            RecipeData(**parsed_data)
 
     def test_parse_empty_strings_and_whitespace(self):
         form_data = FormData(
@@ -884,19 +906,19 @@ class TestParseRecipeFormData:
             "ingredients": ["Real Ing"],
             "instructions": ["Real Step"],
         }
-        Recipe(**parsed_data)
+        RecipeData(**parsed_data)
 
     def test_parse_empty_form(self):
         form_data = FormData([])
         parsed_data = _parse_recipe_form_data(form_data)
         assert parsed_data == {"name": "", "ingredients": [], "instructions": []}
         with pytest.raises(ValidationError):
-            Recipe(**parsed_data)
+            RecipeData(**parsed_data)
 
 
 class TestPostprocessRecipe:
     def test_postprocess_ingredients(self):
-        recipe = Recipe(
+        recipe = RecipeData(
             name="Test Name",
             ingredients=[
                 "  Ingredient 1 ",
@@ -918,7 +940,7 @@ class TestPostprocessRecipe:
         ]
 
     def test_postprocess_instructions(self):
-        recipe = Recipe(
+        recipe = RecipeData(
             name="Test Name",
             ingredients=["Ing 1"],
             instructions=[
@@ -1003,11 +1025,11 @@ class TestRecipeUpdateDiff:
     UPDATE_DIFF_URL = "/recipes/ui/update-diff"
 
     def _build_diff_form_data(
-        self, current: Recipe, original: Recipe | None = None
+        self, current: RecipeData, original: RecipeData | None = None
     ) -> dict:
-        Recipe(**current.model_dump())
+        RecipeData(**current.model_dump())
         if original:
-            Recipe(**original.model_dump())
+            RecipeData(**original.model_dump())
         else:
             original = current
         form_data = {
@@ -1021,7 +1043,7 @@ class TestRecipeUpdateDiff:
         return form_data
 
     async def test_diff_no_changes(self, client: AsyncClient):
-        recipe = Recipe(name="Same", ingredients=["i1"], instructions=["s1"])
+        recipe = RecipeData(name="Same", ingredients=["i1"], instructions=["s1"])
         form_data = self._build_diff_form_data(recipe, recipe)
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
@@ -1035,8 +1057,8 @@ class TestRecipeUpdateDiff:
         assert "- s1" in html
 
     async def test_diff_addition(self, client: AsyncClient):
-        original = Recipe(name="Orig", ingredients=["i1"], instructions=["s1"])
-        current = Recipe(
+        original = RecipeData(name="Orig", ingredients=["i1"], instructions=["s1"])
+        current = RecipeData(
             name="Current", ingredients=["i1", "i2"], instructions=["s1", "s2"]
         )
         form_data = self._build_diff_form_data(current, original)
@@ -1052,10 +1074,10 @@ class TestRecipeUpdateDiff:
         assert "<ins>- s2</ins>" in html
 
     async def test_diff_deletion(self, client: AsyncClient):
-        original = Recipe(
+        original = RecipeData(
             name="Orig", ingredients=["i1", "i2"], instructions=["s1", "s2"]
         )
-        current = Recipe(name="Current", ingredients=["i1"], instructions=["s1"])
+        current = RecipeData(name="Current", ingredients=["i1"], instructions=["s1"])
         form_data = self._build_diff_form_data(current, original)
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
@@ -1069,8 +1091,8 @@ class TestRecipeUpdateDiff:
         assert "<del>- s2</del>" in html
 
     async def test_diff_modification(self, client: AsyncClient):
-        original = Recipe(name="Orig", ingredients=["i1"], instructions=["s1"])
-        current = Recipe(
+        original = RecipeData(name="Orig", ingredients=["i1"], instructions=["s1"])
+        current = RecipeData(
             name="Current", ingredients=["i1_mod"], instructions=["s1_mod"]
         )
         form_data = self._build_diff_form_data(current, original)
@@ -1088,7 +1110,7 @@ class TestRecipeUpdateDiff:
     @patch("meal_planner.main._build_diff_content")
     async def test_diff_generation_error(self, mock_build_diff, client: AsyncClient):
         mock_build_diff.side_effect = Exception("Simulated diff error")
-        recipe = Recipe(name="Error Recipe", ingredients=["i"], instructions=["s"])
+        recipe = RecipeData(name="Error Recipe", ingredients=["i"], instructions=["s"])
         form_data = self._build_diff_form_data(recipe, recipe)
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
@@ -1118,7 +1140,7 @@ class TestRecipeUpdateDiff:
         self, client: AsyncClient, invalid_field: str, invalid_value: str | list[str]
     ):
         "Test that update diff returns error state on validation failure."
-        valid_recipe = Recipe(name="Valid", ingredients=["i"], instructions=["s"])
+        valid_recipe = RecipeData(name="Valid", ingredients=["i"], instructions=["s"])
         form_data = self._build_diff_form_data(valid_recipe, valid_recipe)
         form_data[invalid_field] = invalid_value
 
@@ -1170,6 +1192,201 @@ async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
 
 def test_build_edit_review_form_no_original():
     "Test hitting the `original_recipe = current_recipe` line."
-    current = Recipe(name="Test", ingredients=["i"], instructions=["s"])
+    current = RecipeData(name="Test", ingredients=["i"], instructions=["s"])
     result = main_module._build_edit_review_form(current)
     assert result is not None
+
+
+def test_build_edit_review_form_with_original():
+    """Test hitting the logic where original_recipe is provided."""
+    current = RecipeData(
+        name="Updated Name", ingredients=["i1", "i2"], instructions=["s1"]
+    )
+    original = RecipeData(
+        name="Original Name", ingredients=["i1"], instructions=["s1", "s2"]
+    )
+    result = main_module._build_edit_review_form(current, original)
+    assert result is not None
+
+
+@pytest.mark.anyio
+class TestGetRecipesPageErrors:
+    @patch("meal_planner.main.internal_client.get")
+    async def test_get_recipes_page_api_status_error(
+        self, mock_api_get, client: AsyncClient
+    ):
+        "Test error handling when the API call returns a status error."
+        mock_api_get.side_effect = httpx.HTTPStatusError(
+            "API Error",
+            request=httpx.Request("GET", "/api/v0/recipes"),
+            response=httpx.Response(500),
+        )
+        response = await client.get(RECIPES_LIST_PATH)
+        assert response.status_code == 200
+        assert "Error fetching recipes from API." in response.text
+        assert CSS_ERROR_CLASS in response.text
+        mock_api_get.assert_awaited_once_with("/api/v0/recipes")
+
+    @patch("meal_planner.main.internal_client.get")
+    async def test_get_recipes_page_api_generic_error(
+        self, mock_api_get, client: AsyncClient
+    ):
+        "Test error handling when the API call raises a generic exception."
+        mock_api_get.side_effect = Exception("Unexpected API failure")
+        response = await client.get(RECIPES_LIST_PATH)
+        assert response.status_code == 200
+        assert "An unexpected error occurred while fetching recipes." in response.text
+        assert CSS_ERROR_CLASS in response.text
+        mock_api_get.assert_awaited_once_with("/api/v0/recipes")
+
+
+@pytest.mark.anyio
+class TestGetSingleRecipePageErrors:
+    RECIPE_ID = 123
+    API_URL = f"/api/v0/recipes/{RECIPE_ID}"
+    PAGE_URL = f"/recipes/{RECIPE_ID}"
+
+    @patch("meal_planner.main.internal_client.get")
+    async def test_get_single_recipe_page_api_404(
+        self, mock_api_get, client: AsyncClient
+    ):
+        """Test handling when the API returns 404 for the recipe ID."""
+        mock_api_get.side_effect = httpx.HTTPStatusError(
+            "Not Found",
+            request=httpx.Request("GET", self.API_URL),
+            response=httpx.Response(404),
+        )
+        response = await client.get(self.PAGE_URL)
+        assert response.status_code == 200
+        assert "Recipe Not Found" in response.text
+        mock_api_get.assert_awaited_once_with(self.API_URL)
+
+    @patch("meal_planner.main.internal_client.get")
+    async def test_get_single_recipe_page_api_other_status_error(
+        self, mock_api_get, client: AsyncClient
+    ):
+        """Test handling when the API returns a non-404 status error."""
+        mock_api_get.side_effect = httpx.HTTPStatusError(
+            "Server Error",
+            request=httpx.Request("GET", self.API_URL),
+            response=httpx.Response(500),
+        )
+        response = await client.get(self.PAGE_URL)
+        assert response.status_code == 200
+        assert "Error fetching recipe from API." in response.text
+        assert "Error" in response.text
+        mock_api_get.assert_awaited_once_with(self.API_URL)
+
+    @patch("meal_planner.main.internal_client.get")
+    async def test_get_single_recipe_page_api_generic_error(
+        self, mock_api_get, client: AsyncClient
+    ):
+        """Test handling when the API call raises a generic exception."""
+        mock_api_get.side_effect = Exception("Unexpected API failure")
+        response = await client.get(self.PAGE_URL)
+        assert response.status_code == 200
+        assert "An unexpected error occurred." in response.text
+        assert "Error" in response.text
+        mock_api_get.assert_awaited_once_with(self.API_URL)
+
+
+@pytest.mark.anyio
+async def test_save_recipe_api_call_generic_error(client: AsyncClient, monkeypatch):
+    """Test error handling when the internal API call raises a generic exception."""
+    mock_post = AsyncMock(side_effect=Exception("Unexpected network issue"))
+    monkeypatch.setattr("meal_planner.main.internal_client.post", mock_post)
+
+    form_data = {
+        FIELD_NAME: "Generic API Error Test",
+        FIELD_INGREDIENTS: ["ingredient"],
+        FIELD_INSTRUCTIONS: ["instruction"],
+    }
+    response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    assert response.status_code == 200
+    assert "Unexpected error saving recipe." in response.text
+    mock_post.assert_awaited_once()
+
+
+@pytest.mark.anyio
+class TestGetRecipesPageSuccess:
+    async def test_get_recipes_page_success_with_data(
+        self, client: AsyncClient, test_db_session: Path
+    ):
+        # 1. Create recipes via API
+        recipe1_payload = {
+            "name": "Recipe One For Page Test",
+            "ingredients": ["i1"],
+            "instructions": ["s1"],
+        }
+        recipe2_payload = {
+            "name": "Recipe Two For Page Test",
+            "ingredients": ["i2"],
+            "instructions": ["s2"],
+        }
+        create_resp1 = await client.post("/api/v0/recipes", json=recipe1_payload)
+        assert create_resp1.status_code == 201
+        recipe1_id = create_resp1.json()["id"]
+
+        create_resp2 = await client.post("/api/v0/recipes", json=recipe2_payload)
+        assert create_resp2.status_code == 201
+        recipe2_id = create_resp2.json()["id"]
+
+        # 2. Get the recipes page
+        page_url = RECIPES_LIST_PATH
+        response = await client.get(page_url)
+        assert response.status_code == 200
+        html_content = response.text
+
+        # 3. Verify rendered content
+        assert recipe1_payload["name"] in html_content
+        assert f'href="/recipes/{recipe1_id}"' in html_content
+        assert recipe2_payload["name"] in html_content
+        assert f'href="/recipes/{recipe2_id}"' in html_content
+        assert "No recipes found." not in html_content
+
+    async def test_get_recipes_page_success_no_data(
+        self, client: AsyncClient, test_db_session: Path
+    ):
+        # DB should be empty thanks to client fixture setup
+
+        # 1. Get the recipes page
+        page_url = RECIPES_LIST_PATH
+        response = await client.get(page_url)
+        assert response.status_code == 200
+        html_content = response.text
+
+        # 2. Verify "No recipes" message
+        assert "No recipes found." in html_content
+
+
+@pytest.mark.anyio
+class TestGetSingleRecipePageSuccess:
+    RECIPE_ID = 456
+    API_URL = f"/api/v0/recipes/{RECIPE_ID}"
+    PAGE_URL = f"/recipes/{RECIPE_ID}"
+
+    async def test_get_single_recipe_page_success(
+        self, client: AsyncClient, test_db_session: Path
+    ):
+        # 1. Create a recipe via API
+        recipe_payload = {
+            "name": "Specific Recipe Page Test",
+            "ingredients": ["Specific Ing 1", "Specific Ing 2"],
+            "instructions": ["Specific Step 1.", "Specific Step 2."],
+        }
+        create_resp = await client.post("/api/v0/recipes", json=recipe_payload)
+        assert create_resp.status_code == 201
+        created_recipe_id = create_resp.json()["id"]
+
+        # 2. Get the specific recipe page
+        page_url = f"/recipes/{created_recipe_id}"
+        response = await client.get(page_url)
+        assert response.status_code == 200
+        html_content = response.text
+
+        # 3. Verify rendered content
+        assert recipe_payload["name"] in html_content
+        assert recipe_payload["ingredients"][0] in html_content
+        assert recipe_payload["ingredients"][1] in html_content
+        assert recipe_payload["instructions"][0] in html_content
+        assert recipe_payload["instructions"][1] in html_content
