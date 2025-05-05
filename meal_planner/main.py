@@ -23,7 +23,7 @@ from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeData
 
 MODEL_NAME = "gemini-2.0-flash"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250428_205830__include_parens.txt"
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"
 ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
 
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
