@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import apswutils.db
 import fastlite as fl
@@ -121,13 +121,10 @@ async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)
 async def get_recipe_by_id(
     recipe_id: int, db: Annotated[fl.Database, Depends(get_initialized_db)]
 ):
-    recipes_table = db.t.recipes  # Get table object from the connection
+    recipes_table = db.t.recipes  # type: ignore
     try:
-        # Use fastlite's get method which handles missing keys
-        # Use the specific connection for this request
         recipe_dict = recipes_table.get(recipe_id)
-    except apswutils.db.NotFoundError:  # Catch the correct exception
-        # fastlite raises NotFoundError if the ID is not found
+    except apswutils.db.NotFoundError:
         logger.warning("Recipe with ID %s not found.", recipe_id)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found"
@@ -142,7 +139,6 @@ async def get_recipe_by_id(
         ) from e
 
     try:
-        # Deserialize JSON fields
         return RecipeRead(
             id=recipe_dict["id"],
             name=recipe_dict["name"],
