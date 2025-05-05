@@ -553,7 +553,7 @@ async def test_save_recipe_api_call_error(client: AsyncClient, monkeypatch):
     mock_post = AsyncMock(
         side_effect=httpx.HTTPStatusError(
             "API Error",
-            request=httpx.Request("POST", f"/api/v0/recipes"),
+            request=httpx.Request("POST", "/api/v0/recipes"),
             response=httpx.Response(500, content=b"Internal Server Error"),
         )
     )
@@ -1210,7 +1210,7 @@ class TestGetRecipesPageErrors:
         "Test error handling when the API call returns a status error."
         mock_api_get.side_effect = httpx.HTTPStatusError(
             "API Error",
-            request=httpx.Request("GET", f"/api/v0/recipes"),
+            request=httpx.Request("GET", "/api/v0/recipes"),
             response=httpx.Response(500),
         )
         response = await client.get(RECIPES_LIST_PATH)
