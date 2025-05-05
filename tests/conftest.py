@@ -18,28 +18,26 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture(scope="session")
 def test_db_session():
-    """Creates and cleans up the test database file for the entire session."""
+    """Creates and cleans up the test database file for the entire session.
+
+    Ensures the necessary tables are initialized using the main app's logic.
+    """
     if TEST_DB_PATH.exists():
+        logger.info("Removing existing test database: %s", TEST_DB_PATH)
         TEST_DB_PATH.unlink()
-    conn = sqlite3.connect(TEST_DB_PATH)
-    db_obj = fastlite.database(TEST_DB_PATH)
+
+    db_conn_for_setup = None
     try:
-        # Ensure the table exists in the test DB
-        db_obj.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS recipes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                ingredients TEXT,
-                instructions TEXT
-            )
-            """
-        )
-        yield TEST_DB_PATH  # Yield path for potential direct use if needed
+        logger.info("Initializing test database: %s", TEST_DB_PATH)
+        db_conn_for_setup = get_initialized_db(db_path_override=TEST_DB_PATH)
+        yield TEST_DB_PATH
     finally:
-        db_obj.conn.close()  # Close the fastlite connection
-        conn.close()  # Close the initial sqlite3 connection (redundant?)
+        if db_conn_for_setup is not None:
+            logger.info("Closing setup connection for test database: %s", TEST_DB_PATH)
+            with contextlib.suppress(Exception):
+                db_conn_for_setup.conn.close()
         if TEST_DB_PATH.exists():
+            logger.info("Removing test database file after session: %s", TEST_DB_PATH)
             TEST_DB_PATH.unlink()
 
 
