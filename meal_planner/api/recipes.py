@@ -88,7 +88,7 @@ async def create_recipe(
 
 
 @API_ROUTER.get(RECIPES_PATH, response_model=list[RecipeRead])
-async def get_all_recipes(db: Annotated[Any, Depends(get_initialized_db)]):
+async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)]):
     all_recipes = []
     try:
         recipes_table = db.t.recipes  # type: ignore
@@ -119,7 +119,7 @@ async def get_all_recipes(db: Annotated[Any, Depends(get_initialized_db)]):
 
 @API_ROUTER.get(RECIPE_ITEM_PATH, response_model=RecipeRead)
 async def get_recipe_by_id(
-    recipe_id: int, db: Annotated[Any, Depends(get_initialized_db)]
+    recipe_id: int, db: Annotated[fl.Database, Depends(get_initialized_db)]
 ):
     recipes_table = db.t.recipes  # Get table object from the connection
     try:
