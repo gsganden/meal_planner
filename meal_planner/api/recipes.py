@@ -7,43 +7,17 @@ import apswutils.db
 import fastlite as fl
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from pydantic import Field
 
-from meal_planner.models import Recipe, RecipeRead
+from meal_planner.db import get_initialized_db
+from meal_planner.models import Recipe, RecipeId, RecipeRead
 
 logger = logging.getLogger(__name__)
-
-DB_NAME = "meal_planner.db"
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DB_PATH = PROJECT_ROOT / "data" / DB_NAME
 
 API_ROUTER = APIRouter()
 
 API_VERSION = "v0"
 RECIPES_PATH = f"/{API_VERSION}/recipes"
 RECIPE_ITEM_PATH = RECIPES_PATH + "/{recipe_id}"
-
-
-def get_initialized_db(db_path_override: Path | None = None) -> fl.Database:
-    """Get a database connection.
-
-    Ensures that the database has been initialized with `recipes` table.
-
-    Args:
-        db_path_override: If provided, use this path instead of the default.
-    """
-    db_conn = fl.database(db_path_override if db_path_override else DB_PATH)
-
-    db_conn.conn.execute(
-        """CREATE TABLE IF NOT EXISTS recipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            ingredients TEXT NOT NULL,
-            instructions TEXT NOT NULL
-        );"""
-    )
-
-    return db_conn
 
 
 @API_ROUTER.post(
@@ -119,7 +93,7 @@ async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)
 
 @API_ROUTER.get(RECIPE_ITEM_PATH, response_model=RecipeRead)
 async def get_recipe_by_id(
-    recipe_id: int, db: Annotated[fl.Database, Depends(get_initialized_db)]
+    recipe_id: RecipeId, db: Annotated[fl.Database, Depends(get_initialized_db)]
 ):
     recipes_table = db.t.recipes  # type: ignore
     try:
@@ -157,11 +131,3 @@ async def get_recipe_by_id(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error processing recipe data",
         ) from e
-
-
-RecipeId = Annotated[int, Field(..., description="Unique identifier for the recipe")]
-RecipeIngredients = Annotated[list[str], Field(..., description="List of ingredients")]
-RecipeInstructions = Annotated[
-    list[str], Field(..., description="List of instructions")
-]
-RecipeName = Annotated[str, Field(..., description="The name of the recipe")]

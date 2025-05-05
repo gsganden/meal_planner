@@ -1,31 +1,25 @@
-import textwrap
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
+RecipeId = Annotated[int, Field(..., description="Unique identifier for the recipe")]
+RecipeIngredients = Annotated[
+    list[str],
+    Field(..., description="List of ingredients", min_length=1),
+]
+RecipeInstructions = Annotated[
+    list[str],
+    Field(..., description="List of instructions", min_length=1),
+]
+RecipeName = Annotated[
+    str, Field(..., description="The name of the recipe", min_length=1)
+]
+
 
 class Recipe(BaseModel):
-    name: str = Field(
-        ...,
-        description=(
-            textwrap.dedent(
-                """\
-                    The exact name of the dish as found in the text, including all
-                    punctuation. Should NOT include the word "recipe".
-                """
-            )
-        ),
-        min_length=1,
-    )
-    ingredients: list[str] = Field(
-        description="List of ingredients for the recipe, as raw strings.",
-        min_length=1,
-    )
-    instructions: list[str] = Field(
-        description=(
-            "List of instructions for the recipe, as Markdown-formatted strings."
-        ),
-        min_length=1,
-    )
+    name: RecipeName
+    ingredients: RecipeIngredients
+    instructions: RecipeInstructions
 
     @property
     def markdown(self) -> str:
@@ -39,4 +33,4 @@ class Recipe(BaseModel):
 
 
 class RecipeRead(Recipe):
-    id: int
+    id: RecipeId

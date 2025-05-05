@@ -2,14 +2,14 @@ import contextlib
 import logging
 import sqlite3
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Generator
 
 import fastlite
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from meal_planner.api.recipes import get_initialized_db
+from meal_planner.db import get_initialized_db
 from meal_planner.main import api_app, app
 
 TEST_DB_PATH = Path("meal_planner_test.db")

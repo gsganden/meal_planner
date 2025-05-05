@@ -1,17 +1,20 @@
 import contextlib
+import json
 from pathlib import Path
 
 import pytest
 
 # Assuming get_db is accessible like this, adjust if needed
-from meal_planner.api.recipes import get_initialized_db
+from meal_planner.db import get_initialized_db
+
+TEST_DB_NAME = "test_recipes.db"
 
 
 def test_get_db_creates_and_connects(tmp_path: Path):
     """Test that get_db creates the directory and file, and connects."""
     # Define a unique path within the temporary directory provided by pytest
     test_data_dir = tmp_path / "test_data"
-    test_db_file = test_data_dir / "direct_test.db"
+    test_db_file = test_data_dir / TEST_DB_NAME
 
     # Ensure they don't exist beforehand (should be true for tmp_path)
     assert not test_data_dir.exists()
