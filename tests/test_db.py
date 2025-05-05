@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-# Assuming get_db is accessible like this, adjust if needed
 from meal_planner.db import get_initialized_db
 
 TEST_DB_NAME = "test_recipes.db"
