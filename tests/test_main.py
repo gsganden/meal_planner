@@ -1,3 +1,5 @@
+import html
+import re
 from pathlib import Path
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
@@ -6,8 +8,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
-import re
-import html
 
 import meal_planner.main as main_module
 from meal_planner.main import (
@@ -1478,11 +1478,6 @@ class TestGetSingleRecipePageSuccess:
         assert recipe_payload["ingredients"][1] in html_content
         assert recipe_payload["instructions"][0] in html_content
         assert recipe_payload["instructions"][1] in html_content
-
-
-def _find_diff_inputs(html: str) -> tuple[str, str]:
-    # Implementation of _find_diff_inputs function
-    pass
 
 
 def _extract_form_value(html_text: str, name: str) -> str | None:
