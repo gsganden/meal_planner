@@ -316,22 +316,39 @@ async def get_single_recipe_page(recipe_id: int):
         )
         return with_layout(mu.Titled("Error", fh.P("An unexpected error occurred.")))
 
-    content = fh.Div(
+    content = _build_recipe_display(recipe_data)
+
+    return with_layout(content)
+
+
+# --- Helper function for displaying recipe details ---
+def _build_recipe_display(recipe_data: dict):
+    """Builds a Div containing the formatted recipe details.
+
+    Args:
+        recipe_data: A dictionary containing 'name', 'ingredients', 'instructions'.
+
+    Returns:
+        A fasthtml.Div component ready for display.
+    """
+    return fh.Div(
         fh.H3(recipe_data["name"], cls="text-xl font-bold mb-3"),
         fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
         fh.Ul(
-            *[fh.Li(ing) for ing in recipe_data["ingredients"]],
+            *[fh.Li(ing) for ing in recipe_data.get("ingredients", [])],
             cls="list-disc list-inside mb-3",
         ),
         fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
-        fh.Div(
-            *[fh.Div(inst, cls="mb-2") for inst in recipe_data["instructions"]],
-            cls="mb-3",
+        fh.Ul(
+            *[fh.Li(inst) for inst in recipe_data.get("instructions", [])],
+            cls="list-disc list-inside mb-3",
         ),
-        cls="p-4 border rounded bg-gray-50",
+        # Apply consistent styling from extract reference view
+        cls="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-sm max-w-none",
     )
 
-    return with_layout(mu.Titled(recipe_data["name"], content))
+
+# --- End Helper function ---
 
 
 async def fetch_page_text(recipe_url: str):
@@ -629,8 +646,9 @@ def _build_edit_review_form(
     )
 
     diff_style = fh.Style("""
-        ins { background-color: #e6ffe6; text-decoration: none; }
-        del { background-color: #ffe6e6; text-decoration: none; }
+        /* Apply background colors, let default text decoration apply */
+        ins { @apply bg-green-100 dark:bg-green-700 dark:bg-opacity-40; }
+        del { @apply bg-red-100 dark:bg-red-700 dark:bg-opacity-40; }
     """)
 
     # Create the main edit card, excluding the review_section
@@ -740,7 +758,7 @@ def _build_ingredients_section(ingredients: list[str]):
         cls="mb-4",
     )
     add_ingredient_button = mu.Button(
-        mu.UkIcon("plus-circle"),
+        mu.UkIcon("plus-circle", cls=mu.TextT.primary),
         hx_post="/recipes/ui/add-ingredient",
         hx_target="#ingredients-list",
         hx_swap="beforeend",
@@ -768,11 +786,10 @@ def _build_ingredient_input(index: int, value: str):
             hx_include="closest form",
         ),
         mu.Button(
-            mu.UkIcon("minus-circle"),
+            mu.UkIcon("minus-circle", cls=mu.TextT.error),
             cls=(
-                mu.ButtonT.destructive,
                 "ml-2 uk-border-circle p-1 flex"
-                " items-center justify-center delete-item-button",
+                " items-center justify-center delete-item-button"
             ),
             type="button",
         ),
@@ -792,7 +809,7 @@ def _build_instructions_section(instructions: list[str]):
         cls="mb-4",
     )
     add_instruction_button = mu.Button(
-        mu.UkIcon("plus-circle"),
+        mu.UkIcon("plus-circle", cls=mu.TextT.primary),
         hx_post="/recipes/ui/add-instruction",
         hx_target="#instructions-list",
         hx_swap="beforeend",
@@ -821,11 +838,10 @@ def _build_instruction_input(index: int, value: str):
             hx_include="closest form",
         ),
         mu.Button(
-            mu.UkIcon("minus-circle"),
+            mu.UkIcon("minus-circle", cls=mu.TextT.error),
             cls=(
-                mu.ButtonT.destructive,
                 "ml-2 uk-border-circle p-1 flex"
-                " items-center justify-center delete-item-button",
+                " items-center justify-center delete-item-button"
             ),
             type="button",
         ),
@@ -944,24 +960,30 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             exc_info=True,
         )
         return fh.Div(
-            "Recipe extraction failed. An unexpected error occurred during processing."
+            "Recipe extraction failed. An unexpected error occurred during processing.",
+            cls=CSS_ERROR_CLASS,
         )
 
+    # --- Check for empty fields and fill placeholders ---
+    if not processed_recipe.ingredients:
+        logger.warning(
+            "Extraction resulted in empty ingredients. Filling placeholder. Name: %s",
+            processed_recipe.name,
+        )
+        processed_recipe.ingredients = ["No ingredients found"]
+
+    if not processed_recipe.instructions:
+        logger.warning(
+            "Extraction resulted in empty instructions. Filling placeholder. Name: %s",
+            processed_recipe.name,
+        )
+        processed_recipe.instructions = ["No instructions found"]
+    # --- End placeholder check ---
+
+    # --- Proceed with potentially modified recipe ---
     reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-2xl mb-2 mt-6")
-    rendered_content_div = fh.Div(
-        fh.H3(processed_recipe.name, cls="text-xl font-bold mb-3"),
-        fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
-        fh.Ul(
-            *[fh.Li(ing) for ing in processed_recipe.ingredients],
-            cls="list-disc list-inside mb-3",
-        ),
-        fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
-        fh.Ul(
-            *[fh.Li(inst) for inst in processed_recipe.instructions],
-            cls="list-disc list-inside",
-        ),
-        cls="p-4 border rounded bg-gray-50 text-sm max-w-none",
-    )
+    rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
+
     rendered_recipe_html = fh.Div(
         reference_heading,
         rendered_content_div,
@@ -1091,7 +1113,7 @@ async def post_modify_recipe(request: Request):
     # Rebuild form logic moved outside the try/except for errors
     if error_message:
         edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe,  # Show potentially invalid current state
+            current_recipe,
             original_recipe,
             modification_prompt,
             error_message,
@@ -1231,11 +1253,10 @@ def post_add_ingredient_row():
             hx_include="closest form",
         ),
         mu.Button(
-            mu.UkIcon("minus-circle"),
+            mu.UkIcon("minus-circle", cls=mu.TextT.error),
             cls=(
-                mu.ButtonT.destructive,
                 "ml-2 uk-border-circle p-1 flex"
-                " items-center justify-center delete-item-button",
+                " items-center justify-center delete-item-button"
             ),
             type="button",
         ),
@@ -1259,11 +1280,10 @@ def post_add_instruction_row():
             hx_include="closest form",
         ),
         mu.Button(
-            mu.UkIcon("minus-circle"),
+            mu.UkIcon("minus-circle", cls=mu.TextT.error),
             cls=(
-                mu.ButtonT.destructive,
                 "ml-2 uk-border-circle p-1 flex"
-                " items-center justify-center delete-item-button",
+                " items-center justify-center delete-item-button"
             ),
             type="button",
         ),
