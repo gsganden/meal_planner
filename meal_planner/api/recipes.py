@@ -1,6 +1,5 @@
 import json
 import logging
-from pathlib import Path
 from typing import Annotated
 
 import apswutils.db

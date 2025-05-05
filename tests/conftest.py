@@ -2,7 +2,7 @@ import contextlib
 import logging
 import sqlite3
 from pathlib import Path
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator
 
 import fastlite
 import pytest
