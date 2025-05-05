@@ -6,7 +6,7 @@ import pytest_asyncio
 from fastlite import database
 from httpx import AsyncClient, Response
 
-from meal_planner.api.recipes import RECIPES_PATH
+from meal_planner.api.recipes import RECIPES_API_PATH
 
 pytestmark = pytest.mark.asyncio
 
@@ -224,7 +224,7 @@ class TestGetRecipes:
         assert response2.status_code == 201
 
         # Now get all recipes
-        response = await client.get(f"/api{RECIPES_PATH}")
+        response = await client.get(f"/api{RECIPES_API_PATH}")
 
         assert response.status_code == 200
         response_json = response.json()
@@ -238,7 +238,7 @@ class TestGetRecipes:
     async def test_get_recipes_empty(self, client: AsyncClient, test_db_session: Path):
         """Test GET /api/recipes returns an empty list when the database is empty."""
         # Database is cleared by override_get_db_for_test via client fixture
-        response = await client.get(f"/api{RECIPES_PATH}")
+        response = await client.get(f"/api{RECIPES_API_PATH}")
 
         assert response.status_code == 200
         response_json = response.json()
@@ -269,7 +269,7 @@ class TestGetRecipes:
         )
         db.conn.close()
 
-        response = await client.get(f"/api{RECIPES_PATH}")
+        response = await client.get(f"/api{RECIPES_API_PATH}")
         assert response.status_code == 200
         response_json = response.json()
         # Should only return the valid recipe
@@ -284,7 +284,7 @@ class TestGetRecipes:
         with patch("fastlite.Table.__call__") as mock_select:
             mock_select.side_effect = Exception("Simulated DB Query Error")
 
-            response = await client.get(f"/api{RECIPES_PATH}")
+            response = await client.get(f"/api{RECIPES_API_PATH}")
 
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error retrieving recipes"}

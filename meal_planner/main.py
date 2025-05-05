@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import difflib
 import html
 import logging
@@ -23,8 +21,8 @@ from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.api.recipes import (
-    RECIPE_ITEM_PATH,
-    RECIPES_PATH,
+    RECIPE_ITEM_API_PATH,
+    RECIPES_API_PATH,
 )
 from meal_planner.models import Recipe
 
@@ -35,6 +33,7 @@ ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
 PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
+RECIPES_LIST_PATH = "/recipes"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,9 +59,9 @@ api_app.include_router(RECIPES_API_ROUTER)
 app.mount("/api", api_app)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Internal client for calling own API endpoints
 internal_client = httpx.AsyncClient(
-    transport=ASGITransport(app=app), base_url="http://test"
+    transport=ASGITransport(app=app),
+    base_url="http://internal",  # arbitrary
 )
 
 
@@ -106,7 +105,7 @@ def sidebar():
                 fh.Li(
                     fh.A(
                         "View All",
-                        href="/recipes",
+                        href=RECIPES_LIST_PATH,
                         hx_target="#content",
                         hx_push_url="true",
                     )
@@ -239,10 +238,10 @@ def get():
     )
 
 
-@rt(RECIPES_PATH)
+@rt(RECIPES_LIST_PATH)
 async def get_recipes_htmx():
     try:
-        response = await internal_client.get(f"/api{RECIPES_PATH}")
+        response = await internal_client.get(f"/api{RECIPES_API_PATH}")
         response.raise_for_status()  # Raise exception for 4xx or 5xx status codes
         recipes_data = response.json()
     except httpx.HTTPStatusError as e:
@@ -267,28 +266,17 @@ async def get_recipes_htmx():
     if not recipes_data:
         content = fh.Div("No recipes found.")
     else:
-        # De-duplicate recipes based on name, keeping the first full object
-        seen_names = set()
-        unique_recipes = []
-        for recipe in recipes_data:
-            name = recipe.get("name")
-            recipe_id = recipe.get("id")  # Get the ID
-            if name and recipe_id is not None and name not in seen_names:
-                unique_recipes.append(recipe)  # Store the whole dict
-                seen_names.add(name)
-
-        # Render unique recipes as links
         content = fh.Ul(
             *[
                 fh.Li(
                     fh.A(
-                        recipe["name"],  # Display name
-                        href=f"/recipes/{recipe['id']}",  # Link to /recipes/ID
-                        hx_target="#content",  # Load into main content area
-                        hx_push_url="true",  # Update browser history
+                        recipe["name"],
+                        href=f"/recipes/{recipe['id']}",
+                        hx_target="#content",
+                        hx_push_url="true",
                     )
                 )
-                for recipe in unique_recipes  # Iterate over unique recipe dicts
+                for recipe in recipes_data
             ],
             cls="list-disc list-inside",
         )
@@ -301,7 +289,7 @@ async def get_single_recipe_page(recipe_id: int):
     """Displays a single recipe page."""
     try:
         # Call the new API endpoint
-        api_path = f"/api{RECIPE_ITEM_PATH.format(recipe_id=recipe_id)}"
+        api_path = f"/api{RECIPE_ITEM_API_PATH.format(recipe_id=recipe_id)}"
         response = await internal_client.get(api_path)
         response.raise_for_status()  # Handle 404, 500 from API
         recipe_data = response.json()
