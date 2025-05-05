@@ -10,7 +10,6 @@ from pydantic import ValidationError
 from starlette.datastructures import FormData
 
 import meal_planner.main as main_module
-from meal_planner.api.recipes import RECIPE_ITEM_API_PATH, RECIPES_API_PATH
 from meal_planner.main import (
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
     CSS_ERROR_CLASS,
@@ -554,7 +553,7 @@ async def test_save_recipe_api_call_error(client: AsyncClient, monkeypatch):
     mock_post = AsyncMock(
         side_effect=httpx.HTTPStatusError(
             "API Error",
-            request=httpx.Request("POST", f"/api{RECIPES_API_PATH}"),
+            request=httpx.Request("POST", f"/api/v0/recipes"),
             response=httpx.Response(500, content=b"Internal Server Error"),
         )
     )
@@ -1211,14 +1210,14 @@ class TestGetRecipesPageErrors:
         "Test error handling when the API call returns a status error."
         mock_api_get.side_effect = httpx.HTTPStatusError(
             "API Error",
-            request=httpx.Request("GET", f"/api{RECIPES_API_PATH}"),
+            request=httpx.Request("GET", f"/api/v0/recipes"),
             response=httpx.Response(500),
         )
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
         assert "Error fetching recipes from API." in response.text
         assert CSS_ERROR_CLASS in response.text
-        mock_api_get.assert_awaited_once_with(f"/api{RECIPES_API_PATH}")
+        mock_api_get.assert_awaited_once_with("/api/v0/recipes")
 
     @patch("meal_planner.main.internal_client.get")
     async def test_get_recipes_page_api_generic_error(
@@ -1230,13 +1229,13 @@ class TestGetRecipesPageErrors:
         assert response.status_code == 200
         assert "An unexpected error occurred while fetching recipes." in response.text
         assert CSS_ERROR_CLASS in response.text
-        mock_api_get.assert_awaited_once_with(f"/api{RECIPES_API_PATH}")
+        mock_api_get.assert_awaited_once_with("/api/v0/recipes")
 
 
 @pytest.mark.anyio
 class TestGetSingleRecipePageErrors:
     RECIPE_ID = 123
-    API_URL = f"/api{RECIPE_ITEM_API_PATH.format(recipe_id=RECIPE_ID)}"
+    API_URL = f"/api/v0/recipes/{RECIPE_ID}"
     PAGE_URL = f"/recipes/{RECIPE_ID}"
 
     @patch("meal_planner.main.internal_client.get")
@@ -1308,7 +1307,7 @@ class TestGetRecipesPageSuccess:
         self, mock_api_get, client: AsyncClient
     ):
         """Test successful loading of /recipes page with data."""
-        api_url = f"/api{RECIPES_API_PATH}"
+        api_url = "/api/v0/recipes"
         page_url = RECIPES_LIST_PATH
         mock_response = AsyncMock(spec=httpx.Response)
         mock_response.status_code = 200
@@ -1342,7 +1341,7 @@ class TestGetRecipesPageSuccess:
         self, mock_api_get, client: AsyncClient
     ):
         """Test successful loading of /recipes page when API returns empty list."""
-        api_url = f"/api{RECIPES_API_PATH}"
+        api_url = "/api/v0/recipes"
         page_url = RECIPES_LIST_PATH
         mock_response = AsyncMock(spec=httpx.Response)
         mock_response.status_code = 200
@@ -1359,7 +1358,7 @@ class TestGetRecipesPageSuccess:
 @pytest.mark.anyio
 class TestGetSingleRecipePageSuccess:
     RECIPE_ID = 456
-    API_URL = f"/api{RECIPE_ITEM_API_PATH.format(recipe_id=RECIPE_ID)}"
+    API_URL = f"/api/v0/recipes/{RECIPE_ID}"
     PAGE_URL = f"/recipes/{RECIPE_ID}"
 
     @patch("meal_planner.main.internal_client.get")

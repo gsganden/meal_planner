@@ -20,10 +20,6 @@ from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
-from meal_planner.api.recipes import (
-    RECIPE_ITEM_API_PATH,
-    RECIPES_API_PATH,
-)
 from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
@@ -239,7 +235,7 @@ def get():
 @rt("/recipes")
 async def get_recipes_htmx():
     try:
-        response = await internal_client.get(f"/api{RECIPES_API_PATH}")
+        response = await internal_client.get("/api/v0/recipes")
         response.raise_for_status()  # Raise exception for 4xx or 5xx status codes
         recipes_data = response.json()
     except httpx.HTTPStatusError as e:
@@ -287,7 +283,7 @@ async def get_single_recipe_page(recipe_id: int):
     """Displays a single recipe page."""
     try:
         # Call the new API endpoint
-        api_path = f"/api{RECIPE_ITEM_API_PATH.format(recipe_id=recipe_id)}"
+        api_path = f"/api/v0/recipes/{recipe_id}"
         response = await internal_client.get(api_path)
         response.raise_for_status()  # Handle 404, 500 from API
         recipe_data = response.json()

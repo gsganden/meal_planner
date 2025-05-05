@@ -14,13 +14,9 @@ logger = logging.getLogger(__name__)
 
 API_ROUTER = APIRouter()
 
-API_VERSION = "v0"
-RECIPES_API_PATH = f"/{API_VERSION}/recipes"
-RECIPE_ITEM_API_PATH = RECIPES_API_PATH + "/{recipe_id}"
-
 
 @API_ROUTER.post(
-    RECIPES_API_PATH,
+    "/v0/recipes",
     status_code=status.HTTP_201_CREATED,
     response_model=RecipeRead,
 )
@@ -51,7 +47,7 @@ async def create_recipe(
         stored_recipe.name,
     )
 
-    location_path = f"/api{RECIPES_API_PATH}/{str(stored_recipe.id)}"
+    location_path = f"/api/v0/recipes/{str(stored_recipe.id)}"
 
     return JSONResponse(
         content=stored_recipe.model_dump(mode="json"),
@@ -60,7 +56,7 @@ async def create_recipe(
     )
 
 
-@API_ROUTER.get(RECIPES_API_PATH, response_model=list[RecipeRead])
+@API_ROUTER.get("/v0/recipes", response_model=list[RecipeRead])
 async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)]):
     all_recipes = []
     try:
@@ -90,7 +86,7 @@ async def get_all_recipes(db: Annotated[fl.Database, Depends(get_initialized_db)
         ) from e
 
 
-@API_ROUTER.get(RECIPE_ITEM_API_PATH, response_model=RecipeRead)
+@API_ROUTER.get("/v0/recipes/{recipe_id}", response_model=RecipeRead)
 async def get_recipe_by_id(
     recipe_id: RecipeId, db: Annotated[fl.Database, Depends(get_initialized_db)]
 ):
