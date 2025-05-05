@@ -505,9 +505,9 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
             saved_recipe_api_data = recipe
             break
 
-    assert saved_recipe_api_data is not None, (
-        f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
-    )
+    assert (
+        saved_recipe_api_data is not None
+    ), f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
     saved_recipe_id = saved_recipe_api_data["id"]
     assert isinstance(saved_recipe_id, int)
 
