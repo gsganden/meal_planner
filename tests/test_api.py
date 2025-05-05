@@ -195,7 +195,7 @@ class TestCreateRecipeDBErrors:
 
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error creating recipe"}
-            mock_insert.assert_called_once()  # Verify the mocked insert was attempted
+            mock_insert.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -204,7 +204,6 @@ class TestGetRecipes:
         self, client: AsyncClient, test_db_session: Path
     ):
         """Test GET /api/recipes returns all recipes when the database is populated."""
-        # Use the API itself to insert data via the overridden dependency
         recipe1_payload = {
             "name": "Recipe One",
             "ingredients": ["ing1a", "ing1b"],
@@ -221,7 +220,6 @@ class TestGetRecipes:
         response2 = await client.post("/api/v0/recipes", json=recipe2_payload)
         assert response2.status_code == 201
 
-        # Now get all recipes
         response = await client.get("/api/v0/recipes")
 
         assert response.status_code == 200
@@ -229,13 +227,11 @@ class TestGetRecipes:
         assert isinstance(response_json, list)
         assert len(response_json) == 2
 
-        # Optional: More detailed checks on the returned data
         names = {r["name"] for r in response_json}
         assert names == {"Recipe One", "Recipe Two"}
 
     async def test_get_recipes_empty(self, client: AsyncClient, test_db_session: Path):
         """Test GET /api/recipes returns an empty list when the database is empty."""
-        # Database is cleared by override_get_db_for_test via client fixture
         response = await client.get("/api/v0/recipes")
 
         assert response.status_code == 200
@@ -249,7 +245,6 @@ class TestGetRecipes:
         """Test that row processing errors (e.g., bad JSON) are handled gracefully."""
         db = database(test_db_session)
         recipes_table = db.t.recipes
-        # Insert one valid recipe
         recipes_table.insert(
             {
                 "name": "Valid Recipe",
@@ -257,7 +252,6 @@ class TestGetRecipes:
                 "instructions": '["step1"]',
             }
         )
-        # Insert one recipe with invalid JSON in ingredients
         recipes_table.insert(
             {
                 "name": "Bad JSON Recipe",
@@ -270,15 +264,12 @@ class TestGetRecipes:
         response = await client.get("/api/v0/recipes")
         assert response.status_code == 200
         response_json = response.json()
-        # Should only return the valid recipe
         assert len(response_json) == 1
         assert response_json[0]["name"] == "Valid Recipe"
-        # TODO: Check logs for the error message? Requires log capturing setup.
 
     @pytest.mark.anyio
     async def test_get_recipes_general_db_error(self, client: AsyncClient, monkeypatch):
         """Test handling of general DB errors during recipe fetch."""
-        # Patch the table select method to raise an error
         with patch("fastlite.Table.__call__") as mock_select:
             mock_select.side_effect = Exception("Simulated DB Query Error")
 
@@ -329,7 +320,6 @@ class TestGetRecipeById:
     ):
         """Test handling of data processing errors (e.g., bad JSON) after fetch."""
         db = database(test_db_session)
-        # Insert recipe with bad JSON data
         recipe_id = db.t.recipes.insert(
             {
                 "name": "Bad JSON Recipe",
@@ -342,6 +332,3 @@ class TestGetRecipeById:
         response = await client.get(f"/api/v0/recipes/{recipe_id}")
         assert response.status_code == 500
         assert response.json() == {"detail": "Error processing recipe data"}
-
-    # Test for successful retrieval is implicitly covered by other tests using the API
-    # but could be added explicitly if desired.
