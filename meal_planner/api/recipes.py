@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import apswutils.db
+import fastlite as fl
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-import fastlite as fl
 from pydantic import Field
 
 from meal_planner.models import Recipe, RecipeRead
@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 DB_NAME = "meal_planner.db"
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DB_PATH = PROJECT_ROOT / "data" / DB_NAME
+
+API_ROUTER = APIRouter()
 
 
 def get_initialized_db(db_path_override: Path | None = None) -> fl.Database:
@@ -42,26 +44,22 @@ def get_initialized_db(db_path_override: Path | None = None) -> fl.Database:
     return db_conn
 
 
-api_router = APIRouter()
-
-
-@api_router.post(
+@API_ROUTER.post(
     "/v0/recipes",
     status_code=status.HTTP_201_CREATED,
     response_model=RecipeRead,
 )
 async def create_recipe(
-    recipe_data: Recipe, db: Annotated[Any, Depends(get_initialized_db)]
+    recipe_data: Recipe, db: Annotated[fl.Database, Depends(get_initialized_db)]
 ):
     db_data = {
         "name": recipe_data.name,
         "ingredients": json.dumps(recipe_data.ingredients),
         "instructions": json.dumps(recipe_data.instructions),
     }
-    recipes_table = db.t.recipes  # Get table object from the connection
+    recipes_table = db.t.recipes  # type: ignore
 
     try:
-        # Use the specific connection for this request
         inserted_record = recipes_table.insert(db_data)
     except Exception as e:
         logger.error("Database error inserting recipe: %s", e, exc_info=True)
@@ -87,7 +85,7 @@ async def create_recipe(
     )
 
 
-@api_router.get("/recipes", response_model=list[RecipeRead])
+@API_ROUTER.get("/recipes", response_model=list[RecipeRead])
 async def get_all_recipes(db: Annotated[Any, Depends(get_initialized_db)]):
     all_recipes = []
     try:
@@ -124,7 +122,7 @@ async def get_all_recipes(db: Annotated[Any, Depends(get_initialized_db)]):
         ) from e
 
 
-@api_router.get("/v0/recipes/{recipe_id}", response_model=RecipeRead)
+@API_ROUTER.get("/v0/recipes/{recipe_id}", response_model=RecipeRead)
 async def get_recipe_by_id(
     recipe_id: int, db: Annotated[Any, Depends(get_initialized_db)]
 ):

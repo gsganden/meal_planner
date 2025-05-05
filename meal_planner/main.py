@@ -20,7 +20,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 from starlette.staticfiles import StaticFiles
 
-from meal_planner.api.recipes import api_router
+from meal_planner.api.recipes import API_ROUTER
 from meal_planner.models import Recipe
 
 MODEL_NAME = "gemini-2.0-flash"
@@ -50,7 +50,7 @@ app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
 
 api_app = FastAPI()
-api_app.include_router(api_router)
+api_app.include_router(API_ROUTER)
 
 app.mount("/api", api_app)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
