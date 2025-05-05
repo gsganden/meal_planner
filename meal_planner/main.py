@@ -1,27 +1,34 @@
+from __future__ import annotations
+
 import difflib
 import html
 import logging
 import os
 import re
 from pathlib import Path
-from typing import TypeVar
+from typing import TypeVar, Annotated, Any, AsyncGenerator
 
 import fasthtml.common as fh
 import html2text
 import httpx
 import instructor
 import monsterui.all as mu
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response, Depends
 from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, ValidationError
 from starlette.datastructures import FormData
-from starlette.requests import Request
-from starlette.responses import HTMLResponse, Response
+from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles
 
-from meal_planner.api.recipes import API_ROUTER
-from meal_planner.models import Recipe
+import fastlite as fl
+from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
+from meal_planner.api.recipes import (
+    get_initialized_db,
+    RECIPES_PATH,
+    RECIPE_ITEM_PATH,
+)
+from meal_planner.models import Recipe, RecipeRead
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250428_205830__include_parens.txt"
@@ -50,7 +57,7 @@ app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
 rt = app.route
 
 api_app = FastAPI()
-api_app.include_router(API_ROUTER)
+api_app.include_router(RECIPES_API_ROUTER)
 
 app.mount("/api", api_app)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -234,10 +241,10 @@ def get():
     )
 
 
-@rt("/recipes")
-async def get_recipes_page():
+@rt(RECIPES_PATH)
+async def get_recipes_htmx():
     try:
-        response = await internal_client.get("/api/recipes")
+        response = await internal_client.get(f"/api{RECIPES_PATH}")
         response.raise_for_status()  # Raise exception for 4xx or 5xx status codes
         recipes_data = response.json()
     except httpx.HTTPStatusError as e:
@@ -296,7 +303,8 @@ async def get_single_recipe_page(recipe_id: int):
     """Displays a single recipe page."""
     try:
         # Call the new API endpoint
-        response = await internal_client.get(f"/api/v0/recipes/{recipe_id}")
+        api_path = f"/api{RECIPE_ITEM_PATH.format(recipe_id=recipe_id)}"
+        response = await internal_client.get(api_path)
         response.raise_for_status()  # Handle 404, 500 from API
         recipe_data = response.json()
         # Optionally, validate with RecipeRead model if needed

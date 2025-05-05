@@ -19,6 +19,10 @@ DB_PATH = PROJECT_ROOT / "data" / DB_NAME
 
 API_ROUTER = APIRouter()
 
+API_VERSION = "v0"
+RECIPES_PATH = f"/{API_VERSION}/recipes"
+RECIPE_ITEM_PATH = RECIPES_PATH + "/{recipe_id}"
+
 
 def get_initialized_db(db_path_override: Path | None = None) -> fl.Database:
     """Get a database connection.
@@ -85,19 +89,13 @@ async def create_recipe(
     )
 
 
-@API_ROUTER.get("/recipes", response_model=list[RecipeRead])
+@API_ROUTER.get(RECIPES_PATH, response_model=list[RecipeRead])
 async def get_all_recipes(db: Annotated[Any, Depends(get_initialized_db)]):
     all_recipes = []
     try:
-        # Try using fastlite's table select method instead of raw SQL
-        recipes_table = db.t.recipes
-        for recipe_dict in recipes_table():  # Selects all rows
+        recipes_table = db.t.recipes  # type: ignore
+        for recipe_dict in recipes_table():
             try:
-                # Removed check for nulls/missing keys, relying on NOT NULL
-                # constraints
-                # and subsequent KeyError handling if needed.
-
-                # Create RecipeRead object
                 all_recipes.append(
                     RecipeRead(
                         id=recipe_dict["id"],
@@ -107,12 +105,11 @@ async def get_all_recipes(db: Annotated[Any, Depends(get_initialized_db)]):
                     )
                 )
             except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-                # Log error for the specific row and continue
                 logger.error(
                     f"Error processing recipe row from DB: {e} - Data: {recipe_dict}",
                     exc_info=False,
                 )
-                continue  # Skip this row
+                continue
         return all_recipes
     except Exception as e:
         logger.error("Database error querying all recipes: %s", e, exc_info=True)
@@ -122,7 +119,7 @@ async def get_all_recipes(db: Annotated[Any, Depends(get_initialized_db)]):
         ) from e
 
 
-@API_ROUTER.get("/v0/recipes/{recipe_id}", response_model=RecipeRead)
+@API_ROUTER.get(RECIPE_ITEM_PATH, response_model=RecipeRead)
 async def get_recipe_by_id(
     recipe_id: int, db: Annotated[Any, Depends(get_initialized_db)]
 ):
