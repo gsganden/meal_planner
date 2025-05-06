@@ -18,9 +18,10 @@ from pydantic import BaseModel, ValidationError
 from starlette.datastructures import FormData
 from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles
+from starlette import status
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
-from meal_planner.models import RecipeData
+from meal_planner.models import RecipeBase
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"
@@ -452,7 +453,7 @@ async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
         raise RuntimeError(f"Failed to process URL content: {recipe_url}") from e
 
 
-async def extract_recipe_from_text(page_text: str) -> RecipeData:
+async def extract_recipe_from_text(page_text: str) -> RecipeBase:
     """Extracts and post-processes a recipe from text."""
     logger.info("Starting recipe extraction from text:\n%s", page_text)
     try:
@@ -462,9 +463,9 @@ async def extract_recipe_from_text(page_text: str) -> RecipeData:
         logger.info("Using extraction prompt file: %s", prompt_file_path.name)
         prompt_text = prompt_file_path.read_text().format(page_text=page_text)
 
-        extracted_recipe: RecipeData = await get_structured_llm_response(
+        extracted_recipe: RecipeBase = await get_structured_llm_response(
             prompt=prompt_text,
-            response_model=RecipeData,
+            response_model=RecipeBase,
         )
     except Exception as e:
         logger.error(
@@ -485,14 +486,14 @@ def _get_prompt_path(category: str, filename: str) -> Path:
     return PROMPT_DIR / category / filename
 
 
-async def extract_recipe_from_url(recipe_url: str) -> RecipeData:
+async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
     """Fetches text from a URL and extracts a recipe from it."""
     return await extract_recipe_from_text(
         await fetch_and_clean_text_from_url(recipe_url)
     )
 
 
-def postprocess_recipe(recipe: RecipeData) -> RecipeData:
+def postprocess_recipe(recipe: RecipeBase) -> RecipeBase:
     """Post-processes the extracted recipe data."""
     if recipe.name:
         recipe.name = _postprocess_recipe_name(recipe.name)
@@ -598,7 +599,7 @@ def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
     }
 
 
-def _build_diff_content(original_recipe: RecipeData, current_markdown: str):
+def _build_diff_content(original_recipe: RecipeBase, current_markdown: str):
     """Builds the inner content for the diff view container."""
     before_html, after_html = generate_diff_html(
         original_recipe.markdown, current_markdown
@@ -637,8 +638,8 @@ def _build_diff_content(original_recipe: RecipeData, current_markdown: str):
 
 
 def _build_edit_review_form(
-    current_recipe: RecipeData,
-    original_recipe: RecipeData | None = None,
+    current_recipe: RecipeBase,
+    original_recipe: RecipeBase | None = None,
     modification_prompt_value: str | None = None,
     error_message_content=None,
 ):
@@ -716,7 +717,7 @@ def _build_modification_controls(
     )
 
 
-def _build_original_hidden_fields(original_recipe: RecipeData):
+def _build_original_hidden_fields(original_recipe: RecipeBase):
     """Builds the hidden input fields for the original recipe data."""
     return (
         fh.Input(type="hidden", name="original_name", value=original_recipe.name),
@@ -731,7 +732,7 @@ def _build_original_hidden_fields(original_recipe: RecipeData):
     )
 
 
-def _build_editable_section(current_recipe: RecipeData):
+def _build_editable_section(current_recipe: RecipeBase):
     """Builds the 'Edit Manually' section with inputs for name, ingredients,
     and instructions."""
     name_input = _build_name_input(current_recipe.name)
@@ -862,7 +863,7 @@ def _build_instruction_input(index: int, value: str):
     )
 
 
-def _build_review_section(original_recipe: RecipeData, current_recipe: RecipeData):
+def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBase):
     """Builds the 'Review Changes' section with the diff view."""
     diff_content_wrapper = _build_diff_content(original_recipe, current_recipe.markdown)
     save_button_container = _build_save_button()
@@ -1020,7 +1021,7 @@ async def post_save_recipe(request: Request):
     form_data: FormData = await request.form()
     try:
         parsed_data = _parse_recipe_form_data(form_data)
-        recipe_obj = RecipeData(**parsed_data)
+        recipe_obj = RecipeBase(**parsed_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
         return fh.Span(
@@ -1040,7 +1041,37 @@ async def post_save_recipe(request: Request):
         response = await internal_client.post(
             "/api/v0/recipes", json=recipe_obj.model_dump()
         )
-        response.raise_for_status()
+        # Check if the API call was successful (e.g., 201 Created)
+        if response.status_code != status.HTTP_201_CREATED:
+            logger.error(
+                "API error saving recipe via UI: Status %s, Response: %s",
+                response.status_code,
+                response.text,
+            )
+
+            # Determine the user-facing error message based on status code
+            if response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
+                error_message_to_display = (
+                    "Error saving recipe: Invalid data provided. Please check fields."
+                )
+            else:
+                error_message_to_display = (
+                    f"Error saving recipe via API (Status: {response.status_code})."
+                )
+
+            # We still log the full detail if available, but don't show it to the user directly
+            try:
+                detail_json = response.json().get("detail")
+                if detail_json:
+                    logger.debug("Full API error detail: %s", str(detail_json))
+            except Exception:
+                logger.debug("Could not parse JSON detail from API error response.")
+
+            return fh.Span(
+                error_message_to_display,
+                cls=CSS_ERROR_CLASS,
+                id="save-button-container",
+            )
 
         logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
 
@@ -1051,15 +1082,33 @@ async def post_save_recipe(request: Request):
             e.response.text,
             exc_info=True,
         )
+        # User-facing error message
+        user_message = "Error saving recipe. Please check your input."
+        if e.response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
+            user_message = (
+                "Error saving recipe: Invalid data provided. Please check fields."
+            )
+
         return fh.Span(
-            f"Error saving recipe via API (Status: {e.response.status_code}).",
+            user_message,
             cls=CSS_ERROR_CLASS,
+            id="save-button-container",
+        )
+    except httpx.RequestError as e:  # Catch specific network errors
+        logger.error(
+            "Network error calling save recipe API via UI: %s", e, exc_info=True
+        )
+        return fh.Span(
+            "Network error connecting to API.",
+            cls=CSS_ERROR_CLASS,
+            id="save-button-container",
         )
     except Exception as e:
         logger.error("Error calling save recipe API via UI: %s", e, exc_info=True)
         return fh.Span(
             "Unexpected error saving recipe.",
             cls=CSS_ERROR_CLASS,
+            id="save-button-container",
         )
 
     return fh.Span(
@@ -1094,7 +1143,7 @@ async def post_modify_recipe(request: Request):
     except ModifyFormError as e:
         try:
             original_data = _parse_recipe_form_data(form_data, prefix="original_")
-            original_recipe = RecipeData(**original_data)
+            original_recipe = RecipeBase(**original_data)
         except Exception as inner_e:
             logger.error(
                 "Could not parse original data on modify error: %s",
@@ -1161,7 +1210,7 @@ async def post_modify_recipe(request: Request):
 
 def _parse_and_validate_modify_form(
     form_data: FormData,
-) -> tuple[RecipeData, RecipeData, str]:
+) -> tuple[RecipeBase, RecipeBase, str]:
     """Parses and validates form data for the modify recipe request.
 
     Raises:
@@ -1172,8 +1221,8 @@ def _parse_and_validate_modify_form(
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
         modification_prompt = str(form_data.get("modification_prompt", ""))
 
-        original_recipe = RecipeData(**original_data)
-        current_recipe = RecipeData(**current_data)
+        original_recipe = RecipeBase(**original_data)
+        current_recipe = RecipeBase(**current_data)
 
         return current_recipe, original_recipe, modification_prompt
 
@@ -1188,8 +1237,8 @@ def _parse_and_validate_modify_form(
 
 
 async def _request_recipe_modification(
-    current_recipe: RecipeData, modification_prompt: str
-) -> RecipeData:
+    current_recipe: RecipeBase, modification_prompt: str
+) -> RecipeBase:
     """Requests recipe modification from LLM.
 
     Returns:
@@ -1209,9 +1258,9 @@ async def _request_recipe_modification(
             current_recipe_markdown=current_recipe.markdown,
             modification_prompt=modification_prompt,
         )
-        modified_recipe: RecipeData = await get_structured_llm_response(
+        modified_recipe: RecipeBase = await get_structured_llm_response(
             prompt=modification_full_prompt,
-            response_model=RecipeData,
+            response_model=RecipeBase,
         )
         processed_recipe = postprocess_recipe(modified_recipe)
         logger.info(
@@ -1323,8 +1372,8 @@ async def post_update_diff(request: Request):
         current_data = _parse_recipe_form_data(form_data)
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
 
-        original_recipe = RecipeData(**original_data)
-        current_recipe = RecipeData(**current_data)
+        original_recipe = RecipeBase(**original_data)
+        current_recipe = RecipeBase(**current_data)
 
     except ValidationError as e:
         logger.debug(

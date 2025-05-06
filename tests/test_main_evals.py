@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from meal_planner.main import RecipeData, extract_recipe_from_url
+from meal_planner.models import RecipeBase
+from meal_planner.main import extract_recipe_from_url
 
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
 
@@ -48,7 +49,7 @@ async def extracted_recipe_fixture(mock_fetch, request, anyio_backend):
 @pytest.mark.anyio
 def test_extract_recipe_name(extracted_recipe_fixture):
     """Tests the extracted recipe name against expected values."""
-    extracted_recipe: RecipeData
+    extracted_recipe: RecipeBase
     expected_data: dict
     extracted_recipe, expected_data = extracted_recipe_fixture
 
@@ -62,7 +63,7 @@ def test_extract_recipe_name(extracted_recipe_fixture):
 @pytest.mark.anyio
 def test_extract_recipe_ingredients(extracted_recipe_fixture):
     """Tests the extracted recipe ingredients against expected values."""
-    extracted_recipe: RecipeData
+    extracted_recipe: RecipeBase
     expected_data: dict
     extracted_recipe, expected_data = extracted_recipe_fixture
 
@@ -75,7 +76,7 @@ def test_extract_recipe_ingredients(extracted_recipe_fixture):
 @pytest.mark.anyio
 def test_extract_recipe_instructions(extracted_recipe_fixture):
     """Tests the extracted recipe instructions against expected values."""
-    extracted_recipe: RecipeData
+    extracted_recipe: RecipeBase
     expected_data: dict
     extracted_recipe, expected_data = extracted_recipe_fixture
 

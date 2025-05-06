@@ -3,69 +3,67 @@ import logging
 from pathlib import Path
 from typing import AsyncGenerator
 
-import fastlite
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from meal_planner.db import get_initialized_db
+from sqlmodel import create_engine, Session as SQLModelSession, SQLModel as SQLModelBase
+from meal_planner.database import get_session
 from meal_planner.main import api_app, app
+from sqlalchemy import inspect
 
-TEST_DB_PATH = Path("meal_planner_test.db")
 logger = logging.getLogger(__name__)
 
+# In-memory SQLite for tests
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
-@pytest.fixture(scope="session")
-def test_db_session():
-    """Creates and cleans up the test database file for the entire session.
 
-    Ensures the necessary tables are initialized using the main app's logic.
-    """
-    if TEST_DB_PATH.exists():
-        logger.info("Removing existing test database: %s", TEST_DB_PATH)
-        TEST_DB_PATH.unlink()
+@pytest.fixture(scope="function")
+def test_engine():
+    """Creates an in-memory SQLite engine for each test function."""
+    engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+    yield engine
+    # Engine disposal might happen automatically, but being explicit can help
+    engine.dispose()
 
-    db_conn_for_setup = None
-    try:
-        logger.info("Initializing test database: %s", TEST_DB_PATH)
-        db_conn_for_setup = get_initialized_db(db_path_override=TEST_DB_PATH)
-        yield TEST_DB_PATH
-    finally:
-        if db_conn_for_setup is not None:
-            logger.info("Closing setup connection for test database: %s", TEST_DB_PATH)
-            with contextlib.suppress(Exception):
-                db_conn_for_setup.conn.close()  # type: ignore
-        if TEST_DB_PATH.exists():
-            logger.info("Removing test database file after session: %s", TEST_DB_PATH)
-            TEST_DB_PATH.unlink()
+
+@pytest.fixture(scope="function")
+def dbsession(test_engine):
+    """Provides a transactional session with tables created for each test function."""
+    # Create tables for this specific engine instance
+    SQLModelBase.metadata.create_all(test_engine)
+
+    connection = test_engine.connect()
+    transaction = connection.begin()
+    session = SQLModelSession(bind=connection)
+
+    yield session
+
+    session.close()
+    transaction.rollback()
+    connection.close()
+
+    # Drop tables after test
+    SQLModelBase.metadata.drop_all(test_engine)
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(test_db_session: Path) -> AsyncGenerator[AsyncClient, None]:
-    """Provides an HTTP client for testing the FastAPI app with overridden DB."""
-    db_conn_for_test = fastlite.database(test_db_session)
-    db_conn_for_test.conn.execute("DELETE FROM recipes")
+async def client(dbsession: SQLModelSession) -> AsyncGenerator[AsyncClient, None]:
+    """Provides an HTTP client for testing the FastAPI app with overridden DB session."""
 
-    def override_get_db_for_test():
-        """Dependency override that returns the function-scoped test database
-        connection."
-        """
-        return db_conn_for_test
+    def override_get_session():
+        return dbsession
 
-    api_app.dependency_overrides[get_initialized_db] = override_get_db_for_test
+    # Need to override on the app that the endpoint is actually part of
+    api_app.dependency_overrides[get_session] = override_get_session
 
-    try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        ) as client:
-            yield client
-    finally:
-        api_app.dependency_overrides = {}
-        try:
-            db_conn_for_test.conn.close()
-        except Exception as e:
-            logger.error(f"Error closing test DB connection: {e}")
+    # Use the main 'app' for the transport, as it handles the /api mount
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        yield c
+
+    api_app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="module")
