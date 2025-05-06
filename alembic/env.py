@@ -8,8 +8,6 @@ from alembic import context
 from meal_planner.database import (
     DATA_DIR,
     DATABASE_URL,
-)  # For offline mode and DATA_DIR
-from meal_planner.database import (
     engine as app_engine,  # Import the engine used by the app
 )
 from meal_planner.models import SQLModel  # Import SQLModel itself (which has .metadata)
