@@ -6,16 +6,24 @@ repos:
         stages: [pre-push]
     -   id: check-toml
         stages: [pre-push]
--   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.0
-    hooks:
-    -   id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-        stages: [pre-push]
-    -   id: ruff-format
-        stages: [pre-push]
 -   repo: local
     hooks:
+    -   id: ruff-lint
+        name: Run ruff lint
+        entry: uv run ruff lint
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+    -   id: ruff-format
+        name: Check ruff format
+        entry: uv run ruff format --check
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
     -   id: pyright
         name: Run pyright type checker
         entry: uv run pyright
