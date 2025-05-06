@@ -1387,6 +1387,34 @@ async def test_save_recipe_api_call_generic_error(client: AsyncClient, monkeypat
 
 
 @pytest.mark.anyio
+async def test_save_recipe_api_call_request_error(client: AsyncClient, monkeypatch):
+    """Test handling when the internal API call raises httpx.RequestError."""
+    # Mock internal_client.post to raise RequestError
+    mock_post = AsyncMock(
+        side_effect=httpx.RequestError(
+            "Network error", request=httpx.Request("POST", "/api/v0/recipes")
+        )
+    )
+    monkeypatch.setattr("meal_planner.main.internal_client.post", mock_post)
+
+    form_data = {
+        FIELD_NAME: "RequestError Test",
+        FIELD_INGREDIENTS: ["ingredient"],
+        FIELD_INSTRUCTIONS: ["instruction"],
+    }
+    response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    assert response.status_code == 200
+
+    # Expect the specific network error message
+    expected_msg = "Network error connecting to API."
+    soup = BeautifulSoup(response.text, "html.parser")
+    error_span = soup.find("span", id="save-button-container")
+    assert error_span is not None
+    assert error_span.get_text(strip=True) == expected_msg
+    mock_post.assert_awaited_once()
+
+
+@pytest.mark.anyio
 class TestGetRecipesPageSuccess:
     async def test_get_recipes_page_success_with_data(self, client: AsyncClient):
         recipe1_payload = {
@@ -1536,3 +1564,37 @@ def _extract_form_list_values(html_text: str, name: str) -> list[str]:
                 values.append(str(element.string) if element.string is not None else "")
 
     return values
+
+
+@pytest.mark.anyio
+async def test_save_recipe_api_call_non_json_error_response(
+    client: AsyncClient, monkeypatch
+):
+    """Test handling when API returns non-201 status with non-JSON content."""
+    # Mock the response object itself
+    mock_response = AsyncMock(spec=httpx.Response)
+    mock_response.status_code = 500
+    mock_response.text = "Server Error Text, Not JSON"
+    # Mock the .json() method to raise an error
+    mock_response.json = MagicMock(side_effect=Exception("Invalid JSON"))
+
+    # Mock the internal_client.post to return the mocked response
+    mock_post = AsyncMock(return_value=mock_response)
+    monkeypatch.setattr("meal_planner.main.internal_client.post", mock_post)
+
+    form_data = {
+        FIELD_NAME: "Non JSON Error Test",
+        FIELD_INGREDIENTS: ["ingredient"],
+        FIELD_INSTRUCTIONS: ["instruction"],
+    }
+    response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    assert response.status_code == 200
+
+    # Expect the generic message derived from the status code,
+    # as JSON parsing of the detail will fail.
+    expected_msg = "Error saving recipe via API (Status: 500)."
+    soup = BeautifulSoup(response.text, "html.parser")
+    error_span = soup.find("span", id="save-button-container")
+    assert error_span is not None
+    assert error_span.get_text(strip=True) == expected_msg
+    mock_post.assert_awaited_once()

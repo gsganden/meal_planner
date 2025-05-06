@@ -9,5 +9,6 @@ uv run pytest \
     --cov-fail-under=100 \
     tests/test_main.py \
     tests/test_api.py \
+    tests/test_database.py \
     'tests/test_main_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]' \
     --runslow

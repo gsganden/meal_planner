@@ -1041,38 +1041,9 @@ async def post_save_recipe(request: Request):
         response = await internal_client.post(
             "/api/v0/recipes", json=recipe_obj.model_dump()
         )
-        # Check if the API call was successful (e.g., 201 Created)
-        if response.status_code != status.HTTP_201_CREATED:
-            logger.error(
-                "API error saving recipe via UI: Status %s, Response: %s",
-                response.status_code,
-                response.text,
-            )
+        response.raise_for_status()  # Raise HTTPStatusError for 4xx/5xx responses
 
-            # Determine the user-facing error message based on status code
-            if response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
-                error_message_to_display = (
-                    "Error saving recipe: Invalid data provided. Please check fields."
-                )
-            else:
-                error_message_to_display = (
-                    f"Error saving recipe via API (Status: {response.status_code})."
-                )
-
-            # Log the full detail if available, but don't show it to the user.
-            try:
-                detail_json = response.json().get("detail")
-                if detail_json:
-                    logger.debug("Full API error detail: %s", str(detail_json))
-            except Exception:
-                logger.debug("Could not parse JSON detail from API error response.")
-
-            return fh.Span(
-                error_message_to_display,
-                cls=CSS_ERROR_CLASS,
-                id="save-button-container",
-            )
-
+        # If we reach here, the status code was 2xx (specifically 201 by API contract)
         logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
 
     except httpx.HTTPStatusError as e:
@@ -1082,12 +1053,20 @@ async def post_save_recipe(request: Request):
             e.response.text,
             exc_info=True,
         )
-        # User-facing error message
         user_message = "Error saving recipe. Please check your input."
         if e.response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
             user_message = (
                 "Error saving recipe: Invalid data provided. Please check fields."
             )
+        # Log the full detail if available from the exception response, but don't show to user
+        try:
+            detail_json = e.response.json().get("detail")
+            if detail_json:
+                logger.debug(
+                    "Full API error detail from exception: %s", str(detail_json)
+                )
+        except Exception:
+            logger.debug("Could not parse JSON detail from HTTPStatusError response.")
 
         return fh.Span(
             user_message,
