@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "beautifulsoup4",
     "coverage",
     "datasette",
     "httpx",

@@ -5,6 +5,8 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from bs4 import BeautifulSoup
+from bs4.element import Tag
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
@@ -1463,49 +1465,44 @@ class TestGetSingleRecipePageSuccess:
         assert recipe_payload["instructions"][1] in html_content
 
 
+def _get_edit_form_target_div(html_text: str) -> Tag | None:
+    """Parses HTML and finds the specific div target for form edits."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    return soup.find("div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"})
+
+
 def _extract_form_value(html_text: str, name: str) -> str | None:
-    """Extracts value from input or textarea in HTML form section."""
-    form_start = html_text.find('<div hx-swap-oob="innerHTML:#edit-form-target">')
-    if form_start == -1:
+    """Extracts a single value from an input or textarea in the HTML form section."""
+    form_div = _get_edit_form_target_div(html_text)
+    if not form_div:
         return None
-    input_pattern = re.compile(rf'<input[^>]*name="{name}"[^>]*value="([^"]*)"[^>]*>')
-    textarea_pattern = re.compile(
-        rf'<textarea[^>]*name="{name}"[^>]*>([^<]*)</textarea>'
-    )
-    input_match = input_pattern.search(html_text, form_start)
-    if input_match:
-        return html.unescape(input_match.group(1))
-    textarea_match = textarea_pattern.search(html_text, form_start)
-    if textarea_match:
-        return html.unescape(textarea_match.group(1))
+
+    input_tag = form_div.find("input", attrs={"name": name})
+    if input_tag and input_tag.has_attr("value"):
+        return input_tag["value"]
+
+    textarea_tag = form_div.find("textarea", attrs={"name": name})
+    if textarea_tag:
+        return textarea_tag.string  # .string can be None for an empty textarea
+
     return None
 
 
 def _extract_form_list_values(html_text: str, name: str) -> list[str]:
-    """Extracts all values from inputs/textareas with the same name."""
+    """Extracts all values from inputs/textareas with the same name using BeautifulSoup."""
     values = []
-    form_start = html_text.find('<div hx-swap-oob="innerHTML:#edit-form-target">')
-    if form_start == -1:
+    form_div = _get_edit_form_target_div(html_text)
+    if not form_div:
         return []
-    input_pattern = re.compile(rf'<input[^>]*name="{name}"[^>]*value="([^"]*)"[^>]*>')
-    textarea_pattern = re.compile(
-        rf'<textarea[^>]*name="{name}"[^>]*>([^<]*)</textarea>'
+
+    elements = form_div.find_all(
+        lambda tag: tag.name in ["input", "textarea"] and tag.get("name") == name
     )
-    pos = form_start
-    while True:
-        input_match = input_pattern.search(html_text, pos)
-        textarea_match = textarea_pattern.search(html_text, pos)
-        match = None
-        if input_match and (
-            not textarea_match or input_match.start() < textarea_match.start()
-        ):
-            match = input_match
-            value = html.unescape(match.group(1))
-        elif textarea_match:
-            match = textarea_match
-            value = html.unescape(match.group(1))
-        else:
-            break
-        values.append(value)
-        pos = match.end()
+
+    for element in elements:
+        if element.name == "input" and element.has_attr("value"):
+            values.append(element["value"])
+        elif element.name == "textarea":
+            values.append(element.string or "")  # Handles None for empty textareas
+
     return values
