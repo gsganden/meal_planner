@@ -30,8 +30,9 @@ def test_get_session_functional(dbsession: Session):
     # via the dependency override mechanism in conftest.py.
     # It confirms the yielded session is functional.
     assert isinstance(dbsession, Session)
-    from meal_planner.models import Recipe
     from sqlmodel import select
+
+    from meal_planner.models import Recipe
 
     statement = select(Recipe)
     results = dbsession.exec(statement).all()

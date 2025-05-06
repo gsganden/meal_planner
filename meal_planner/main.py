@@ -1058,7 +1058,6 @@ async def post_save_recipe(request: Request):
             user_message = (
                 "Error saving recipe: Invalid data provided. Please check fields."
             )
-        # Log the full detail if available from the exception response, but don't show to user
         try:
             detail_json = e.response.json().get("detail")
             if detail_json:
