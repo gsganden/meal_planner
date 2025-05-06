@@ -1383,7 +1383,6 @@ class TestGetRecipesPageSuccess:
     async def test_get_recipes_page_success_with_data(
         self, client: AsyncClient, test_db_session: Path
     ):
-        # 1. Create recipes via API
         recipe1_payload = {
             "name": "Recipe One For Page Test",
             "ingredients": ["i1"],
@@ -1402,13 +1401,11 @@ class TestGetRecipesPageSuccess:
         assert create_resp2.status_code == 201
         recipe2_id = create_resp2.json()["id"]
 
-        # 2. Get the recipes page
         page_url = RECIPES_LIST_PATH
         response = await client.get(page_url)
         assert response.status_code == 200
         html_content = response.text
 
-        # 3. Verify rendered content
         assert recipe1_payload["name"] in html_content
         assert f'href="/recipes/{recipe1_id}"' in html_content
         assert recipe2_payload["name"] in html_content
@@ -1418,15 +1415,11 @@ class TestGetRecipesPageSuccess:
     async def test_get_recipes_page_success_no_data(
         self, client: AsyncClient, test_db_session: Path
     ):
-        # DB should be empty thanks to client fixture setup
-
-        # 1. Get the recipes page
         page_url = RECIPES_LIST_PATH
         response = await client.get(page_url)
         assert response.status_code == 200
         html_content = response.text
 
-        # 2. Verify "No recipes" message
         assert "No recipes found." in html_content
 
 
@@ -1439,7 +1432,6 @@ class TestGetSingleRecipePageSuccess:
     async def test_get_single_recipe_page_success(
         self, client: AsyncClient, test_db_session: Path
     ):
-        # 1. Create a recipe via API
         recipe_payload = {
             "name": "Specific Recipe Page Test",
             "ingredients": ["Specific Ing 1", "Specific Ing 2"],
@@ -1449,13 +1441,11 @@ class TestGetSingleRecipePageSuccess:
         assert create_resp.status_code == 201
         created_recipe_id = create_resp.json()["id"]
 
-        # 2. Get the specific recipe page
         page_url = f"/recipes/{created_recipe_id}"
         response = await client.get(page_url)
         assert response.status_code == 200
         html_content = response.text
 
-        # 3. Verify rendered content
         assert recipe_payload["name"] in html_content
         assert recipe_payload["ingredients"][0] in html_content
         assert recipe_payload["ingredients"][1] in html_content
@@ -1463,44 +1453,84 @@ class TestGetSingleRecipePageSuccess:
         assert recipe_payload["instructions"][1] in html_content
 
 
-def _get_edit_form_target_div(html_text: str) -> Tag | None:
-    """Parses HTML and finds the specific div target for form edits."""
+class FormTargetDivNotFoundError(Exception):
+    """Custom exception raised when the target div for form parsing is not found."""
+
+    pass
+
+
+def _get_edit_form_target_div(html_text: str) -> Tag:
+    """Parses HTML and finds the specific div target for form edits.
+
+    Raises:
+        FormTargetDivNotFoundError: If the target div is not found.
+    """
     soup = BeautifulSoup(html_text, "html.parser")
-    return soup.find("div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"})
+    found_element = soup.find(
+        "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
+    )
+    if isinstance(found_element, Tag):
+        return found_element
+    raise FormTargetDivNotFoundError(
+        "Could not find div with hx-swap-oob='innerHTML:#edit-form-target'"
+    )
 
 
 def _extract_form_value(html_text: str, name: str) -> str | None:
-    """Extracts a single value from an input or textarea in the HTML form section."""
+    """Extracts a single value from an input or textarea in the HTML form section.
+
+    Can propagate FormTargetDivNotFoundError if the main form container is missing.
+    Returns None if the specific field is not found within the container.
+    """
     form_div = _get_edit_form_target_div(html_text)
-    if not form_div:
-        return None
 
-    input_tag = form_div.find("input", attrs={"name": name})
-    if input_tag and input_tag.has_attr("value"):
-        return input_tag["value"]
+    input_tag_candidate = form_div.find("input", attrs={"name": name})
+    if isinstance(input_tag_candidate, Tag) and input_tag_candidate.has_attr("value"):
+        value = input_tag_candidate["value"]
+        if isinstance(value, str):
+            return value
+        elif isinstance(value, list) and value and isinstance(value[0], str):
+            return value[0]
 
-    textarea_tag = form_div.find("textarea", attrs={"name": name})
-    if textarea_tag:
-        return textarea_tag.string  # .string can be None for an empty textarea
+    textarea_tag_candidate = form_div.find("textarea", attrs={"name": name})
+    if isinstance(textarea_tag_candidate, Tag):
+        return (
+            str(textarea_tag_candidate.string)
+            if textarea_tag_candidate.string is not None
+            else None
+        )
 
     return None
 
 
 def _extract_form_list_values(html_text: str, name: str) -> list[str]:
-    """Extracts all values from inputs/textareas with the same name."""
-    values = []
-    form_div = _get_edit_form_target_div(html_text)
-    if not form_div:
-        return []
+    """Extracts all values from inputs/textareas with the same name.
 
+    Can propagate FormTargetDivNotFoundError if the main form container is missing.
+    Returns an empty list if no specific fields are found within the container.
+    """
+    form_div = _get_edit_form_target_div(html_text)
+
+    values: list[str] = []
     elements = form_div.find_all(
-        lambda tag: tag.name in ["input", "textarea"] and tag.get("name") == name
+        lambda tag: isinstance(tag, Tag)
+        and tag.name in ["input", "textarea"]
+        and tag.get("name") == name
     )
 
     for element in elements:
-        if element.name == "input" and element.has_attr("value"):
-            values.append(element["value"])
-        elif element.name == "textarea":
-            values.append(element.string or "")  # Handles None for empty textareas
+        if isinstance(element, Tag):
+            if element.name == "input" and element.has_attr("value"):
+                value_attr = element["value"]
+                if isinstance(value_attr, str):
+                    values.append(value_attr)
+                elif (
+                    isinstance(value_attr, list)
+                    and value_attr
+                    and isinstance(value_attr[0], str)
+                ):
+                    values.append(value_attr[0])
+            elif element.name == "textarea":
+                values.append(str(element.string) if element.string is not None else "")
 
     return values
