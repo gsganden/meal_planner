@@ -1092,13 +1092,10 @@ async def post_modify_recipe(request: Request):
             modification_prompt,
         ) = _parse_and_validate_modify_form(form_data)
     except ModifyFormError as e:
-        # On parsing error, we need original_recipe to rebuild the form
-        # Try to parse just the original data if the main parse failed
         try:
             original_data = _parse_recipe_form_data(form_data, prefix="original_")
             original_recipe = RecipeData(**original_data)
         except Exception as inner_e:
-            # If we can't even get original data, return a critical error
             logger.error(
                 "Could not parse original data on modify error: %s",
                 inner_e,
@@ -1108,18 +1105,13 @@ async def post_modify_recipe(request: Request):
             error_content += "Critical error processing form.</div>"
             return HTMLResponse(content=error_content)
 
-        # Use the successfully parsed original_recipe and the original error (e)
         error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         modification_prompt = str(form_data.get("modification_prompt", ""))
-        # Rebuild form using original recipe as current, showing the error
-        current_recipe = original_recipe  # Display original state on error
-        # Fall through to the error handling block below
+        current_recipe = original_recipe
 
     if error_message:
-        # This block now handles both parsing errors (ModifyFormError)
-        # and LLM modification errors (RecipeModificationError)
         edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe,  # Show original state or pre-modification state
+            current_recipe,
             original_recipe,
             modification_prompt,
             error_message,
