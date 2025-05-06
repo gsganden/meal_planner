@@ -8,9 +8,9 @@ repos:
         stages: [pre-push]
 -   repo: local
     hooks:
-    -   id: ruff-lint
-        name: Run ruff lint
-        entry: uv run ruff lint
+    -   id: ruff-check
+        name: Run ruff check
+        entry: uv run ruff check
         language: system
         types: [python]
         pass_filenames: false
