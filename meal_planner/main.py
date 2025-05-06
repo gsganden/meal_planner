@@ -15,10 +15,10 @@ from fastapi import FastAPI, Request, Response
 from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
+from starlette import status
 from starlette.datastructures import FormData
 from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles
-from starlette import status
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
@@ -1059,7 +1059,7 @@ async def post_save_recipe(request: Request):
                     f"Error saving recipe via API (Status: {response.status_code})."
                 )
 
-            # We still log the full detail if available, but don't show it to the user directly
+            # Log the full detail if available, but don't show it to the user.
             try:
                 detail_json = response.json().get("detail")
                 if detail_json:

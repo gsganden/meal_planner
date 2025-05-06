@@ -1,6 +1,4 @@
-from pathlib import Path
 from unittest.mock import patch
-import json  # Keep for direct JSON manipulation if still needed, though SQLModel handles much
 
 import pytest
 import pytest_asyncio
@@ -10,6 +8,7 @@ from httpx import AsyncClient, Response
 
 # Add: Import Session for type hinting, and Recipe model for creation
 from sqlmodel import Session as SQLModelSession  # Alias to avoid potential conflicts
+
 from meal_planner.models import Recipe
 
 pytestmark = pytest.mark.asyncio
@@ -201,7 +200,7 @@ class TestCreateRecipeDBErrors:
 @pytest.mark.anyio
 class TestGetRecipes:
     async def test_get_recipes_populated(self, client: AsyncClient):
-        """Test GET /api/recipes returns all recipes when the database is populated via API calls."""
+        """Test GET /api/recipes returns all recipes when populated via API calls."""
         recipe1_payload = {
             "name": "Recipe One",
             "ingredients": ["ing1a", "ing1b"],

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlmodel import create_engine, Session
+from sqlmodel import Session, create_engine
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_NAME = "meal_planner.db"

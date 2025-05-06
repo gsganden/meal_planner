@@ -1,16 +1,15 @@
-import contextlib
 import logging
-from pathlib import Path
 from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlmodel import Session as SQLModelSession
+from sqlmodel import SQLModel as SQLModelBase
+from sqlmodel import create_engine
 
-from sqlmodel import create_engine, Session as SQLModelSession, SQLModel as SQLModelBase
 from meal_planner.database import get_session
 from meal_planner.main import api_app, app
-from sqlalchemy import inspect
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def dbsession(test_engine):
 
 @pytest_asyncio.fixture(scope="function")
 async def client(dbsession: SQLModelSession) -> AsyncGenerator[AsyncClient, None]:
-    """Provides an HTTP client for testing the FastAPI app with overridden DB session."""
+    # Provides an HTTP client for testing FastAPI with overridden DB session.
 
     def override_get_session():
         return dbsession

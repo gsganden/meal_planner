@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from meal_planner.models import RecipeBase
 from meal_planner.main import extract_recipe_from_url
+from meal_planner.models import RecipeBase
 
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
 
