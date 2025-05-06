@@ -1302,6 +1302,7 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "beautifulsoup4" },
     { name = "coverage" },
     { name = "datasette" },
     { name = "httpx" },
@@ -1320,6 +1321,7 @@ dev = [
 requires-dist = [
     { name = "anyio" },
     { name = "beautifulsoup4", specifier = ">=4.13.4" },
+    { name = "beautifulsoup4", marker = "extra == 'dev'" },
     { name = "coverage", marker = "extra == 'dev'" },
     { name = "datasette", marker = "extra == 'dev'" },
     { name = "fastlite", specifier = ">=0.1.3" },

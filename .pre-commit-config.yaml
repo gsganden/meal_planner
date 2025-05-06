@@ -6,16 +6,24 @@ repos:
         stages: [pre-push]
     -   id: check-toml
         stages: [pre-push]
--   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.0
-    hooks:
-    -   id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-        stages: [pre-push]
-    -   id: ruff-format
-        stages: [pre-push]
 -   repo: local
     hooks:
+    -   id: ruff-check
+        name: Run ruff check
+        entry: uv run ruff check
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+    -   id: ruff-format
+        name: Check ruff format
+        entry: uv run ruff format --check
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
     -   id: pyright
         name: Run pyright type checker
         entry: uv run pyright
@@ -25,8 +33,8 @@ repos:
         always_run: true
         stages: [pre-push]
     -   id: pytest
-        name: Run tests and check coverage
-        entry: uv run pytest -vv --cov=meal_planner --runslow --cov-fail-under=100
+        name: Check tests and test coverage
+        entry: uv run ./run_fast_coverage.sh
         language: system
         types: [python]
         pass_filenames: false

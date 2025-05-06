@@ -3,6 +3,8 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from bs4 import BeautifulSoup
+from bs4.element import Tag
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
@@ -161,46 +163,55 @@ class TestRecipeFetchTextEndpoint:
 @pytest.mark.anyio
 class TestRecipeExtractRunEndpoint:
     @pytest.fixture
-    def mock_get_structured_llm_response(self):
+    def mock_structured_llm_response(self):
         with patch(
             "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
         ) as mock_llm:
             yield mock_llm
 
-    async def test_success(self, client: AsyncClient, mock_get_structured_llm_response):
+    async def test_success(self, client: AsyncClient, mock_structured_llm_response):
         test_text = (
             "Recipe Name\nIngredients: ing1, ing2\nInstructions: 1. First "
             "step text\nStep 2: Second step text"
         )
-        mock_get_structured_llm_response.return_value = RecipeData(
-            name="Text Input Success Name",
-            ingredients=["ingA", "ingB"],
-            instructions=["1. Actual step A", "Step 2: Actual step B"],
+        mock_structured_llm_response.return_value = RecipeData(
+            name=" text input success name recipe ",
+            ingredients=[" ingA ", "ingB, "],
+            instructions=[
+                "1. Actual step A",
+                " Step 2: Actual step B ",
+            ],
         )
 
         response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
         )
         assert response.status_code == 200
-        mock_get_structured_llm_response.assert_called_once_with(
+        mock_structured_llm_response.assert_called_once_with(
             prompt=ANY,
             response_model=RecipeData,
         )
-        assert "# Text Input Success Name" in response.text
-        assert "## Ingredients" in response.text
-        assert "- ingA" in response.text
-        assert "- ingB" in response.text
-        assert "## Instructions" in response.text
-        assert "Actual step A" in response.text
-        assert "Actual step B" in response.text
+
+        html_content = response.text
+        assert (
+            _extract_form_value(html_content, FIELD_NAME) == "Text Input Success Name"
+        )
+        assert _extract_form_list_values(html_content, FIELD_INGREDIENTS) == [
+            "ingA",
+            "ingB,",
+        ]
+        assert _extract_form_list_values(html_content, FIELD_INSTRUCTIONS) == [
+            "Actual step A",
+            "Actual step B",
+        ]
 
     @patch("meal_planner.main.logger.error")
     async def test_extraction_error(
-        self, mock_logger_error, client: AsyncClient, mock_get_structured_llm_response
+        self, mock_logger_error, client: AsyncClient, mock_structured_llm_response
     ):
         test_text = "Some recipe text that causes an LLM error."
         llm_exception = Exception("LLM failed on text input")
-        mock_get_structured_llm_response.side_effect = llm_exception
+        mock_structured_llm_response.side_effect = llm_exception
 
         response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
@@ -210,7 +221,7 @@ class TestRecipeExtractRunEndpoint:
             "Recipe extraction failed. An unexpected error occurred during processing."
         )
         assert expected_error_msg in response.text
-        mock_get_structured_llm_response.assert_called_once()
+        mock_structured_llm_response.assert_called_once()
         mock_logger_error.assert_any_call(
             "Error during recipe extraction call: %s",
             MODEL_NAME,
@@ -224,6 +235,78 @@ class TestRecipeExtractRunEndpoint:
         assert response.status_code == 200
         expected_error_msg = "No text content provided for extraction."
         assert expected_error_msg in response.text
+
+    @patch("meal_planner.main.postprocess_recipe")
+    @patch("meal_planner.main.get_structured_llm_response", new_callable=AsyncMock)
+    async def test_extract_run_missing_instructions(
+        self, mock_get_structured_llm_response, mock_postprocess, client: AsyncClient
+    ):
+        """Test recipe extraction placeholder logic for empty instructions."""
+        test_text = "Recipe with ingredients only"
+
+        mock_recipe = MagicMock(spec=RecipeData)
+        raw_name = "Needs Instructions Recipe"
+        raw_ingredients = ["Ingredient A", " Ingredient B "]
+        mock_recipe.name = raw_name
+        mock_recipe.ingredients = raw_ingredients
+        mock_recipe.instructions = []
+        mock_get_structured_llm_response.return_value = mock_recipe
+
+        mock_postprocess.side_effect = lambda recipe: recipe
+
+        response = await client.post(
+            RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
+        )
+
+        assert response.status_code == 200
+        mock_get_structured_llm_response.assert_called_once()
+        mock_postprocess.assert_called_once_with(mock_recipe)
+
+        html_content = response.text
+        assert _extract_form_value(html_content, FIELD_NAME) == raw_name
+        assert (
+            _extract_form_list_values(html_content, FIELD_INGREDIENTS)
+            == raw_ingredients
+        )
+        assert _extract_form_list_values(html_content, FIELD_INSTRUCTIONS) == [
+            "No instructions found"
+        ]
+
+    @patch("meal_planner.main.postprocess_recipe")
+    @patch("meal_planner.main.get_structured_llm_response", new_callable=AsyncMock)
+    async def test_extract_run_missing_ingredients(
+        self, mock_get_structured_llm_response, mock_postprocess, client: AsyncClient
+    ):
+        """Test recipe extraction placeholder logic for empty ingredients."""
+        test_text = "Recipe with instructions only"
+
+        mock_recipe = MagicMock(spec=RecipeData)
+        raw_name = "Needs Ingredients Recipe"
+        raw_instructions = ["Instruction A", " 1. Instruction B"]
+        mock_recipe.name = raw_name
+        mock_recipe.ingredients = []
+        mock_recipe.instructions = raw_instructions
+        mock_get_structured_llm_response.return_value = mock_recipe
+
+        mock_postprocess.side_effect = lambda recipe: recipe
+
+        response = await client.post(
+            RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: test_text}
+        )
+
+        assert response.status_code == 200
+        mock_get_structured_llm_response.assert_called_once()
+        mock_postprocess.assert_called_once_with(mock_recipe)
+
+        html_content = response.text
+        assert _extract_form_value(html_content, FIELD_NAME) == raw_name
+        assert _extract_form_list_values(html_content, FIELD_INGREDIENTS) == [
+            "No ingredients found"
+        ]
+        assert (
+            _extract_form_list_values(html_content, FIELD_INSTRUCTIONS)
+            == raw_instructions
+        )
 
 
 @pytest.mark.anyio
@@ -354,8 +437,6 @@ class TestFetchAndCleanTextFromUrl:
         assert raised_exception == log_args[1]
         assert kwargs.get("exc_info") is True
 
-        # If the raised exception was NOT an httpx error, html_cleaner shouldn't
-        # be called
         if not isinstance(
             raised_exception, (httpx.RequestError, httpx.HTTPStatusError)
         ):
@@ -374,18 +455,16 @@ class TestFetchAndCleanTextFromUrl:
     ):
         """Test that a generic exception during HTML cleaning is caught and raises
         RuntimeError."""
-        mock_fetch_page_text.return_value = "<html></html>"  # Simulate successful fetch
+        mock_fetch_page_text.return_value = "<html></html>"
         cleaning_exception = Exception("HTML cleaning failed!")
         mock_html_cleaner.side_effect = cleaning_exception
 
         with pytest.raises(RuntimeError) as excinfo:
             await fetch_and_clean_text_from_url(self.TEST_URL)
 
-        # Check that the RuntimeError includes the original exception
         assert excinfo.value.__cause__ is cleaning_exception
         assert f"Failed to process URL content: {self.TEST_URL}" in str(excinfo.value)
 
-        # Verify logging
         mock_logger_error.assert_called_once()
         args, kwargs = mock_logger_error.call_args
         assert "Error cleaning HTML text" in args[0]
@@ -393,7 +472,6 @@ class TestFetchAndCleanTextFromUrl:
         assert args[2] is cleaning_exception
         assert kwargs.get("exc_info") is True
 
-        # Verify mocks
         mock_fetch_page_text.assert_called_once_with(self.TEST_URL)
         mock_html_cleaner.assert_called_once_with("<html></html>")
 
@@ -407,15 +485,13 @@ async def test_get_structured_llm_response_api_error(mock_logger_error, mock_cre
     api_exception = Exception("Simulated API failure")
     mock_create.side_effect = api_exception
     test_prompt = "Test prompt"
-    test_model = RecipeData  # Use a concrete model for testing
+    test_model = RecipeData
 
     with pytest.raises(Exception) as excinfo:
         await get_structured_llm_response(prompt=test_prompt, response_model=test_model)
 
-    # Check that the original exception was re-raised
     assert excinfo.value is api_exception
 
-    # Check that the error was logged correctly
     mock_logger_error.assert_called_once_with(
         "LLM Call Error: model=%s, response_model=%s, error=%s",
         MODEL_NAME,
@@ -488,35 +564,30 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
         FIELD_INSTRUCTIONS: ["saved inst 1", "saved inst 2"],
     }
 
-    # 1. Call the save endpoint
     save_response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert save_response.status_code == 200
     assert "Current Recipe Saved!" in save_response.text
 
-    # 2. Verify by fetching all recipes via API
     get_all_response = await client.get("/api/v0/recipes")
     assert get_all_response.status_code == 200
     all_recipes_data = get_all_response.json()
 
-    # 3. Find the saved recipe by name and get its ID
     saved_recipe_api_data = None
     for recipe in all_recipes_data:
         if recipe["name"] == form_data[FIELD_NAME]:
             saved_recipe_api_data = recipe
             break
 
-    assert (
-        saved_recipe_api_data is not None
-    ), f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
+    assert saved_recipe_api_data is not None, (
+        f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
+    )
     saved_recipe_id = saved_recipe_api_data["id"]
     assert isinstance(saved_recipe_id, int)
 
-    # 4. Verify the specific recipe by fetching its ID via API
     get_one_response = await client.get(f"/api/v0/recipes/{saved_recipe_id}")
     assert get_one_response.status_code == 200
     fetched_recipe = get_one_response.json()
 
-    # 5. Assert fetched data matches original form data
     assert fetched_recipe["name"] == form_data[FIELD_NAME]
     assert fetched_recipe["ingredients"] == form_data[FIELD_INGREDIENTS]
     assert fetched_recipe["instructions"] == form_data[FIELD_INSTRUCTIONS]
@@ -799,9 +870,9 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
     response = await client.post(RECIPES_MODIFY_URL, data=dummy_form_data)
 
     assert response.status_code == 200
-    assert "Error processing modification request form." in response.text
+    assert "Critical error processing form." in response.text
     assert CSS_ERROR_CLASS in response.text
-    assert mock_parse.call_count == 1
+    assert mock_parse.call_count == 2
 
 
 class TestGenerateDiffHtml:
@@ -1117,7 +1188,7 @@ class TestRecipeUpdateDiff:
         assert response.status_code == 200
         html = response.text
         assert 'id="diff-content-wrapper"' in html
-        assert 'class="text-red-500 mb-4"' in html
+        assert f'class="{CSS_ERROR_CLASS}"' in html
         assert "Error generating diff view" in html
         mock_build_diff.assert_called_once()
 
@@ -1150,7 +1221,7 @@ class TestRecipeUpdateDiff:
         html = response.text
         assert "Recipe state invalid for diff" in html
         assert 'id="diff-content-wrapper"' in html
-        assert 'class="text-orange-500"' in html
+        assert f'class="{CSS_ERROR_CLASS}"' in html
 
 
 @pytest.mark.anyio
@@ -1312,7 +1383,6 @@ class TestGetRecipesPageSuccess:
     async def test_get_recipes_page_success_with_data(
         self, client: AsyncClient, test_db_session: Path
     ):
-        # 1. Create recipes via API
         recipe1_payload = {
             "name": "Recipe One For Page Test",
             "ingredients": ["i1"],
@@ -1331,13 +1401,11 @@ class TestGetRecipesPageSuccess:
         assert create_resp2.status_code == 201
         recipe2_id = create_resp2.json()["id"]
 
-        # 2. Get the recipes page
         page_url = RECIPES_LIST_PATH
         response = await client.get(page_url)
         assert response.status_code == 200
         html_content = response.text
 
-        # 3. Verify rendered content
         assert recipe1_payload["name"] in html_content
         assert f'href="/recipes/{recipe1_id}"' in html_content
         assert recipe2_payload["name"] in html_content
@@ -1347,15 +1415,11 @@ class TestGetRecipesPageSuccess:
     async def test_get_recipes_page_success_no_data(
         self, client: AsyncClient, test_db_session: Path
     ):
-        # DB should be empty thanks to client fixture setup
-
-        # 1. Get the recipes page
         page_url = RECIPES_LIST_PATH
         response = await client.get(page_url)
         assert response.status_code == 200
         html_content = response.text
 
-        # 2. Verify "No recipes" message
         assert "No recipes found." in html_content
 
 
@@ -1368,7 +1432,6 @@ class TestGetSingleRecipePageSuccess:
     async def test_get_single_recipe_page_success(
         self, client: AsyncClient, test_db_session: Path
     ):
-        # 1. Create a recipe via API
         recipe_payload = {
             "name": "Specific Recipe Page Test",
             "ingredients": ["Specific Ing 1", "Specific Ing 2"],
@@ -1378,15 +1441,96 @@ class TestGetSingleRecipePageSuccess:
         assert create_resp.status_code == 201
         created_recipe_id = create_resp.json()["id"]
 
-        # 2. Get the specific recipe page
         page_url = f"/recipes/{created_recipe_id}"
         response = await client.get(page_url)
         assert response.status_code == 200
         html_content = response.text
 
-        # 3. Verify rendered content
         assert recipe_payload["name"] in html_content
         assert recipe_payload["ingredients"][0] in html_content
         assert recipe_payload["ingredients"][1] in html_content
         assert recipe_payload["instructions"][0] in html_content
         assert recipe_payload["instructions"][1] in html_content
+
+
+class FormTargetDivNotFoundError(Exception):
+    """Custom exception raised when the target div for form parsing is not found."""
+
+    pass
+
+
+def _get_edit_form_target_div(html_text: str) -> Tag:
+    """Parses HTML and finds the specific div target for form edits.
+
+    Raises:
+        FormTargetDivNotFoundError: If the target div is not found.
+    """
+    soup = BeautifulSoup(html_text, "html.parser")
+    found_element = soup.find(
+        "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
+    )
+    if isinstance(found_element, Tag):
+        return found_element
+    raise FormTargetDivNotFoundError(
+        "Could not find div with hx-swap-oob='innerHTML:#edit-form-target'"
+    )
+
+
+def _extract_form_value(html_text: str, name: str) -> str | None:
+    """Extracts a single value from an input or textarea in the HTML form section.
+
+    Can propagate FormTargetDivNotFoundError if the main form container is missing.
+    Returns None if the specific field is not found within the container.
+    """
+    form_div = _get_edit_form_target_div(html_text)
+
+    input_tag_candidate = form_div.find("input", attrs={"name": name})
+    if isinstance(input_tag_candidate, Tag) and input_tag_candidate.has_attr("value"):
+        value = input_tag_candidate["value"]
+        if isinstance(value, str):
+            return value
+        elif isinstance(value, list) and value and isinstance(value[0], str):
+            return value[0]
+
+    textarea_tag_candidate = form_div.find("textarea", attrs={"name": name})
+    if isinstance(textarea_tag_candidate, Tag):
+        return (
+            str(textarea_tag_candidate.string)
+            if textarea_tag_candidate.string is not None
+            else None
+        )
+
+    return None
+
+
+def _extract_form_list_values(html_text: str, name: str) -> list[str]:
+    """Extracts all values from inputs/textareas with the same name.
+
+    Can propagate FormTargetDivNotFoundError if the main form container is missing.
+    Returns an empty list if no specific fields are found within the container.
+    """
+    form_div = _get_edit_form_target_div(html_text)
+
+    values: list[str] = []
+    elements = form_div.find_all(
+        lambda tag: isinstance(tag, Tag)
+        and tag.name in ["input", "textarea"]
+        and tag.get("name") == name
+    )
+
+    for element in elements:
+        if isinstance(element, Tag):
+            if element.name == "input" and element.has_attr("value"):
+                value_attr = element["value"]
+                if isinstance(value_attr, str):
+                    values.append(value_attr)
+                elif (
+                    isinstance(value_attr, list)
+                    and value_attr
+                    and isinstance(value_attr[0], str)
+                ):
+                    values.append(value_attr[0])
+            elif element.name == "textarea":
+                values.append(str(element.string) if element.string is not None else "")
+
+    return values
