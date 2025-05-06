@@ -1,5 +1,3 @@
-import html
-import re
 from pathlib import Path
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
@@ -1489,7 +1487,7 @@ def _extract_form_value(html_text: str, name: str) -> str | None:
 
 
 def _extract_form_list_values(html_text: str, name: str) -> list[str]:
-    """Extracts all values from inputs/textareas with the same name using BeautifulSoup."""
+    """Extracts all values from inputs/textareas with the same name."""
     values = []
     form_div = _get_edit_form_target_div(html_text)
     if not form_div:

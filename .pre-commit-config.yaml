@@ -33,8 +33,8 @@ repos:
         always_run: true
         stages: [pre-push]
     -   id: pytest
-        name: Run tests and check coverage
-        entry: uv run pytest -vv --cov=meal_planner --runslow --cov-fail-under=100
+        name: Check tests and test coverage
+        entry: uv run ./run_fast_coverage.sh
         language: system
         types: [python]
         pass_filenames: false
