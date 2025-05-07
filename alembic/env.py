@@ -3,37 +3,24 @@ import sys
 from logging.config import fileConfig
 
 from alembic import context
-
-# Moved imports to top
 from meal_planner.database import (
     DATA_DIR,
     DATABASE_URL,
 )
 from meal_planner.database import (
-    engine as app_engine,  # Import the engine used by the app
+    engine as app_engine,
 )
-from meal_planner.models import SQLModel  # Import SQLModel itself (which has .metadata)
+from meal_planner.models import SQLModel
 
-# This line allows env.py to find your project's modules.
-# Assumes alembic.ini structure allows adding '.' to sys.path via prepend_sys_path.
 PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_DIR)
 
-# This is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set the target metadata for 'autogenerate' support
 target_metadata = SQLModel.metadata
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired: my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 
 def run_migrations_offline() -> None:
@@ -48,7 +35,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = DATABASE_URL  # Use imported DATABASE_URL
+    url = DATABASE_URL
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -67,10 +54,8 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # Ensure the data directory exists before trying to connect
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Use the engine from your app's database module
     connectable = app_engine
 
     with connectable.connect() as connection:
