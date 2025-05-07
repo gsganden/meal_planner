@@ -6,26 +6,19 @@ from sqlmodel import Field, SQLModel
 
 RecipeIngredients = Annotated[
     list[str],
-    Field(description="List of ingredients", min_length=1),
+    Field(description="List of ingredients", min_length=1, sa_column=Column(JSON)),
 ]
 RecipeInstructions = Annotated[
     list[str],
-    Field(description="List of instructions", min_length=1),
+    Field(description="List of instructions", min_length=1, sa_column=Column(JSON)),
 ]
 RecipeName = Annotated[str, Field(description="The name of the recipe", min_length=1)]
 
 
-# Model for creating a recipe - ensures validation via Annotated types
-class RecipeCreate(SQLModel):  # Or BaseModel if it doesn't need to be a table model
+class RecipeBase(SQLModel):
     name: RecipeName
     ingredients: RecipeIngredients
     instructions: RecipeInstructions
-
-
-class RecipeBase(SQLModel):
-    name: RecipeName
-    ingredients: list[str] = Field(sa_column=Column(JSON))
-    instructions: list[str] = Field(sa_column=Column(JSON))
 
     @property
     def markdown(self) -> str:

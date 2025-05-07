@@ -599,13 +599,13 @@ async def test_save_recipe_success(client: AsyncClient):
     [
         pytest.param(
             {FIELD_NAME: "Only Name"},
-            "Error saving recipe: Invalid data provided. Please check fields.",
+            "Invalid recipe data. Please check the fields.",
             "missing_ingredients",
             id="missing_ingredients",
         ),
         pytest.param(
             {FIELD_NAME: "Name and Ing", FIELD_INGREDIENTS: ["ing1"]},
-            "Error saving recipe: Invalid data provided. Please check fields.",
+            "Invalid recipe data. Please check the fields.",
             "missing_instructions",
             id="missing_instructions",
         ),
@@ -663,13 +663,13 @@ async def test_save_recipe_api_call_error(client: AsyncClient, monkeypatch):
         ),
         pytest.param(
             {FIELD_NAME: "Valid", FIELD_INGREDIENTS: [""], FIELD_INSTRUCTIONS: ["s1"]},
-            "Error saving recipe: Invalid data provided. Please check fields.",
+            "Invalid recipe data. Please check the fields.",
             "empty_ingredient",
             id="empty_ingredient",
         ),
         pytest.param(
             {FIELD_NAME: "Valid", FIELD_INGREDIENTS: ["i1"], FIELD_INSTRUCTIONS: [""]},
-            "Error saving recipe: Invalid data provided. Please check fields.",
+            "Invalid recipe data. Please check the fields.",
             "empty_instruction",
             id="empty_instruction",
         ),
@@ -1605,3 +1605,84 @@ async def test_save_recipe_api_call_non_json_error_response(
     assert error_span is not None
     assert error_span.get_text(strip=True) == expected_msg
     mock_post.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_save_recipe_api_call_422_error(client: AsyncClient, monkeypatch):
+    """Test error handling for HTTP 422 error from the internal API."""
+    # Mock the response object for the 422 error
+    mock_response_422 = AsyncMock(spec=httpx.Response)
+    mock_response_422.status_code = 422
+    mock_response_422.text = "Unprocessable Entity"  # Content can be simple
+    # Mock .json() to simulate it might be called, even if not strictly used for message
+    mock_response_422.json = MagicMock(return_value={"detail": "API validation error"})
+
+    mock_post = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            "API 422 Error",
+            request=httpx.Request("POST", "/api/v0/recipes"),
+            response=mock_response_422,
+        )
+    )
+    monkeypatch.setattr("meal_planner.main.internal_client.post", mock_post)
+
+    form_data = {
+        FIELD_NAME: "Test 422 Error",
+        FIELD_INGREDIENTS: ["ingredient"],
+        FIELD_INSTRUCTIONS: ["instruction"],
+    }
+    response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    assert response.status_code == 200
+    # This is the specific message for 422 errors
+    expected_msg = "Error saving recipe: Invalid data provided. Please check fields."
+    soup = BeautifulSoup(response.text, "html.parser")
+    error_span = soup.find("span", id="save-button-container")
+    assert error_span is not None
+    assert error_span.get_text(strip=True) == expected_msg
+    mock_post.assert_awaited_once()
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main.logger.debug")  # Patch logger.debug to check its calls
+async def test_save_recipe_api_call_json_error_with_detail(
+    mock_logger_debug: MagicMock, client: AsyncClient, monkeypatch
+):
+    """Test error handling when internal API returns HTTPStatusError with JSON detail."""
+    error_detail_text = "Specific error detail from JSON"
+
+    # Mock the httpx.Response object
+    mock_api_response = AsyncMock(spec=httpx.Response)
+    mock_api_response.status_code = 400  # Example: Bad Request
+    mock_api_response.text = f'{{"detail": "{error_detail_text}"}}'
+    mock_api_response.json = MagicMock(return_value={"detail": error_detail_text})
+
+    # Mock internal_client.post to raise HTTPStatusError with the mocked response
+    mock_post = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            "API JSON Error",
+            request=httpx.Request("POST", "/api/v0/recipes"),
+            response=mock_api_response,
+        )
+    )
+    monkeypatch.setattr("meal_planner.main.internal_client.post", mock_post)
+
+    form_data = {
+        FIELD_NAME: "API JSON Error Test",
+        FIELD_INGREDIENTS: ["ingredient"],
+        FIELD_INSTRUCTIONS: ["instruction"],
+    }
+    response = await client.post(RECIPES_SAVE_URL, data=form_data)
+    assert response.status_code == 200
+
+    # For non-422 errors, the message falls back to the general one
+    expected_user_msg = "Error saving recipe. Please check your input."
+    soup = BeautifulSoup(response.text, "html.parser")
+    error_span = soup.find("span", id="save-button-container")
+    assert error_span is not None
+    assert error_span.get_text(strip=True) == expected_user_msg
+
+    mock_post.assert_awaited_once()
+    # Check that logger.debug was called with the detail
+    mock_logger_debug.assert_any_call(
+        "Full API error detail from exception: %s", error_detail_text
+    )

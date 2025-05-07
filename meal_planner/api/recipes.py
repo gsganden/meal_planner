@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from meal_planner.database import get_session
 from meal_planner.models import (
     Recipe,
-    RecipeCreate,
+    RecipeBase,
 )
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ API_ROUTER = APIRouter()
     response_model=Recipe,
 )
 async def create_recipe(
-    recipe_data: RecipeCreate,
+    recipe_data: RecipeBase,
     session: Annotated[Session, Depends(get_session)],
 ):
     db_recipe = Recipe.model_validate(recipe_data)
