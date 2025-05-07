@@ -2,12 +2,8 @@ from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
-
-# Remove: from fastlite import database
 from httpx import AsyncClient, Response
-
-# Add: Import Session for type hinting, and Recipe model for creation
-from sqlmodel import Session as SQLModelSession  # Alias to avoid potential conflicts
+from sqlmodel import Session as SQLModelSession
 
 from meal_planner.models import Recipe
 
