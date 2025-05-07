@@ -13,7 +13,6 @@ from meal_planner.main import api_app, app
 
 logger = logging.getLogger(__name__)
 
-# In-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
@@ -22,14 +21,12 @@ def test_engine():
     """Creates an in-memory SQLite engine for each test function."""
     engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
     yield engine
-    # Engine disposal might happen automatically, but being explicit can help
     engine.dispose()
 
 
 @pytest.fixture(scope="function")
 def dbsession(test_engine):
     """Provides a transactional session with tables created for each test function."""
-    # Create tables for this specific engine instance
     SQLModelBase.metadata.create_all(test_engine)
 
     connection = test_engine.connect()
@@ -42,21 +39,16 @@ def dbsession(test_engine):
     transaction.rollback()
     connection.close()
 
-    # Drop tables after test
     SQLModelBase.metadata.drop_all(test_engine)
 
 
 @pytest_asyncio.fixture(scope="function")
 async def client(dbsession: SQLModelSession) -> AsyncGenerator[AsyncClient, None]:
-    # Provides an HTTP client for testing FastAPI with overridden DB session.
-
     def override_get_session():
         return dbsession
 
-    # Need to override on the app that the endpoint is actually part of
     api_app.dependency_overrides[get_session] = override_get_session
 
-    # Use the main 'app' for the transport, as it handles the /api mount
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
