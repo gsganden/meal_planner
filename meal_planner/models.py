@@ -15,7 +15,6 @@ RecipeInstructions = Annotated[
 RecipeName = Annotated[
     str, Field(..., description="The name of the recipe", min_length=1)
 ]
-RecipeName = Annotated[str, Field(description="The name of the recipe", min_length=1)]
 
 
 class RecipeBase(SQLModel):
