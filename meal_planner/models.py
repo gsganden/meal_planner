@@ -1,22 +1,23 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from sqlalchemy import Column
+from sqlalchemy.types import JSON
+from sqlmodel import Field, SQLModel
 
-RecipeId = Annotated[int, Field(..., description="Unique identifier for the recipe")]
 RecipeIngredients = Annotated[
     list[str],
-    Field(..., description="List of ingredients", min_length=1),
+    Field(description="List of ingredients", min_length=1, sa_column=Column(JSON)),
 ]
 RecipeInstructions = Annotated[
     list[str],
-    Field(..., description="List of instructions"),
+    Field(..., description="List of instructions", sa_column=Column(JSON)),
 ]
 RecipeName = Annotated[
     str, Field(..., description="The name of the recipe", min_length=1)
 ]
 
 
-class RecipeData(BaseModel):
+class RecipeBase(SQLModel):
     name: RecipeName
     ingredients: RecipeIngredients
     instructions: RecipeInstructions
@@ -32,5 +33,5 @@ class RecipeData(BaseModel):
         )
 
 
-class Recipe(RecipeData):
-    id: RecipeId
+class Recipe(RecipeBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
