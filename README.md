@@ -53,3 +53,35 @@ To check test coverage with minimal LLM calls:
 ```bash
 ./run_fast_coverage.sh
 ```
+
+```mermaid
+graph LR
+    User(("User"))
+
+    Modal["Modal (Hosting)"]
+
+    subgraph "Meal Planner Application"
+        direction LR
+        subgraph "UI & Presentation Layer"
+            UI_Layer["FastHTML, MonsterUI, HTMX<br/>Serves HTML, UI Logic<br/>Orchestrates AI & API calls"]
+        end
+
+        subgraph "Backend API Layer"
+            API_Layer["FastAPI<br/>RESTful Endpoints<br/>DB Interaction"]
+        end
+
+        UI_Layer -- "Internal API Call" --> API_Layer
+    end
+
+    subgraph "Data & Services"
+        direction TB
+        Database[("Database (SQLite)")]
+        Gemini_AI["Google Gemini AI Service<br/>openai client, instructor"]
+    end
+
+    User --> Modal
+    Modal --> UI_Layer
+
+    UI_Layer -- "AI Tasks" --> Gemini_AI
+    API_Layer --> Database
+```
