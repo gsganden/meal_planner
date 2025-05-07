@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/gsganden/meal_planner/actions/workflows/ci.yml/badge.svg)](https://github.com/gsganden/meal_planner/actions/workflows/ci.yml)
+[![Build Status](https://github.com/gsganden/meal_planner/actions/workflows/ci_cd.yml/badge.svg)](https://github.com/gsganden/meal_planner/actions/workflows/ci_cd.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Checked with Pyright](https://img.shields.io/badge/type_checked-pyright-blue)](https://github.com/microsoft/pyright)
@@ -7,6 +7,39 @@
 # Meal Planner
 
 AI-powered meal planning app. Under development. Running at https://gsganden--meal-planner-web.modal.run/.
+
+
+```mermaid
+graph LR
+    User(("User"))
+
+    Modal["Modal (Hosting)"]
+
+    subgraph "Meal Planner Application"
+        direction LR
+        subgraph "UI & Presentation Layer"
+            UI_Layer["FastHTML, MonsterUI, HTMX<br/>Serves HTML, UI Logic<br/>Orchestrates AI & API calls"]
+        end
+
+        subgraph "Backend API Layer"
+            API_Layer["FastAPI<br/>RESTful Endpoints<br/>DB Interaction"]
+        end
+
+        UI_Layer -- "Internal API Call" --> API_Layer
+    end
+
+    subgraph "Data & Services"
+        direction TB
+        Database[("Database (SQLite)")]
+        Gemini_AI["Google Gemini AI Service<br/>openai client, instructor"]
+    end
+
+    User --> Modal
+    Modal --> UI_Layer
+
+    UI_Layer -- "AI Tasks" --> Gemini_AI
+    API_Layer --> Database
+```
 
 ## Setup
 
