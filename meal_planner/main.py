@@ -11,14 +11,14 @@ import html2text
 import httpx
 import instructor
 import monsterui.all as mu
-from fastapi import FastAPI, Request, Response, status
+from bs4.element import Tag
+from fastapi import FastAPI, Request, status
 from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 from starlette import status
 from starlette.datastructures import FormData
 from starlette.responses import HTMLResponse
-from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
@@ -52,7 +52,6 @@ api_app = FastAPI()
 api_app.include_router(RECIPES_API_ROUTER)
 
 app.mount("/api", api_app)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 internal_client = httpx.AsyncClient(
     transport=ASGITransport(app=app),
@@ -144,7 +143,6 @@ def with_layout(content):
             fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
             fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
         ),
-        fh.Script(src="/static/main.js"),
     )
 
 
@@ -609,42 +607,34 @@ def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
     }
 
 
-def _build_diff_content(original_recipe: RecipeBase, current_markdown: str):
-    """Builds the inner content for the diff view container."""
-    before_html, after_html = generate_diff_html(
+def _build_diff_content_children(
+    original_recipe: RecipeBase, current_markdown: str
+) -> tuple[fh.NotStr, fh.NotStr]:
+    """Builds the HTML strings for 'before' and 'after' Divs for the diff view."""
+    before_diff_markup, after_diff_markup = generate_diff_html(
         original_recipe.markdown, current_markdown
     )
-    pre_style = "white-space: pre-wrap; overflow-wrap: break-word;"
 
-    before_area = fh.Div(
-        fh.Strong("Initial Extracted Recipe (Reference)"),
-        fh.Pre(
-            fh.Html(fh.NotStr(before_html)),
-            cls=(
-                "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1"
-                " overflow-auto text-xs"
-            ),
-            id="diff-before-pre",
-            style=pre_style,
-        ),
-        cls="w-1/2",
+    pre_style = "white-space: pre-wrap; overflow-wrap: break-word;"
+    base_classes = (
+        "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs"
     )
-    after_area = fh.Div(
-        fh.Strong("Current Edited Recipe"),
-        fh.Pre(
-            fh.Html(fh.NotStr(after_html)),
-            cls=(
-                "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1"
-                " overflow-auto text-xs"
-            ),
-            id="diff-after-pre",
-            style=pre_style,
-        ),
-        cls="w-1/2",
+
+    before_area_html = (
+        f'<div class="w-1/2">'
+        f"<strong>Initial Extracted Recipe (Reference)</strong>"
+        f'<pre id="diff-before-pre" class="{base_classes}" style="{pre_style}">'
+        f"{before_diff_markup}</pre></div>"
     )
-    return fh.Div(
-        before_area, after_area, cls="flex space-x-4 mt-4", id="diff-content-wrapper"
+
+    after_area_html = (
+        f'<div class="w-1/2">'
+        f"<strong>Current Edited Recipe</strong>"
+        f'<pre id="diff-after-pre" class="{base_classes}" style="{pre_style}">'
+        f"{after_diff_markup}</pre></div>"
     )
+
+    return fh.NotStr(before_area_html), fh.NotStr(after_area_html)
 
 
 def _build_edit_review_form(
@@ -670,10 +660,10 @@ def _build_edit_review_form(
         editable_section,
     )
 
-    diff_style = fh.Style("""
+    diff_style = fh.Style("""\
         /* Apply background colors, let default text decoration apply */
-        ins { @apply bg-green-100 dark:bg-green-700 dark:bg-opacity-40; }
-        del { @apply bg-red-100 dark:bg-red-700 dark:bg-opacity-40; }
+        ins { @apply bg-green-100 dark:bg-green-700 dark:bg-opacity-40; }\
+        del { @apply bg-red-100 dark:bg-red-700 dark:bg-opacity-40; }\
     """)
 
     main_edit_card = mu.Card(
@@ -773,10 +763,49 @@ def _build_name_input(name_value: str):
     )
 
 
+def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
+    """Render ingredient input divs as a list of fasthtml.Tag components."""
+    items_list = []
+    for i, ing_value in enumerate(ingredients):
+        input_component = fh.Input(
+            type="text",
+            name="ingredients",
+            value=ing_value,  # fh.Input handles escaping by default
+            placeholder="Ingredient",
+            cls="uk-input flex-grow mr-2",
+            hx_post="/recipes/ui/update-diff",
+            hx_target="#diff-content-wrapper",
+            hx_swap="innerHTML",
+            hx_trigger="change, keyup changed delay:500ms",
+            hx_include="closest form",
+        )
+
+        button_component = fh.Button(
+            fh.Span(cls=f"{mu.TextT.error}", data_uk_icon="icon: minus-circle"),
+            type="button",
+            hx_post=f"/recipes/ui/delete-ingredient/{i}",
+            hx_target="#ingredients-list",
+            hx_swap="innerHTML",
+            hx_include="closest form",
+            cls="uk-button uk-button-danger uk-border-circle p-1 "
+            "flex items-center justify-center ml-2",
+        )
+
+        item_div = fh.Div(
+            input_component,
+            button_component,
+            cls="flex items-center mb-2",
+        )
+        items_list.append(item_div)
+    return items_list
+
+
 def _build_ingredients_section(ingredients: list[str]):
     """Builds the ingredients list section with inputs and add/remove buttons."""
-    ingredient_inputs = fh.Div(
-        *(_build_ingredient_input(i, ing) for i, ing in enumerate(ingredients)),
+    ingredient_item_components = _render_ingredient_list_items(ingredients)
+
+    ingredient_inputs_container = fh.Div(
+        *ingredient_item_components,  # Unpack the list of components
         id="ingredients-list",
         cls="mb-4",
     )
@@ -784,50 +813,61 @@ def _build_ingredients_section(ingredients: list[str]):
         mu.UkIcon("plus-circle", cls=mu.TextT.primary),
         hx_post="/recipes/ui/add-ingredient",
         hx_target="#ingredients-list",
-        hx_swap="beforeend",
+        hx_swap="innerHTML",
+        hx_include="closest form",
         cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
     )
     return fh.Div(
         fh.H3("Ingredients", cls="text-xl mb-2"),
-        ingredient_inputs,
+        ingredient_inputs_container,
         add_ingredient_button,
     )
 
 
-def _build_ingredient_input(index: int, value: str):
-    """Builds a single ingredient input row."""
-    return fh.Div(
-        mu.Input(
-            name="ingredients",
-            value=value,
-            placeholder="Ingredient",
-            cls="flex-grow mr-2",
+def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
+    """Render instruction textarea divs as a list of fasthtml.Tag components."""
+    items_list = []
+    for i, inst_value in enumerate(instructions):
+        textarea_component = fh.Textarea(
+            inst_value,  # Content is the first argument for Textarea
+            name="instructions",
+            placeholder="Instruction Step",
+            rows=2,
+            cls="uk-textarea flex-grow mr-2",
             hx_post="/recipes/ui/update-diff",
             hx_target="#diff-content-wrapper",
             hx_swap="innerHTML",
             hx_trigger="change, keyup changed delay:500ms",
             hx_include="closest form",
-        ),
-        mu.Button(
-            mu.UkIcon("minus-circle", cls=mu.TextT.error),
-            cls=(
-                "ml-2 uk-border-circle p-1 flex"
-                " items-center justify-center delete-item-button"
-            ),
+        )
+
+        button_component = fh.Button(
+            fh.Span(cls=f"{mu.TextT.error}", data_uk_icon="icon: minus-circle"),
             type="button",
-        ),
-        cls="flex items-center mb-2",
-        id=f"ingredient-{index}",
-    )
+            hx_post=f"/recipes/ui/delete-instruction/{i}",
+            hx_target="#instructions-list",
+            hx_swap="innerHTML",
+            hx_include="closest form",
+            cls="uk-button uk-button-danger uk-border-circle p-1 "
+            "flex items-center justify-center ml-2",
+        )
+
+        # Align items-start for multiline textarea
+        item_div = fh.Div(
+            textarea_component,
+            button_component,
+            cls="flex items-start mb-2",
+        )
+        items_list.append(item_div)
+    return items_list
 
 
 def _build_instructions_section(instructions: list[str]):
     """Builds the instructions list section with textareas and add/remove buttons."""
-    instruction_items = [
-        _build_instruction_input(i, inst) for i, inst in enumerate(instructions)
-    ]
-    instruction_inputs = fh.Div(
-        *instruction_items,
+    instruction_item_components = _render_instruction_list_items(instructions)
+
+    instruction_inputs_container = fh.Div(
+        *instruction_item_components,  # Unpack the list of components
         id="instructions-list",
         cls="mb-4",
     )
@@ -835,48 +875,32 @@ def _build_instructions_section(instructions: list[str]):
         mu.UkIcon("plus-circle", cls=mu.TextT.primary),
         hx_post="/recipes/ui/add-instruction",
         hx_target="#instructions-list",
-        hx_swap="beforeend",
+        hx_swap="innerHTML",
+        hx_include="closest form",
         cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
     )
     return fh.Div(
         fh.H3("Instructions", cls="text-xl mb-2"),
-        instruction_inputs,
+        instruction_inputs_container,
         add_instruction_button,
-    )
-
-
-def _build_instruction_input(index: int, value: str):
-    """Builds a single instruction textarea row."""
-    return fh.Div(
-        mu.TextArea(
-            value,
-            name="instructions",
-            placeholder="Instruction Step",
-            rows=2,
-            cls="flex-grow mr-2",
-            hx_post="/recipes/ui/update-diff",
-            hx_target="#diff-content-wrapper",
-            hx_swap="innerHTML",
-            hx_trigger="change, keyup changed delay:500ms",
-            hx_include="closest form",
-        ),
-        mu.Button(
-            mu.UkIcon("minus-circle", cls=mu.TextT.error),
-            cls=(
-                "ml-2 uk-border-circle p-1 flex"
-                " items-center justify-center delete-item-button"
-            ),
-            type="button",
-        ),
-        cls="flex items-start mb-2",
-        id=f"instruction-{index}",
     )
 
 
 def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBase):
     """Builds the 'Review Changes' section with the diff view."""
-    diff_content_wrapper = _build_diff_content(original_recipe, current_recipe.markdown)
-    save_button_container = _build_save_button()
+    before_diff_html_str, after_diff_html_str = _build_diff_content_children(
+        original_recipe, current_recipe.markdown
+    )
+    diff_content_wrapper = fh.Div(
+        fh.NotStr(before_diff_html_str),
+        fh.NotStr(after_diff_html_str),
+        cls="flex space-x-4 mt-4",
+        id="diff-content-wrapper",
+        hx_post="/recipes/ui/update-diff",
+        hx_include="#edit-review-form",
+        hx_swap="innerHTML",
+    )
+    save_button_container = _build_save_button(current_recipe)
     return mu.Card(
         fh.Div(
             fh.H2("Review Changes", cls="text-2xl mb-4"),
@@ -886,7 +910,7 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
     )
 
 
-def _build_save_button():
+def _build_save_button(recipe: RecipeBase) -> fh.Div:
     """Builds the save button container."""
     return fh.Div(
         mu.Button(
@@ -1016,7 +1040,7 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         hx_swap_oob="innerHTML:#review-section-target",
     )
 
-    return rendered_recipe_html, edit_oob_div, review_oob_div
+    return fh.Group(rendered_recipe_html, edit_oob_div, review_oob_div)
 
 
 @rt("/recipes/save")
@@ -1145,8 +1169,9 @@ async def post_modify_recipe(request: Request):
             modification_prompt,
             error_message,
         )
-        return edit_form_card, fh.Div(
-            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+        return fh.Group(
+            edit_form_card,
+            fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
         )
 
     if not modification_prompt:
@@ -1160,8 +1185,9 @@ async def post_modify_recipe(request: Request):
             "",
             error_message,
         )
-        return edit_form_card, fh.Div(
-            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+        return fh.Group(
+            edit_form_card,
+            fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
         )
 
     try:
@@ -1171,8 +1197,9 @@ async def post_modify_recipe(request: Request):
         edit_form_card, review_section_card = _build_edit_review_form(
             modified_recipe, original_recipe
         )
-        return edit_form_card, fh.Div(
-            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+        return fh.Group(
+            edit_form_card,
+            fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
         )
 
     except RecipeModificationError as e:
@@ -1183,8 +1210,9 @@ async def post_modify_recipe(request: Request):
             modification_prompt,
             error_message,
         )
-        return edit_form_card, fh.Div(
-            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+        return fh.Group(
+            edit_form_card,
+            fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
         )
 
 
@@ -1261,127 +1289,263 @@ async def _request_recipe_modification(
         raise RecipeModificationError(user_message) from e
 
 
-@rt("/recipes/ui/add-ingredient", methods=["POST"])
-def post_add_ingredient_row():
-    return fh.Div(
-        mu.Input(
-            name="ingredients",
-            value="",
-            placeholder="New Ingredient",
-            cls="flex-grow mr-2",
-            hx_post="/recipes/ui/update-diff",
-            hx_target="#diff-content-wrapper",
-            hx_swap="innerHTML",
-            hx_trigger="change, keyup changed delay:500ms",
-            hx_include="closest form",
-        ),
-        mu.Button(
-            mu.UkIcon("minus-circle", cls=mu.TextT.error),
-            cls=(
-                "ml-2 uk-border-circle p-1 flex"
-                " items-center justify-center delete-item-button"
+@rt("/recipes/ui/delete-ingredient/{index:int}", methods=["POST"])
+async def post_delete_ingredient_row(request: Request, index: int):
+    form_data = await request.form()
+    try:
+        parsed_data = _parse_recipe_form_data(form_data)
+        current_ingredients = parsed_data.get("ingredients", [])
+
+        if 0 <= index < len(current_ingredients):
+            del current_ingredients[index]
+        else:
+            logger.warning(f"Attempted to delete ingredient at invalid index {index}")
+
+        parsed_data["ingredients"] = current_ingredients
+        new_current_recipe = RecipeBase(**parsed_data)
+
+        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        original_recipe = RecipeBase(**original_data)
+
+        # Regenerate the list of ingredient components
+        new_ingredient_item_components = _render_ingredient_list_items(
+            new_current_recipe.ingredients
+        )
+        # Target class for ingredients list (mb-4)
+        ingredients_list_component = fh.Div(
+            *new_ingredient_item_components,
+            id="ingredients-list",
+            cls="mb-4",
+        )
+
+        # OOB diff wrapper has its own flex/space styling.
+        before_notstr, after_notstr = _build_diff_content_children(
+            original_recipe, new_current_recipe.markdown
+        )
+        oob_diff_component = fh.Div(
+            before_notstr,
+            after_notstr,
+            hx_swap_oob="innerHTML:#diff-content-wrapper",
+        )
+
+        return ingredients_list_component, oob_diff_component
+
+    except ValidationError as e:
+        logger.error(
+            f"Validation error processing ingredient deletion at index {index}: {e}",
+            exc_info=True,
+        )
+        # Re-parse form for pre-delete state on validation error
+        data_for_error_render = _parse_recipe_form_data(form_data)
+        ingredients_for_error_render = data_for_error_render.get("ingredients", [])
+
+        error_items_list = _render_ingredient_list_items(ingredients_for_error_render)
+        ingredients_list_component = fh.Div(
+            fh.P(
+                "Error updating list after delete. Validation failed.",
+                cls=CSS_ERROR_CLASS,
             ),
-            type="button",
-        ),
-        cls="flex items-center mb-2",
-    )
+            *error_items_list,
+            id="ingredients-list",
+            cls="mb-4",
+        )
+        return ingredients_list_component  # Only return the list component with error
+
+    except Exception as e:
+        logger.error(f"Error deleting ingredient at index {index}: {e}", exc_info=True)
+        return fh.Div(
+            "Error processing delete request.",
+            cls=CSS_ERROR_CLASS,
+            id="ingredients-list",
+        )
+
+
+@rt("/recipes/ui/delete-instruction/{index:int}", methods=["POST"])
+async def post_delete_instruction_row(request: Request, index: int):
+    form_data = await request.form()
+    try:
+        parsed_data = _parse_recipe_form_data(form_data)
+        current_instructions = parsed_data.get("instructions", [])
+
+        if 0 <= index < len(current_instructions):
+            del current_instructions[index]
+        else:
+            logger.warning(f"Attempted to delete instruction at invalid index {index}")
+
+        parsed_data["instructions"] = current_instructions
+        new_current_recipe = RecipeBase(**parsed_data)
+
+        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        original_recipe = RecipeBase(**original_data)
+
+        new_instruction_item_components = _render_instruction_list_items(
+            new_current_recipe.instructions
+        )
+        instructions_list_component = fh.Div(
+            *new_instruction_item_components, id="instructions-list", cls="mb-4"
+        )
+
+        before_notstr, after_notstr = _build_diff_content_children(
+            original_recipe, new_current_recipe.markdown
+        )
+        oob_diff_component = fh.Div(
+            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
+        )
+
+        return instructions_list_component, oob_diff_component
+
+    except ValidationError as e:
+        logger.error(
+            f"Validation error processing instruction deletion at index {index}: {e}",
+            exc_info=True,
+        )
+        # Re-parse form for pre-delete state on validation error
+        data_for_error_render = _parse_recipe_form_data(form_data)
+        instructions_for_error_render = data_for_error_render.get("instructions", [])
+
+        error_items_list = _render_instruction_list_items(instructions_for_error_render)
+        instructions_list_component = fh.Div(
+            fh.P(
+                "Error updating list after delete. Validation failed.",
+                cls=CSS_ERROR_CLASS,
+            ),
+            *error_items_list,
+            id="instructions-list",
+            cls="mb-4",
+        )
+        return instructions_list_component  # Only return the list component with error
+
+    except Exception as e:
+        logger.error(f"Error deleting instruction at index {index}: {e}", exc_info=True)
+        return fh.Div(
+            "Error processing delete request.",
+            cls=CSS_ERROR_CLASS,
+            id="instructions-list",
+        )
+
+
+@rt("/recipes/ui/add-ingredient", methods=["POST"])
+async def post_add_ingredient_row(request: Request):
+    form_data = await request.form()
+    try:
+        parsed_data = _parse_recipe_form_data(form_data)
+        current_ingredients = parsed_data.get("ingredients", [])
+        current_ingredients.append("")  # Add a new empty ingredient
+
+        parsed_data["ingredients"] = current_ingredients
+        new_current_recipe = RecipeBase(**parsed_data)
+
+        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        original_recipe = RecipeBase(**original_data)
+
+        new_ingredient_item_components = _render_ingredient_list_items(
+            new_current_recipe.ingredients
+        )
+        ingredients_list_component = fh.Div(
+            *new_ingredient_item_components, id="ingredients-list", cls="mb-4"
+        )
+
+        before_notstr, after_notstr = _build_diff_content_children(
+            original_recipe, new_current_recipe.markdown
+        )
+        oob_diff_component = fh.Div(
+            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
+        )
+
+        return ingredients_list_component, oob_diff_component
+
+    except ValidationError as e:
+        logger.error(
+            f"Validation error processing ingredient addition: {e}", exc_info=True
+        )
+        current_ingredients_before_error = _parse_recipe_form_data(form_data).get(
+            "ingredients", []
+        )
+        error_items = _render_ingredient_list_items(current_ingredients_before_error)
+        return fh.Div(
+            fh.P("Error updating list after add.", cls=CSS_ERROR_CLASS),
+            *error_items,
+            id="ingredients-list",
+            cls="mb-4",
+        )
+    except Exception as e:
+        logger.error(f"Error adding ingredient: {e}", exc_info=True)
+        return fh.Div(
+            "Error processing add request.", cls=CSS_ERROR_CLASS, id="ingredients-list"
+        )
 
 
 @rt("/recipes/ui/add-instruction", methods=["POST"])
-def post_add_instruction_row():
-    return fh.Div(
-        mu.TextArea(
-            "",
-            name="instructions",
-            placeholder="New Instruction Step",
-            rows=2,
-            cls="flex-grow mr-2",
-            hx_post="/recipes/ui/update-diff",
-            hx_target="#diff-content-wrapper",
-            hx_swap="innerHTML",
-            hx_trigger="change, keyup changed delay:500ms",
-            hx_include="closest form",
-        ),
-        mu.Button(
-            mu.UkIcon("minus-circle", cls=mu.TextT.error),
-            cls=(
-                "ml-2 uk-border-circle p-1 flex"
-                " items-center justify-center delete-item-button"
-            ),
-            type="button",
-        ),
-        cls="flex items-start mb-2",
-    )
-
-
-@rt("/recipes/ui/remove-item", methods=["DELETE"])
-def delete_remove_item():
-    """Dummy endpoint for HTMX to target for removing elements.
-    Returns 200 OK with no content, causing HTMX to remove the target.
-    """
-    return Response(status_code=200)
-
-
-@rt("/recipes/ui/touch-name", methods=["POST"])
-async def post_touch_name(request: Request):
-    """Receives the name, returns the name input component.
-    Used as a hack to trigger the name input's keyup/change handler,
-    which in turn triggers the diff update after an item removal.
-    """
+async def post_add_instruction_row(request: Request):
     form_data = await request.form()
-    name_value = form_data.get("name", "")
-    return mu.Input(
-        id="name",
-        name="name",
-        label="Recipe Name",
-        value=name_value,
-        cls="mb-4",
-        hx_post="/recipes/ui/update-diff",
-        hx_target="#diff-content-wrapper",
-        hx_swap="innerHTML",
-        hx_trigger="change, keyup changed delay:500ms",
-        hx_include="closest form",
-    )
+    try:
+        parsed_data = _parse_recipe_form_data(form_data)
+        current_instructions = parsed_data.get("instructions", [])
+        current_instructions.append("")  # Add a new empty instruction
+
+        parsed_data["instructions"] = current_instructions
+        new_current_recipe = RecipeBase(**parsed_data)
+
+        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        original_recipe = RecipeBase(**original_data)
+
+        new_instruction_item_components = _render_instruction_list_items(
+            new_current_recipe.instructions
+        )
+        instructions_list_component = fh.Div(
+            *new_instruction_item_components, id="instructions-list", cls="mb-4"
+        )
+
+        before_notstr, after_notstr = _build_diff_content_children(
+            original_recipe, new_current_recipe.markdown
+        )
+        oob_diff_component = fh.Div(
+            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
+        )
+
+        return instructions_list_component, oob_diff_component
+
+    except ValidationError as e:
+        logger.error(
+            f"Validation error processing instruction addition: {e}", exc_info=True
+        )
+        current_instructions_before_error = _parse_recipe_form_data(form_data).get(
+            "instructions", []
+        )
+        error_items = _render_instruction_list_items(current_instructions_before_error)
+        return fh.Div(
+            fh.P("Error updating list after add.", cls=CSS_ERROR_CLASS),
+            *error_items,
+            id="instructions-list",
+            cls="mb-4",
+        )
+    except Exception as e:
+        logger.error(f"Error adding instruction: {e}", exc_info=True)
+        return fh.Div(
+            "Error processing add request.", cls=CSS_ERROR_CLASS, id="instructions-list"
+        )
 
 
 @rt("/recipes/ui/update-diff", methods=["POST"])
-async def post_update_diff(request: Request):
+async def update_diff(request: Request):
     """Updates the diff view based on current form data."""
     form_data = await request.form()
     try:
         current_data = _parse_recipe_form_data(form_data)
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
-
-        original_recipe = RecipeBase(**original_data)
         current_recipe = RecipeBase(**current_data)
+        original_recipe = RecipeBase(**original_data)
 
-    except ValidationError as e:
-        logger.debug(
-            "Validation error during diff update (expected during edit): %s", e
-        )
-        return fh.Div(
-            "Recipe state invalid for diff",
-            id="diff-content-wrapper",
-            cls=CSS_ERROR_CLASS,
-        )
-    except Exception as e:
-        logger.error("Error preparing data for diff view: %s", e, exc_info=True)
-        return fh.Div(
-            "Error preparing data for diff",
-            id="diff-content-wrapper",
-            cls=CSS_ERROR_CLASS,
-        )
-
-    try:
-        logger.debug("Updating diff: Original vs Current")
-        diff_content_wrapper = _build_diff_content(
+        before_notstr, after_notstr = _build_diff_content_children(
             original_recipe, current_recipe.markdown
         )
-        return diff_content_wrapper
+        return fh.Group(before_notstr, after_notstr)
+    except ValidationError as e:
+        logger.warning("Validation error during diff update: %s", e, exc_info=False)
+        error_message = "Recipe state invalid for diff. Please check all fields."
+        return fh.NotStr(f'<div class="{CSS_ERROR_CLASS}">{error_message}</div>')
     except Exception as e:
-        logger.error("Error generating diff view: %s", e, exc_info=True)
-        return fh.Div(
-            "Error generating diff view",
-            id="diff-content-wrapper",
-            cls=CSS_ERROR_CLASS,
+        logger.error("Error updating diff: %s", e, exc_info=True)
+        return fh.NotStr(
+            f'<div class="{CSS_ERROR_CLASS}">Error updating diff view.</div>'
         )
