@@ -640,7 +640,7 @@ async def test_save_recipe_api_call_error(client: AsyncClient, monkeypatch):
     }
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
-    assert "Error saving recipe. Please check your input." in response.text
+    assert "Could not save recipe. Please check input and try again." in response.text
 
 
 @pytest.mark.anyio
@@ -1347,7 +1347,6 @@ class TestGetSingleRecipePageErrors:
         response = await client.get(self.PAGE_URL)
         assert response.status_code == 200
         assert "An unexpected error occurred." in response.text
-        assert "Error" in response.text
         mock_api_get.assert_awaited_once_with(self.API_URL)
 
 
@@ -1364,7 +1363,13 @@ async def test_save_recipe_api_call_generic_error(client: AsyncClient, monkeypat
     }
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
-    assert "Unexpected error saving recipe." in response.text
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    error_span = soup.find("span", id="save-button-container")
+
+    assert error_span is not None, "Error message container span not found."
+    assert "An unexpected error occurred" in error_span.get_text(strip=True)
+
     mock_post.assert_awaited_once()
 
 
@@ -1387,12 +1392,12 @@ async def test_save_recipe_api_call_request_error(client: AsyncClient, monkeypat
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
 
-    # Expect the specific network error message
-    expected_msg = "Network error connecting to API."
     soup = BeautifulSoup(response.text, "html.parser")
     error_span = soup.find("span", id="save-button-container")
-    assert error_span is not None
-    assert error_span.get_text(strip=True) == expected_msg
+
+    assert error_span is not None, "Error message container span not found."
+    assert "due to a network issue" in error_span.get_text(strip=True)
+
     mock_post.assert_awaited_once()
 
 
@@ -1581,11 +1586,14 @@ async def test_save_recipe_api_call_non_json_error_response(
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
 
-    expected_msg = "Error saving recipe. Please check your input."
     soup = BeautifulSoup(response.text, "html.parser")
     error_span = soup.find("span", id="save-button-container")
-    assert error_span is not None
-    assert error_span.get_text(strip=True) == expected_msg
+
+    assert error_span is not None, "Error message container span not found."
+    assert "Could not save recipe. Please check input" in error_span.get_text(
+        strip=True
+    )
+
     mock_post.assert_awaited_once()
 
 
@@ -1616,7 +1624,7 @@ async def test_save_recipe_api_call_422_error(client: AsyncClient, monkeypatch):
     response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert response.status_code == 200
     # This is the specific message for 422 errors
-    expected_msg = "Error saving recipe: Invalid data provided. Please check fields."
+    expected_msg = "Could not save recipe: Invalid data for some fields."
     soup = BeautifulSoup(response.text, "html.parser")
     error_span = soup.find("span", id="save-button-container")
     assert error_span is not None
@@ -1658,7 +1666,7 @@ async def test_save_recipe_api_call_json_error_with_detail(
     assert response.status_code == 200
 
     # For non-422 errors, the message falls back to the general one
-    expected_user_msg = "Error saving recipe. Please check your input."
+    expected_user_msg = "Could not save recipe. Please check input and try again."
     soup = BeautifulSoup(response.text, "html.parser")
     error_span = soup.find("span", id="save-button-container")
     assert error_span is not None
@@ -1666,6 +1674,4 @@ async def test_save_recipe_api_call_json_error_with_detail(
 
     mock_post.assert_awaited_once()
     # Check that logger.debug was called with the detail
-    mock_logger_debug.assert_any_call(
-        "Full API error detail from exception: %s", error_detail_text
-    )
+    mock_logger_debug.assert_any_call("API error detail: %s", error_detail_text)

@@ -11,7 +11,7 @@ import html2text
 import httpx
 import instructor
 import monsterui.all as mu
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, status
 from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
@@ -1040,63 +1040,62 @@ async def post_save_recipe(request: Request):
             id="save-button-container",
         )
 
+    user_final_message = ""
+    message_is_error = False
+
     try:
         response = await internal_client.post(
             "/api/v0/recipes", json=recipe_obj.model_dump()
         )
-        response.raise_for_status()  # Raise HTTPStatusError for 4xx/5xx responses
-
-        # If we reach here, the status code was 2xx (specifically 201 by API contract)
+        response.raise_for_status()
         logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
+        user_final_message = "Current Recipe Saved!"
 
     except httpx.HTTPStatusError as e:
+        message_is_error = True
         logger.error(
-            "API error saving recipe via UI: Status %s, Response: %s",
+            "API error saving recipe: Status %s, Response: %s",
             e.response.status_code,
             e.response.text,
             exc_info=True,
         )
-        user_message = "Error saving recipe. Please check your input."
         if e.response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
-            user_message = (
-                "Error saving recipe: Invalid data provided. Please check fields."
+            user_final_message = "Could not save recipe: Invalid data for some fields."
+        else:
+            user_final_message = (
+                "Could not save recipe. Please check input and try again."
             )
         try:
-            detail_json = e.response.json().get("detail")
-            if detail_json:
-                logger.debug(
-                    "Full API error detail from exception: %s", str(detail_json)
-                )
+            detail = e.response.json().get("detail")
+            if detail:
+                logger.debug("API error detail: %s", detail)
         except Exception:
-            logger.debug("Could not parse JSON detail from HTTPStatusError response.")
+            logger.debug("Failed to parse API error detail: %s", e, exc_info=True)
 
-        return fh.Span(
-            user_message,
-            cls=CSS_ERROR_CLASS,
-            id="save-button-container",
+    except httpx.RequestError as e:
+        message_is_error = True
+        logger.error("Network error saving recipe: %s", e, exc_info=True)
+        user_final_message = (
+            "Could not save recipe due to a network issue. Please try again."
         )
-    except httpx.RequestError as e:  # Catch specific network errors
-        logger.error(
-            "Network error calling save recipe API via UI: %s", e, exc_info=True
-        )
-        return fh.Span(
-            "Network error connecting to API.",
-            cls=CSS_ERROR_CLASS,
-            id="save-button-container",
-        )
+
     except Exception as e:
-        logger.error("Error calling save recipe API via UI: %s", e, exc_info=True)
+        message_is_error = True
+        logger.error("Unexpected error saving recipe via API: %s", e, exc_info=True)
+        user_final_message = "An unexpected error occurred while saving the recipe."
+
+    if message_is_error:
         return fh.Span(
-            "Unexpected error saving recipe.",
+            user_final_message,
             cls=CSS_ERROR_CLASS,
             id="save-button-container",
         )
-
-    return fh.Span(
-        "Current Recipe Saved!",
-        cls=mu.TextT.success,
-        id="save-button-container",
-    )
+    else:
+        return fh.Span(
+            user_final_message,
+            cls=mu.TextT.success,
+            id="save-button-container",
+        )
 
 
 class ModifyFormError(Exception):
