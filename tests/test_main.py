@@ -1647,7 +1647,8 @@ async def test_save_recipe_api_call_422_error(client: AsyncClient, monkeypatch):
 async def test_save_recipe_api_call_json_error_with_detail(
     mock_logger_debug: MagicMock, client: AsyncClient, monkeypatch
 ):
-    """Test error handling when internal API returns HTTPStatusError with JSON detail."""
+    """Test error handling when internal API returns HTTPStatusError with JSON
+    detail."""
     error_detail_text = "Specific error detail from JSON"
 
     # Mock the httpx.Response object
