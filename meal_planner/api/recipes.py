@@ -75,7 +75,6 @@ async def get_recipe_by_id(
     try:
         recipe = session.get(Recipe, recipe_id)
     except Exception as e:
-        # Catch potential database errors during fetch
         logger.error(
             "Database error fetching recipe ID %s: %s", recipe_id, e, exc_info=True
         )
