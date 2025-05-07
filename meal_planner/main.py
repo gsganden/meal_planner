@@ -344,18 +344,28 @@ def _build_recipe_display(recipe_data: dict):
     Returns:
         A fasthtml.Div component ready for display.
     """
-    return fh.Div(
+    components = [
         fh.H3(recipe_data["name"], cls="text-xl font-bold mb-3"),
         fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
         fh.Ul(
             *[fh.Li(ing) for ing in recipe_data.get("ingredients", [])],
             cls="list-disc list-inside mb-3",
         ),
-        fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
-        fh.Ul(
-            *[fh.Li(inst) for inst in recipe_data.get("instructions", [])],
-            cls="list-disc list-inside mb-3",
-        ),
+    ]
+    instructions = recipe_data.get("instructions", [])
+    if instructions:
+        components.extend(
+            [
+                fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
+                fh.Ul(
+                    *[fh.Li(inst) for inst in instructions],
+                    cls="list-disc list-inside mb-3",
+                ),
+            ]
+        )
+
+    return fh.Div(
+        *components,
         cls="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-sm max-w-none",
     )
 
@@ -981,13 +991,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             processed_recipe.name,
         )
         processed_recipe.ingredients = ["No ingredients found"]
-
-    if not processed_recipe.instructions:
-        logger.warning(
-            "Extraction resulted in empty instructions. Filling placeholder. Name: %s",
-            processed_recipe.name,
-        )
-        processed_recipe.instructions = ["No instructions found"]
 
     reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-2xl mb-2 mt-6")
     rendered_content_div = _build_recipe_display(processed_recipe.model_dump())

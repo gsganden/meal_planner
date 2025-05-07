@@ -268,9 +268,7 @@ class TestRecipeExtractRunEndpoint:
             _extract_form_list_values(html_content, FIELD_INGREDIENTS)
             == raw_ingredients
         )
-        assert _extract_form_list_values(html_content, FIELD_INSTRUCTIONS) == [
-            "No instructions found"
-        ]
+        assert _extract_form_list_values(html_content, FIELD_INSTRUCTIONS) == []
 
     @patch("meal_planner.main.postprocess_recipe")
     @patch("meal_planner.main.get_structured_llm_response", new_callable=AsyncMock)
@@ -604,11 +602,6 @@ async def test_save_recipe_success(client: AsyncClient, test_db_session: Path):
             id="missing_ingredients",
         ),
         pytest.param(
-            {FIELD_NAME: "Name and Ing", FIELD_INGREDIENTS: ["ing1"]},
-            "instructions: List should have at least 1 item",
-            id="missing_instructions",
-        ),
-        pytest.param(
             {FIELD_INGREDIENTS: ["i"], FIELD_INSTRUCTIONS: ["s"]},
             "name: String should have at least 1 character",
             id="missing_name",
@@ -660,11 +653,6 @@ async def test_save_recipe_api_call_error(client: AsyncClient, monkeypatch):
             {FIELD_NAME: "Valid", FIELD_INGREDIENTS: [""], FIELD_INSTRUCTIONS: ["s1"]},
             "ingredients: List should have at least 1 item after validation",
             id="empty_ingredient",
-        ),
-        pytest.param(
-            {FIELD_NAME: "Valid", FIELD_INGREDIENTS: ["i1"], FIELD_INSTRUCTIONS: [""]},
-            "instructions: List should have at least 1 item after validation",
-            id="empty_instruction",
         ),
     ],
 )
@@ -1197,13 +1185,9 @@ class TestRecipeUpdateDiff:
         [
             pytest.param(FIELD_NAME, "", id="current_empty_name"),
             pytest.param(FIELD_INGREDIENTS, [""], id="current_empty_ingredient"),
-            pytest.param(FIELD_INSTRUCTIONS, [""], id="current_empty_instruction"),
             pytest.param(FIELD_ORIGINAL_NAME, "", id="original_empty_name"),
             pytest.param(
                 FIELD_ORIGINAL_INGREDIENTS, [""], id="original_empty_ingredient"
-            ),
-            pytest.param(
-                FIELD_ORIGINAL_INSTRUCTIONS, [""], id="original_empty_instruction"
             ),
         ],
     )

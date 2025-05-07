@@ -9,7 +9,7 @@ RecipeIngredients = Annotated[
 ]
 RecipeInstructions = Annotated[
     list[str],
-    Field(..., description="List of instructions", min_length=1),
+    Field(..., description="List of instructions"),
 ]
 RecipeName = Annotated[
     str, Field(..., description="The name of the recipe", min_length=1)
