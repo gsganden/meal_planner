@@ -30,17 +30,7 @@ target_metadata = SQLModel.metadata  # Using SQLModel's metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
+    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -48,30 +38,21 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-    # Get connection from context attributes if available (passed by tests)
+    """Run migrations in 'online' mode."""
     connection = config.attributes.get("connection", None)
 
     if connection is None:
-        # Fallback to creating engine from config (for CLI / deploy.py runs)
         connectable = engine_from_config(
             config.get_section(config.config_ini_section, {}),
             prefix="sqlalchemy.",
             poolclass=pool.NullPool,
         )
         with connectable.connect() as connection:
-            # Conditionally create data directory
             current_url = str(connection.engine.url)
             if not (current_url == "sqlite:///:memory:" or ":memory:" in current_url):
                 CONTAINER_DB_FULL_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -81,14 +62,8 @@ def run_migrations_online() -> None:
             with context.begin_transaction():
                 context.run_migrations()
     else:
-        # Use the connection passed via attributes (from tests)
-        # The test fixture manages the connection lifecycle and transaction
         context.configure(connection=connection, target_metadata=target_metadata)
-        # Assume the test setup handles the transaction begin/commit/rollback
-        # We just run the migrations within whatever transaction context is provided.
-        with (
-            context.begin_transaction()
-        ):  # Still needed for Alembic's internal mechanics
+        with context.begin_transaction():
             context.run_migrations()
 
 
