@@ -16,13 +16,13 @@ from meal_planner.main import (
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
     CSS_ERROR_CLASS,
     MODEL_NAME,
+    ModifyFormError,
     _parse_recipe_form_data,
     app,
     fetch_and_clean_text_from_url,
     fetch_page_text,
     get_structured_llm_response,
     postprocess_recipe,
-    ModifyFormError,
 )
 from meal_planner.models import RecipeBase
 
