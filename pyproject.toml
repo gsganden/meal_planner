@@ -57,6 +57,7 @@ known-first-party = ["meal_planner"]
 
 [tool.pyright]
 reportRedeclaration = false
+reportAttributeAccessIssue = "none"
 
 [tool.coverage.report]
 exclude_lines = [

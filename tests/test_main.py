@@ -919,14 +919,12 @@ class TestRecipeModifyEndpoint:
         assert edit_target_div is not None, (
             "#edit-form-target div not found in response."
         )
-        edit_target_div = edit_target_div  # type: ignore[assignment] # Hint for Pyright
 
         # Find the form within the container
         form_v1 = edit_target_div.find("form", attrs={"id": "edit-review-form"})
         assert form_v1 is not None, (
             "#edit-review-form not found within #edit-form-target in response."
         )
-        form_v1 = form_v1  # type: ignore[assignment] # Hint for Pyright
 
         # Now find the button *within* the form
         modify_button_v1 = form_v1.find("button", string="Modify Recipe")
@@ -934,14 +932,13 @@ class TestRecipeModifyEndpoint:
             "Modify button not found within #edit-review-form in response after "
             "first modification."
         )
-        modify_button_v1 = modify_button_v1  # type: ignore[assignment] # Hint for Pyright
 
         # Stricter check for attribute existence and value
-        assert modify_button_v1.has_attr("hx-indicator"), (  # Use has_attr
+        assert modify_button_v1.has_attr("hx-indicator"), (
             "hx-indicator attribute missing from modify button after first "
             "modification."
         )
-        assert modify_button_v1.get("hx-indicator") == "#modify-indicator", (  # Use get
+        assert modify_button_v1.get("hx-indicator") == "#modify-indicator", (
             "hx-indicator attribute has incorrect value on modify button after "
             "first modification."
         )
@@ -950,9 +947,8 @@ class TestRecipeModifyEndpoint:
         mock_get_structured_llm_response.return_value = modified_recipe_v2
 
         # Extract current form values from the HTML returned by the *first* modification
-        # These represent what the user sees and would submit next.
         current_data_after_v1_modify = _extract_current_recipe_data_from_html(
-            html_after_first_modify  # This call uses the helper below
+            html_after_first_modify
         )
 
         # The "original" recipe remains the initially extracted one.
@@ -1798,7 +1794,6 @@ def _extract_current_recipe_data_from_html(html_content: str) -> dict:
     form = soup.find("form", attrs={"id": "edit-review-form"})
     if not form:
         raise ValueError("Form with id 'edit-review-form' not found in HTML")
-    form = form  # type: ignore[assignment]
 
     name_input = form.find("input", attrs={"name": FIELD_NAME})
     name = name_input.get("value", "") if name_input else ""
