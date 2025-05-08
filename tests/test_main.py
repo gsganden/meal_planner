@@ -7,6 +7,7 @@ from bs4.element import Tag
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
+import monsterui.all as mu
 
 import meal_planner.main as main_module
 from meal_planner.main import (
@@ -913,12 +914,34 @@ class TestRecipeModifyEndpoint:
 
         # Verify the indicator attribute is present on the button in the *new* HTML
         soup_v1 = BeautifulSoup(html_after_first_modify, "html.parser")
-        modify_button_v1 = soup_v1.find("button", string="Modify Recipe")
-        assert modify_button_v1 is not None, (
-            "Modify button not found in response after first modification."
+
+        # Find the main container div first
+        edit_target_div = soup_v1.find("div", id="edit-form-target")
+        assert edit_target_div is not None, (
+            "#edit-form-target div not found in response."
         )
-        assert modify_button_v1.get("hx-indicator") == "#modify-indicator", (
-            "hx-indicator attribute missing or incorrect on modify button after first modification."
+
+        # Find the form within the container
+        form_v1 = edit_target_div.find("form", id="edit-review-form")
+        assert form_v1 is not None, (
+            "#edit-review-form not found within #edit-form-target in response."
+        )
+
+        # Now find the button *within* the form
+        modify_button_v1 = form_v1.find(
+            "button",
+            string="Modify Recipe",  # Simpler selector for now
+        )
+        assert modify_button_v1 is not None, (
+            "Modify button not found within #edit-review-form in response after first modification."
+        )
+
+        # Stricter check for attribute existence and value
+        assert "hx-indicator" in modify_button_v1.attrs, (
+            "hx-indicator attribute missing from modify button after first modification."
+        )
+        assert modify_button_v1.attrs["hx-indicator"] == "#modify-indicator", (
+            "hx-indicator attribute has incorrect value on modify button after first modification."
         )
 
         # 3. Second Modification
