@@ -7,7 +7,6 @@ from bs4.element import Tag
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
-import monsterui.all as mu
 
 import meal_planner.main as main_module
 from meal_planner.main import (
@@ -894,8 +893,8 @@ class TestRecipeModifyEndpoint:
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: "Some initial text"}
         )
         assert extract_response.status_code == 200
-        # The form is loaded via OOB swap, client doesn't see that directly in main response
-        # We assume the form is now on the "page" for the client to interact with
+        # Form is loaded via OOB swap; client doesn't see that directly.
+        # Assume form is now on the "page" for client interaction.
 
         # 2. First Modification
         mock_get_structured_llm_response.return_value = modified_recipe_v1
@@ -916,32 +915,35 @@ class TestRecipeModifyEndpoint:
         soup_v1 = BeautifulSoup(html_after_first_modify, "html.parser")
 
         # Find the main container div first
-        edit_target_div = soup_v1.find("div", id="edit-form-target")
+        edit_target_div = soup_v1.find("div", attrs={"id": "edit-form-target"})
         assert edit_target_div is not None, (
             "#edit-form-target div not found in response."
         )
+        edit_target_div = edit_target_div  # type: ignore[assignment] # Hint for Pyright
 
         # Find the form within the container
-        form_v1 = edit_target_div.find("form", id="edit-review-form")
+        form_v1 = edit_target_div.find("form", attrs={"id": "edit-review-form"})
         assert form_v1 is not None, (
             "#edit-review-form not found within #edit-form-target in response."
         )
+        form_v1 = form_v1  # type: ignore[assignment] # Hint for Pyright
 
         # Now find the button *within* the form
-        modify_button_v1 = form_v1.find(
-            "button",
-            string="Modify Recipe",  # Simpler selector for now
-        )
+        modify_button_v1 = form_v1.find("button", string="Modify Recipe")
         assert modify_button_v1 is not None, (
-            "Modify button not found within #edit-review-form in response after first modification."
+            "Modify button not found within #edit-review-form in response after "
+            "first modification."
         )
+        modify_button_v1 = modify_button_v1  # type: ignore[assignment] # Hint for Pyright
 
         # Stricter check for attribute existence and value
-        assert "hx-indicator" in modify_button_v1.attrs, (
-            "hx-indicator attribute missing from modify button after first modification."
+        assert modify_button_v1.has_attr("hx-indicator"), (  # Use has_attr
+            "hx-indicator attribute missing from modify button after first "
+            "modification."
         )
-        assert modify_button_v1.attrs["hx-indicator"] == "#modify-indicator", (
-            "hx-indicator attribute has incorrect value on modify button after first modification."
+        assert modify_button_v1.get("hx-indicator") == "#modify-indicator", (  # Use get
+            "hx-indicator attribute has incorrect value on modify button after "
+            "first modification."
         )
 
         # 3. Second Modification
@@ -950,14 +952,15 @@ class TestRecipeModifyEndpoint:
         # Extract current form values from the HTML returned by the *first* modification
         # These represent what the user sees and would submit next.
         current_data_after_v1_modify = _extract_current_recipe_data_from_html(
-            html_after_first_modify
+            html_after_first_modify  # This call uses the helper below
         )
 
-        # The "original" recipe for diffing purposes remains the initially extracted one.
-        # This is maintained by hidden fields which should persist or be correctly set by _build_edit_review_form.
+        # The "original" recipe remains the initially extracted one.
+        # Hidden fields should maintain this state.
         form_data_2 = self._build_modify_form_data(
             current_recipe=RecipeBase(**current_data_after_v1_modify),
-            original_recipe=initial_recipe,  # original_ fields should still point to the first extraction
+            # original_ fields should still point to the first extraction:
+            original_recipe=initial_recipe,
             modification_prompt="Now make it vegan",
         )
 
@@ -1792,20 +1795,20 @@ async def test_save_recipe_api_call_json_error_with_detail(
 # Helper function to extract current (non-original) form values
 def _extract_current_recipe_data_from_html(html_content: str) -> dict:
     soup = BeautifulSoup(html_content, "html.parser")
-    form = soup.find("form", id="edit-review-form")
+    form = soup.find("form", attrs={"id": "edit-review-form"})
     if not form:
         raise ValueError("Form with id 'edit-review-form' not found in HTML")
+    form = form  # type: ignore[assignment]
 
-    name_input = form.find("input", {"name": FIELD_NAME})
-    name = name_input["value"] if name_input else ""
+    name_input = form.find("input", attrs={"name": FIELD_NAME})
+    name = name_input.get("value", "") if name_input else ""
 
+    ingredients_inputs = form.find_all("input", attrs={"name": FIELD_INGREDIENTS})
     ingredients = [
-        ing_input["value"]
-        for ing_input in form.find_all("input", {"name": FIELD_INGREDIENTS})
+        ing_input.get("value", "")
+        for ing_input in ingredients_inputs
         if "value" in ing_input.attrs
     ]
-    instructions = [
-        inst_area.get_text()
-        for inst_area in form.find_all("textarea", {"name": FIELD_INSTRUCTIONS})
-    ]
+    instructions_areas = form.find_all("textarea", attrs={"name": FIELD_INSTRUCTIONS})
+    instructions = [inst_area.get_text() for inst_area in instructions_areas]
     return {"name": name, "ingredients": ingredients, "instructions": instructions}

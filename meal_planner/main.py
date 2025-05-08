@@ -1133,12 +1133,14 @@ async def post_modify_recipe(request: Request):
                 inner_e,
                 exc_info=True,
             )
+            # Return error content wrapped in the target div for outerHTML swap
             error_content = f"<div class='{CSS_ERROR_CLASS}'>"
             error_content += "Critical error processing form.</div>"
-            return HTMLResponse(
-                content=f"<div id='edit-form-target' class='mt-6'>{error_content}</div>",
-                status_code=200,
+            # Break long f-string for readability
+            error_html = (
+                f"<div id='edit-form-target' class='mt-6'>{error_content}</div>"
             )
+            return HTMLResponse(content=error_html, status_code=200)
 
         error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         modification_prompt = str(form_data.get("modification_prompt", ""))
