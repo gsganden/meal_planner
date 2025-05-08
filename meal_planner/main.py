@@ -110,6 +110,7 @@ def sidebar():
         ),
         uk_nav=True,
         cls=mu.NavT.primary,
+        uk_sticky="offset: 20",
     )
     return fh.Div(nav, cls="space-y-4 p-4 w-full md:w-full")
 
