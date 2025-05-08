@@ -781,7 +781,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
         )
 
         button_component = fh.Button(
-            fh.Span(cls=f"{mu.TextT.error}", data_uk_icon="icon: minus-circle"),
+            mu.UkIcon("minus-circle", cls=mu.TextT.error),
             type="button",
             hx_post=f"/recipes/ui/delete-ingredient/{i}",
             hx_target="#ingredients-list",
@@ -842,7 +842,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
         )
 
         button_component = fh.Button(
-            fh.Span(cls=f"{mu.TextT.error}", data_uk_icon="icon: minus-circle"),
+            mu.UkIcon("minus-circle", cls=mu.TextT.error),
             type="button",
             hx_post=f"/recipes/ui/delete-instruction/{i}",
             hx_target="#instructions-list",
@@ -896,9 +896,6 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
         fh.NotStr(after_diff_html_str),
         cls="flex space-x-4 mt-4",
         id="diff-content-wrapper",
-        hx_post="/recipes/ui/update-diff",
-        hx_include="#edit-review-form",
-        hx_swap="innerHTML",
     )
     save_button_container = _build_save_button(current_recipe)
     return mu.Card(
@@ -1539,7 +1536,12 @@ async def update_diff(request: Request):
         before_notstr, after_notstr = _build_diff_content_children(
             original_recipe, current_recipe.markdown
         )
-        return fh.Group(before_notstr, after_notstr)
+        return fh.Div(
+            before_notstr,
+            after_notstr,
+            cls="flex space-x-4 mt-4",
+            id="diff-content-wrapper",
+        )
     except ValidationError as e:
         logger.warning("Validation error during diff update: %s", e, exc_info=False)
         error_message = "Recipe state invalid for diff. Please check all fields."
