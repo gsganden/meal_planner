@@ -1154,9 +1154,8 @@ async def post_modify_recipe(request: Request):
                 inner_e,
                 exc_info=True,
             )
-            error_content = f"<div class='{CSS_ERROR_CLASS}'>"
-            error_content += "Critical error processing form.</div>"
-            return HTMLResponse(content=error_content)
+            error_div = fh.Div("Critical error processing form.", cls=CSS_ERROR_CLASS)
+            return HTMLResponse(content=str(error_div))
 
         error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         modification_prompt = str(form_data.get("modification_prompt", ""))
@@ -1543,9 +1542,7 @@ async def update_diff(request: Request):
     except ValidationError as e:
         logger.warning("Validation error during diff update: %s", e, exc_info=False)
         error_message = "Recipe state invalid for diff. Please check all fields."
-        return fh.NotStr(f'<div class="{CSS_ERROR_CLASS}">{error_message}</div>')
+        return fh.Div(error_message, cls=CSS_ERROR_CLASS)
     except Exception as e:
         logger.error("Error updating diff: %s", e, exc_info=True)
-        return fh.NotStr(
-            f'<div class="{CSS_ERROR_CLASS}">Error updating diff view.</div>'
-        )
+        return fh.Div("Error updating diff view.", cls=CSS_ERROR_CLASS)
