@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import TypeVar, Union, Any
+from typing import Any, TypeVar
 
 import fasthtml.common as fh
 import html2text
@@ -13,16 +13,15 @@ import instructor
 import monsterui.all as mu
 from bs4.element import Tag
 from fastapi import FastAPI, Request, status
+from fasthtml.common import Del, Ins
 from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 from starlette import status
 from starlette.datastructures import FormData
-from starlette.responses import HTMLResponse
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
-from fasthtml.common import Del, Ins
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"

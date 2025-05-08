@@ -1,4 +1,4 @@
-from typing import cast, Any
+from typing import Any, cast
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
@@ -6,10 +6,10 @@ import monsterui.all as mu
 import pytest
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+from fastcore.xml import FT  # Import FT for type checking
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
-import html  # Ensure html is imported for escaping in assertions
 
 import meal_planner.main as main_module
 from meal_planner.main import (
@@ -24,9 +24,6 @@ from meal_planner.main import (
     postprocess_recipe,
 )
 from meal_planner.models import RecipeBase
-from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
-from fasthtml.common import Del, Ins  # Add import
-from fastcore.xml import FT  # Import FT for type checking
 
 # Constants
 TRANSPORT = ASGITransport(app=app)
@@ -906,10 +903,10 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
 
 class TestGenerateDiffHtml:
     def _to_comparable(self, items: list[Any]) -> list[tuple[str, str]]:
-        """Convert a list of strings/Del/Ins components to a comparable list of tuples."""
+        """Converts items (strings/FT objects) to a list of (type_name_str, content_str)
+        tuples for comparison."""
         result = []
         for item in items:
-            # print(f"DEBUG_ITEM_TYPE_VALUE: {type(item)}, {item!r}") # Remove temporary debug print
             if isinstance(item, str):
                 result.append(("str", item))
             elif isinstance(item, FT):
@@ -1179,13 +1176,10 @@ class TestRecipeUIFragments:
         assert delete_button, "Delete button for new ingredient not found"
         assert isinstance(delete_button, Tag)
 
-        # Temporary print to inspect button content
-        # print(f"DEBUG_DELETE_BUTTON_CONTENT: {delete_button.prettify()}") # Remove this line
-
         # Restore and correct assertions
         icon_element = delete_button.find("uk-icon", attrs={"icon": "minus-circle"})
         assert icon_element, (
-            "uk-icon element with icon='minus-circle' not found in delete button for ingredient"
+            "UkIcon 'minus-circle' not found in ingredient delete button"
         )
         assert isinstance(icon_element, Tag)
         # Ensure class_list is a list before checking with 'in'
@@ -1238,7 +1232,7 @@ class TestRecipeUIFragments:
         assert isinstance(delete_button, Tag)
         icon_element = delete_button.find("uk-icon", attrs={"icon": "minus-circle"})
         assert icon_element, (
-            "uk-icon element with icon='minus-circle' not found in delete button for instruction"
+            "UkIcon 'minus-circle' not found in instruction delete button"
         )
         assert isinstance(icon_element, Tag)
         # Ensure class_list is a list before checking with 'in'
