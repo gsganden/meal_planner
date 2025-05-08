@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import TypeVar
+from typing import TypeVar, Union, Any
 
 import fasthtml.common as fh
 import html2text
@@ -22,6 +22,7 @@ from starlette.responses import HTMLResponse
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
+from fasthtml.common import Del, Ins
 
 MODEL_NAME = "gemini-2.0-flash"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"
@@ -556,33 +557,39 @@ def _close_parenthesis(text: str) -> str:
 CSS_ERROR_CLASS = f"{mu.TextT.error} mb-4"
 
 
-def generate_diff_html(before_text: str, after_text: str) -> tuple[str, str]:
-    """Generates two HTML strings showing a diff between before and after text."""
+def generate_diff_html(
+    before_text: str, after_text: str
+) -> tuple[list[Any], list[Any]]:
+    """Generates two lists of fasthtml components/strings for diff display."""
     before_lines = before_text.splitlines()
     after_lines = after_text.splitlines()
     matcher = difflib.SequenceMatcher(None, before_lines, after_lines)
-    before_html = []
-    after_html = []
+    before_items = []
+    after_items = []
 
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             for line in before_lines[i1:i2]:
-                escaped_line = html.escape(line)
-                before_html.append(escaped_line)
-                after_html.append(escaped_line)
+                before_items.extend([line, "\n"])
+                after_items.extend([line, "\n"])
         elif tag == "replace":
             for line in before_lines[i1:i2]:
-                before_html.append(f"<del>{html.escape(line)}</del>")
+                before_items.extend([Del(line), "\n"])
             for line in after_lines[j1:j2]:
-                after_html.append(f"<ins>{html.escape(line)}</ins>")
+                after_items.extend([Ins(line), "\n"])
         elif tag == "delete":
             for line in before_lines[i1:i2]:
-                before_html.append(f"<del>{html.escape(line)}</del>")
+                before_items.extend([Del(line), "\n"])
         elif tag == "insert":
             for line in after_lines[j1:j2]:
-                after_html.append(f"<ins>{html.escape(line)}</ins>")
+                after_items.extend([Ins(line), "\n"])
 
-    return "\n".join(before_html), "\n".join(after_html)
+    if before_items and before_items[-1] == "\n":
+        before_items.pop()
+    if after_items and after_items[-1] == "\n":
+        after_items.pop()
+
+    return before_items, after_items
 
 
 def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
@@ -609,9 +616,9 @@ def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
 
 def _build_diff_content_children(
     original_recipe: RecipeBase, current_markdown: str
-) -> tuple[fh.NotStr, fh.NotStr]:
-    """Builds the HTML strings for 'before' and 'after' Divs for the diff view."""
-    before_diff_markup, after_diff_markup = generate_diff_html(
+) -> tuple[fh.FT, fh.FT]:
+    """Builds fasthtml.Div components for 'before' and 'after' diff areas."""
+    before_items, after_items = generate_diff_html(
         original_recipe.markdown, current_markdown
     )
 
@@ -620,21 +627,29 @@ def _build_diff_content_children(
         "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs"
     )
 
-    before_area_html = (
-        f'<div class="w-1/2">'
-        f"<strong>Initial Extracted Recipe (Reference)</strong>"
-        f'<pre id="diff-before-pre" class="{base_classes}" style="{pre_style}">'
-        f"{before_diff_markup}</pre></div>"
+    before_div_component = fh.Div(
+        fh.Strong("Initial Extracted Recipe (Reference)"),
+        fh.Pre(
+            *before_items,
+            id="diff-before-pre",
+            cls=base_classes,
+            style=pre_style,
+        ),
+        cls="w-1/2",
     )
 
-    after_area_html = (
-        f'<div class="w-1/2">'
-        f"<strong>Current Edited Recipe</strong>"
-        f'<pre id="diff-after-pre" class="{base_classes}" style="{pre_style}">'
-        f"{after_diff_markup}</pre></div>"
+    after_div_component = fh.Div(
+        fh.Strong("Current Edited Recipe"),
+        fh.Pre(
+            *after_items,
+            id="diff-after-pre",
+            cls=base_classes,
+            style=pre_style,
+        ),
+        cls="w-1/2",
     )
 
-    return fh.NotStr(before_area_html), fh.NotStr(after_area_html)
+    return before_div_component, after_div_component
 
 
 def _build_edit_review_form(
@@ -888,12 +903,12 @@ def _build_instructions_section(instructions: list[str]):
 
 def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBase):
     """Builds the 'Review Changes' section with the diff view."""
-    before_diff_html_str, after_diff_html_str = _build_diff_content_children(
+    before_component, after_component = _build_diff_content_children(
         original_recipe, current_recipe.markdown
     )
     diff_content_wrapper = fh.Div(
-        fh.NotStr(before_diff_html_str),
-        fh.NotStr(after_diff_html_str),
+        before_component,
+        after_component,
         cls="flex space-x-4 mt-4",
         id="diff-content-wrapper",
     )
@@ -907,7 +922,7 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
     )
 
 
-def _build_save_button(recipe: RecipeBase) -> fh.Div:
+def _build_save_button(recipe: RecipeBase) -> fh.FT:
     """Builds the save button container."""
     return fh.Div(
         mu.Button(
@@ -1151,9 +1166,8 @@ async def post_modify_recipe(request: Request):
                 inner_e,
                 exc_info=True,
             )
-            error_content = f"<div class='{CSS_ERROR_CLASS}'>"
-            error_content += "Critical error processing form.</div>"
-            return HTMLResponse(content=error_content)
+            # Return fh.Div component instead of manual HTMLResponse
+            return fh.Div("Critical error processing form.", cls=CSS_ERROR_CLASS)
 
         error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         modification_prompt = str(form_data.get("modification_prompt", ""))
@@ -1524,7 +1538,7 @@ async def post_add_instruction_row(request: Request):
 
 
 @rt("/recipes/ui/update-diff", methods=["POST"])
-async def update_diff(request: Request):
+async def update_diff(request: Request) -> fh.FT:
     """Updates the diff view based on current form data."""
     form_data = await request.form()
     try:
@@ -1533,21 +1547,19 @@ async def update_diff(request: Request):
         current_recipe = RecipeBase(**current_data)
         original_recipe = RecipeBase(**original_data)
 
-        before_notstr, after_notstr = _build_diff_content_children(
+        before_component, after_component = _build_diff_content_children(
             original_recipe, current_recipe.markdown
         )
         return fh.Div(
-            before_notstr,
-            after_notstr,
+            before_component,
+            after_component,
             cls="flex space-x-4 mt-4",
             id="diff-content-wrapper",
         )
     except ValidationError as e:
         logger.warning("Validation error during diff update: %s", e, exc_info=False)
         error_message = "Recipe state invalid for diff. Please check all fields."
-        return fh.NotStr(f'<div class="{CSS_ERROR_CLASS}">{error_message}</div>')
+        return fh.Div(error_message, cls=CSS_ERROR_CLASS)
     except Exception as e:
         logger.error("Error updating diff: %s", e, exc_info=True)
-        return fh.NotStr(
-            f'<div class="{CSS_ERROR_CLASS}">Error updating diff view.</div>'
-        )
+        return fh.Div("Error updating diff view.", cls=CSS_ERROR_CLASS)

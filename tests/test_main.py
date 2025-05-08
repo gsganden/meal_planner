@@ -1,4 +1,4 @@
-from typing import cast
+from typing import cast, Any
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
@@ -24,6 +24,9 @@ from meal_planner.main import (
     postprocess_recipe,
 )
 from meal_planner.models import RecipeBase
+from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
+from fasthtml.common import Del, Ins  # Add import
+from fastcore.xml import FT  # Import FT for type checking
 
 # Constants
 TRANSPORT = ASGITransport(app=app)
@@ -902,40 +905,112 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
 
 
 class TestGenerateDiffHtml:
+    def _to_comparable(self, items: list[Any]) -> list[tuple[str, str]]:
+        """Convert a list of strings/Del/Ins components to a comparable list of tuples."""
+        result = []
+        for item in items:
+            # print(f"DEBUG_ITEM_TYPE_VALUE: {type(item)}, {item!r}") # Remove temporary debug print
+            if isinstance(item, str):
+                result.append(("str", item))
+            elif isinstance(item, FT):
+                # item.tag will be 'del' or 'ins'
+                # item.children[0] should be the text content if it's simple text
+                result.append((item.tag, item.children[0]))
+            else:
+                # Fallback for unexpected types, might fail test if needed
+                result.append((type(item).__name__, str(item)))
+        return result
+
     def test_diff_insert(self):
         before = "line1\nline3"
         after = "line1\nline2\nline3"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\nline3"
-        assert after_html == "line1\n<ins>line2</ins>\nline3"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("ins", "line2"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
 
     def test_diff_delete(self):
         before = "line1\nline2\nline3"
         after = "line1\nline3"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\n<del>line2</del>\nline3"
-        assert after_html == "line1\nline3"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("del", "line2"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
 
     def test_diff_replace(self):
         before = "line1\nline TWO\nline3"
         after = "line1\nline 2\nline3"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\n<del>line TWO</del>\nline3"
-        assert after_html == "line1\n<ins>line 2</ins>\nline3"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("del", "line TWO"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("ins", "line 2"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
 
     def test_diff_equal(self):
         before = "line1\nline2"
         after = "line1\nline2"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\nline2"
-        assert after_html == "line1\nline2"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line2"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line2"),
+        ]
 
     def test_diff_combined(self):
         before = "line1\nline to delete\nline3\nline4"
         after = "line1\nline3\nline inserted\nline4"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\n<del>line to delete</del>\nline3\nline4"
-        assert after_html == "line1\nline3\n<ins>line inserted</ins>\nline4"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("del", "line to delete"),
+            ("str", "\n"),
+            ("str", "line3"),
+            ("str", "\n"),
+            ("str", "line4"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line3"),
+            ("str", "\n"),
+            ("ins", "line inserted"),
+            ("str", "\n"),
+            ("str", "line4"),
+        ]
 
 
 class TestParseRecipeFormData:
@@ -1103,14 +1178,21 @@ class TestRecipeUIFragments:
         )
         assert delete_button, "Delete button for new ingredient not found"
         assert isinstance(delete_button, Tag)
-        icon_span = delete_button.find("span", {"data-uk-icon": "icon: minus-circle"})
-        assert icon_span, "Icon span not found in delete button for ingredient"
-        assert isinstance(icon_span, Tag)
-        icon_classes = cast(
-            list[str],
-            icon_span.get("class", []),  # type: ignore[arg-type]
+
+        # Temporary print to inspect button content
+        # print(f"DEBUG_DELETE_BUTTON_CONTENT: {delete_button.prettify()}") # Remove this line
+
+        # Restore and correct assertions
+        icon_element = delete_button.find("uk-icon", attrs={"icon": "minus-circle"})
+        assert icon_element, (
+            "uk-icon element with icon='minus-circle' not found in delete button for ingredient"
         )
-        assert str(mu.TextT.error) in icon_classes
+        assert isinstance(icon_element, Tag)
+        # Ensure class_list is a list before checking with 'in'
+        class_list = icon_element.get("class")
+        if class_list is None:
+            class_list = []
+        assert str(mu.TextT.error) in class_list
 
         oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
         assert oob_div, "OOB diff wrapper not found"
@@ -1154,14 +1236,16 @@ class TestRecipeUIFragments:
         )
         assert delete_button, "Delete button for new instruction not found"
         assert isinstance(delete_button, Tag)
-        icon_span = delete_button.find("span", {"data-uk-icon": "icon: minus-circle"})
-        assert icon_span, "Icon span not found in delete button for instruction"
-        assert isinstance(icon_span, Tag)
-        icon_classes = cast(
-            list[str],
-            icon_span.get("class", []),  # type: ignore[arg-type]
+        icon_element = delete_button.find("uk-icon", attrs={"icon": "minus-circle"})
+        assert icon_element, (
+            "uk-icon element with icon='minus-circle' not found in delete button for instruction"
         )
-        assert str(mu.TextT.error) in icon_classes
+        assert isinstance(icon_element, Tag)
+        # Ensure class_list is a list before checking with 'in'
+        class_list = icon_element.get("class")
+        if class_list is None:
+            class_list = []
+        assert str(mu.TextT.error) in class_list
 
         oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
         assert oob_div, "OOB diff wrapper not found"
