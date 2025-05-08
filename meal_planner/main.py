@@ -280,7 +280,7 @@ async def get_recipes_htmx():
                         hx_target="closest li",
                         hx_swap="outerHTML",
                         hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
-                        cls=f"{mu.ButtonT.error} {mu.ButtonSize.sm}",
+                        cls=mu.ButtonT.danger,
                     ),
                     id=f"recipe-item-{recipe['id']}",
                     cls="flex items-center justify-between mb-1",
