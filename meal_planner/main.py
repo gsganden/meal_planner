@@ -666,8 +666,11 @@ def _build_edit_review_form(
 
     combined_edit_section = fh.Div(
         fh.H2("Edit Recipe", cls="text-3xl mb-4"),
-        controls_section,
-        editable_section,
+        fh.Div(
+            controls_section,
+            editable_section,
+            id="form-content-wrapper",
+        ),
     )
 
     diff_style = fh.Style("""
@@ -1132,22 +1135,24 @@ async def post_modify_recipe(request: Request):
             )
             error_content = f"<div class='{CSS_ERROR_CLASS}'>"
             error_content += "Critical error processing form.</div>"
-            return HTMLResponse(content=error_content)
+            return HTMLResponse(
+                content=f"<div id='edit-form-target' class='mt-6'>{error_content}</div>",
+                status_code=200,
+            )
 
         error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         modification_prompt = str(form_data.get("modification_prompt", ""))
         current_recipe = original_recipe
 
+    # --- Return Logic ---
     if error_message:
         edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe,
-            original_recipe,
-            modification_prompt,
-            error_message,
+            current_recipe, original_recipe, modification_prompt, error_message
         )
-        return edit_form_card, fh.Div(
+        oob_review = fh.Div(
             review_section_card, hx_swap_oob="innerHTML:#review-section-target"
         )
+        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
     if not modification_prompt:
         logger.info("Modification requested with empty prompt. Returning form.")
@@ -1155,14 +1160,12 @@ async def post_modify_recipe(request: Request):
             "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
         )
         edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe,
-            original_recipe,
-            "",
-            error_message,
+            current_recipe, original_recipe, "", error_message
         )
-        return edit_form_card, fh.Div(
+        oob_review = fh.Div(
             review_section_card, hx_swap_oob="innerHTML:#review-section-target"
         )
+        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
     try:
         modified_recipe = await _request_recipe_modification(
@@ -1171,21 +1174,20 @@ async def post_modify_recipe(request: Request):
         edit_form_card, review_section_card = _build_edit_review_form(
             modified_recipe, original_recipe
         )
-        return edit_form_card, fh.Div(
+        oob_review = fh.Div(
             review_section_card, hx_swap_oob="innerHTML:#review-section-target"
         )
+        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
     except RecipeModificationError as e:
         error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe,
-            original_recipe,
-            modification_prompt,
-            error_message,
+            current_recipe, original_recipe, modification_prompt, error_message
         )
-        return edit_form_card, fh.Div(
+        oob_review = fh.Div(
             review_section_card, hx_swap_oob="innerHTML:#review-section-target"
         )
+        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
 
 def _parse_and_validate_modify_form(
