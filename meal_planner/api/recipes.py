@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 
@@ -92,7 +92,7 @@ async def get_recipe_by_id(
     return recipe
 
 
-@API_ROUTER.delete("/v0/recipes/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
+@API_ROUTER.delete("/v0/recipes/{recipe_id}", status_code=status.HTTP_200_OK)
 async def delete_recipe(
     recipe_id: int, session: Annotated[Session, Depends(get_session)]
 ):
@@ -130,4 +130,4 @@ async def delete_recipe(
         ) from e
 
     logger.info("Deleted recipe with ID: %s", recipe_id)
-    return None
+    return Response(status_code=status.HTTP_200_OK, content="")
