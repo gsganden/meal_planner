@@ -19,6 +19,7 @@ dependencies = [
     "fastlite>=0.1.3",
     "sqlmodel",
     "alembic",
+    "fastapi>=0.115.12",
 ]
 
 [project.optional-dependencies]
