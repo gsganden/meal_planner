@@ -47,7 +47,8 @@ def dbsession(test_engine):
         yield session
 
         session.close()
-        transaction.rollback()
+        if transaction.is_active:
+            transaction.rollback()
 
     finally:
         if connection is not None:

@@ -318,7 +318,7 @@ class TestDeleteRecipe:
     ):
         """Test successful deletion of an existing recipe."""
         delete_response = await client.delete(f"/api/v0/recipes/{created_recipe_id}")
-        assert delete_response.status_code == 200
+        assert delete_response.status_code == 204
 
         get_response = await client.get(f"/api/v0/recipes/{created_recipe_id}")
         assert get_response.status_code == 404

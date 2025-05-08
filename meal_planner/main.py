@@ -276,6 +276,7 @@ async def get_recipes_htmx():
                     ),
                     mu.Button(
                         mu.UkIcon("minus-circle", cls=mu.TextT.error),
+                        title="Delete",
                         hx_delete=f"/api/v0/recipes/{recipe['id']}",
                         hx_target="closest li",
                         hx_swap="outerHTML",

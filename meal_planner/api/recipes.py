@@ -92,7 +92,7 @@ async def get_recipe_by_id(
     return recipe
 
 
-@API_ROUTER.delete("/v0/recipes/{recipe_id}", status_code=status.HTTP_200_OK)
+@API_ROUTER.delete("/v0/recipes/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_recipe(
     recipe_id: int, session: Annotated[Session, Depends(get_session)]
 ):
@@ -130,4 +130,4 @@ async def delete_recipe(
         ) from e
 
     logger.info("Deleted recipe with ID: %s", recipe_id)
-    return Response(status_code=status.HTTP_200_OK, content="")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
