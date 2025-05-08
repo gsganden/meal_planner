@@ -107,7 +107,7 @@ async def delete_recipe(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error trying to delete recipe",
+            detail="Database error fetching recipe for deletion",
         ) from e
 
     if recipe is None:

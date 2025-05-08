@@ -320,7 +320,6 @@ class TestDeleteRecipe:
         delete_response = await client.delete(f"/api/v0/recipes/{created_recipe_id}")
         assert delete_response.status_code == 204
 
-        # Verify the recipe is no longer accessible
         get_response = await client.get(f"/api/v0/recipes/{created_recipe_id}")
         assert get_response.status_code == 404
 
@@ -342,7 +341,7 @@ class TestDeleteRecipe:
 
             assert response.status_code == 500
             assert response.json() == {
-                "detail": "Database error trying to delete recipe"
+                "detail": "Database error fetching recipe for deletion"
             }
             mock_get.assert_called_once_with(Recipe, created_recipe_id)
 
@@ -350,7 +349,6 @@ class TestDeleteRecipe:
         self, client: AsyncClient, monkeypatch, created_recipe_id: int
     ):
         """Test handling of database errors during the actual delete operation."""
-        # First, ensure the recipe exists and can be fetched
         get_response = await client.get(f"/api/v0/recipes/{created_recipe_id}")
         assert get_response.status_code == 200
 
@@ -358,27 +356,10 @@ class TestDeleteRecipe:
             patch("sqlmodel.Session.delete"),
             patch("sqlmodel.Session.commit") as mock_commit,
         ):
-            # Mock either delete or commit to simulate an error during the transaction
-            # Let's mock commit as it's more common for issues to arise there
             mock_commit.side_effect = Exception("Simulated DB error on commit")
 
             response = await client.delete(f"/api/v0/recipes/{created_recipe_id}")
 
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error deleting recipe"}
-            # mock_delete should have been called with the specific recipe instance.
-            # This requires session.get to have worked, so we're modifying the
-            # approach slightly. The API internally does session.get then
-            # session.delete.
-            # We need to ensure mock_delete is called with an object that would be
-            # equivalent to what session.get would return.
-            # A more direct way to test this is to patch session.commit
-            # if session.delete itself doesn't fail.
-
-            # Check that session.delete was attempted.
-            # As we can't easily check the exact instance from here without more
-            # complex mocking of session.get, we'll rely on the fact that if commit
-            # fails, delete must have been called.
-            # A more robust check would involve deeper mocking of the session.
-            # For now, checking commit was called is a good indicator.
             mock_commit.assert_called_once()
