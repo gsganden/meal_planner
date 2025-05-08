@@ -1,71 +1,75 @@
-import contextlib
 import logging
-from pathlib import Path
 from typing import AsyncGenerator
 
-import fastlite
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.engine import Connection
+from sqlmodel import Session as SQLModelSession
+from sqlmodel import create_engine
 
-from meal_planner.db import get_initialized_db
+from alembic import command
+from alembic.config import Config
+from meal_planner.database import get_session
 from meal_planner.main import api_app, app
 
-TEST_DB_PATH = Path("meal_planner_test.db")
 logger = logging.getLogger(__name__)
 
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
-@pytest.fixture(scope="session")
-def test_db_session():
-    """Creates and cleans up the test database file for the entire session.
 
-    Ensures the necessary tables are initialized using the main app's logic.
-    """
-    if TEST_DB_PATH.exists():
-        logger.info("Removing existing test database: %s", TEST_DB_PATH)
-        TEST_DB_PATH.unlink()
+@pytest.fixture(scope="function")
+def test_engine():
+    """Creates an in-memory SQLite engine for each test function."""
+    engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+    yield engine
+    engine.dispose()
 
-    db_conn_for_setup = None
+
+@pytest.fixture(scope="function")
+def dbsession(test_engine):
+    """Provides a transactional session with tables created via Alembic migrations."""
+    alembic_cfg = Config("alembic.ini")
+    alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+
+    connection: Connection | None = None
     try:
-        logger.info("Initializing test database: %s", TEST_DB_PATH)
-        db_conn_for_setup = get_initialized_db(db_path_override=TEST_DB_PATH)
-        yield TEST_DB_PATH
+        connection = test_engine.connect()
+        assert connection is not None
+
+        alembic_cfg.attributes["connection"] = connection
+        command.upgrade(alembic_cfg, "head")
+        alembic_cfg.attributes.pop("connection", None)
+
+        transaction = connection.begin()
+        session = SQLModelSession(bind=connection)
+
+        yield session
+
+        session.close()
+        transaction.rollback()
+
     finally:
-        if db_conn_for_setup is not None:
-            logger.info("Closing setup connection for test database: %s", TEST_DB_PATH)
-            with contextlib.suppress(Exception):
-                db_conn_for_setup.conn.close()  # type: ignore
-        if TEST_DB_PATH.exists():
-            logger.info("Removing test database file after session: %s", TEST_DB_PATH)
-            TEST_DB_PATH.unlink()
+        if connection is not None:
+            downgrade_cfg = Config("alembic.ini")
+            downgrade_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+            command.downgrade(downgrade_cfg, "base")
+            connection.close()
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(test_db_session: Path) -> AsyncGenerator[AsyncClient, None]:
-    """Provides an HTTP client for testing the FastAPI app with overridden DB."""
-    db_conn_for_test = fastlite.database(test_db_session)
-    db_conn_for_test.conn.execute("DELETE FROM recipes")
+async def client(dbsession: SQLModelSession) -> AsyncGenerator[AsyncClient, None]:
+    def override_get_session():
+        return dbsession
 
-    def override_get_db_for_test():
-        """Dependency override that returns the function-scoped test database
-        connection."
-        """
-        return db_conn_for_test
+    api_app.dependency_overrides[get_session] = override_get_session
 
-    api_app.dependency_overrides[get_initialized_db] = override_get_db_for_test
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        yield c
 
-    try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        ) as client:
-            yield client
-    finally:
-        api_app.dependency_overrides = {}
-        try:
-            db_conn_for_test.conn.close()
-        except Exception as e:
-            logger.error(f"Error closing test DB connection: {e}")
+    api_app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="module")
