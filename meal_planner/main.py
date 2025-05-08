@@ -784,7 +784,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
         input_component = fh.Input(
             type="text",
             name="ingredients",
-            value=ing_value,  # fh.Input handles escaping by default
+            value=ing_value,
             placeholder="Ingredient",
             cls="uk-input flex-grow mr-2",
             hx_post="/recipes/ui/update-diff",
@@ -819,7 +819,7 @@ def _build_ingredients_section(ingredients: list[str]):
     ingredient_item_components = _render_ingredient_list_items(ingredients)
 
     ingredient_inputs_container = fh.Div(
-        *ingredient_item_components,  # Unpack the list of components
+        *ingredient_item_components,
         id="ingredients-list",
         cls="mb-4",
     )
@@ -843,7 +843,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
     items_list = []
     for i, inst_value in enumerate(instructions):
         textarea_component = fh.Textarea(
-            inst_value,  # Content is the first argument for Textarea
+            inst_value,
             name="instructions",
             placeholder="Instruction Step",
             rows=2,
@@ -881,7 +881,7 @@ def _build_instructions_section(instructions: list[str]):
     instruction_item_components = _render_instruction_list_items(instructions)
 
     instruction_inputs_container = fh.Div(
-        *instruction_item_components,  # Unpack the list of components
+        *instruction_item_components,
         id="instructions-list",
         cls="mb-4",
     )
@@ -1148,82 +1148,77 @@ class RecipeModificationError(Exception):
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
     form_data: FormData = await request.form()
-    error_message = None
+    error_message_content = None
+    current_recipe = None
+    original_recipe = None
+    modification_prompt = ""
+
+    # --- Step 1: Try Parsing ---
     try:
         (
             current_recipe,
             original_recipe,
             modification_prompt,
-        ) = _parse_and_validate_modify_form(form_data)
+        ) = _parse_and_validate_modify_form(form_data)  # Raises ModifyFormError
+
     except ModifyFormError as e:
+        # Handle parsing error: try to get original for display
+        error_message_content = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
         try:
             original_data = _parse_recipe_form_data(form_data, prefix="original_")
-            original_recipe = RecipeBase(**original_data)
+            original_recipe = RecipeBase(**original_data)  # Use this for display
+            if current_recipe is None:
+                current_recipe = original_recipe
         except Exception as inner_e:
             logger.error(
                 "Could not parse original data on modify error: %s",
                 inner_e,
                 exc_info=True,
             )
-            # Return fh.Div component instead of manual HTMLResponse
+            # Critical failure during error handling
             return fh.Div("Critical error processing form.", cls=CSS_ERROR_CLASS)
 
-        error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
-        modification_prompt = str(form_data.get("modification_prompt", ""))
-        current_recipe = original_recipe
-
-    if error_message:
-        edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe,
-            original_recipe,
-            modification_prompt,
-            error_message,
-        )
-        return fh.Group(
-            edit_form_card,
-            fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
-        )
-
-    if not modification_prompt:
+    # --- Step 2: Check Prompt (if parsing succeeded) ---
+    if error_message_content is None and not modification_prompt:
         logger.info("Modification requested with empty prompt. Returning form.")
-        error_message = fh.Div(
+        error_message_content = fh.Div(
             "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
         )
-        edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe,
-            original_recipe,
-            "",
-            error_message,
-        )
-        return fh.Group(
-            edit_form_card,
-            fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
-        )
 
-    try:
-        modified_recipe = await _request_recipe_modification(
-            current_recipe, modification_prompt
-        )
-        edit_form_card, review_section_card = _build_edit_review_form(
-            modified_recipe, original_recipe
-        )
-        return fh.Group(
-            edit_form_card,
-            fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
-        )
+    # --- Step 3: Try Modification (if parsing succeeded and prompt present) ---
+    if error_message_content is None:
+        # We should only reach here if parsing succeeded and prompt is present
+        # Both current_recipe and original_recipe should be valid RecipeBase objects
+        try:
+            modified_recipe = await _request_recipe_modification(
+                current_recipe, modification_prompt
+            )
+            # SUCCESS PATH: Build form with modified recipe
+            edit_form_card, review_section_card = _build_edit_review_form(
+                modified_recipe, original_recipe
+            )
+            return fh.Group(
+                edit_form_card,
+                fh.Div(
+                    review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+                ),
+            )
 
-    except RecipeModificationError as e:
-        error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
-        edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe,
-            original_recipe,
-            modification_prompt,
-            error_message,
-        )
-        return fh.Group(
-            edit_form_card,
-            fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
-        )
+        except RecipeModificationError as e:
+            error_message_content = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
+    recipe_to_display = current_recipe if current_recipe else original_recipe
+    original_for_display = original_recipe if original_recipe else recipe_to_display
+
+    edit_form_card, review_section_card = _build_edit_review_form(
+        recipe_to_display,
+        original_for_display,
+        modification_prompt,
+        error_message_content,
+    )
+    return fh.Group(
+        edit_form_card,
+        fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
+    )
 
 
 def _parse_and_validate_modify_form(
@@ -1359,7 +1354,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
             id="ingredients-list",
             cls="mb-4",
         )
-        return ingredients_list_component  # Only return the list component with error
+        return ingredients_list_component
 
     except Exception as e:
         logger.error(f"Error deleting ingredient at index {index}: {e}", exc_info=True)
@@ -1423,7 +1418,7 @@ async def post_delete_instruction_row(request: Request, index: int):
             id="instructions-list",
             cls="mb-4",
         )
-        return instructions_list_component  # Only return the list component with error
+        return instructions_list_component
 
     except Exception as e:
         logger.error(f"Error deleting instruction at index {index}: {e}", exc_info=True)
@@ -1440,7 +1435,7 @@ async def post_add_ingredient_row(request: Request):
     try:
         parsed_data = _parse_recipe_form_data(form_data)
         current_ingredients = parsed_data.get("ingredients", [])
-        current_ingredients.append("")  # Add a new empty ingredient
+        current_ingredients.append("")
 
         parsed_data["ingredients"] = current_ingredients
         new_current_recipe = RecipeBase(**parsed_data)
@@ -1452,7 +1447,9 @@ async def post_add_ingredient_row(request: Request):
             new_current_recipe.ingredients
         )
         ingredients_list_component = fh.Div(
-            *new_ingredient_item_components, id="ingredients-list", cls="mb-4"
+            *new_ingredient_item_components,
+            id="ingredients-list",
+            cls="mb-4",
         )
 
         before_notstr, after_notstr = _build_diff_content_children(
@@ -1491,7 +1488,7 @@ async def post_add_instruction_row(request: Request):
     try:
         parsed_data = _parse_recipe_form_data(form_data)
         current_instructions = parsed_data.get("instructions", [])
-        current_instructions.append("")  # Add a new empty instruction
+        current_instructions.append("")
 
         parsed_data["instructions"] = current_instructions
         new_current_recipe = RecipeBase(**parsed_data)

@@ -22,6 +22,7 @@ from meal_planner.main import (
     fetch_page_text,
     get_structured_llm_response,
     postprocess_recipe,
+    ModifyFormError,
 )
 from meal_planner.models import RecipeBase
 
@@ -901,6 +902,26 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
     assert mock_parse.call_count == 2
 
 
+@pytest.mark.anyio
+async def test_modify_critical_failure(client: AsyncClient):
+    """Test critical failure during form parsing in post_modify_recipe."""
+    with patch("meal_planner.main._parse_and_validate_modify_form") as mock_validate:
+        mock_validate.side_effect = ModifyFormError("Form validation error")
+
+        with patch("meal_planner.main._parse_recipe_form_data") as mock_parse:
+            mock_parse.side_effect = Exception("Critical parsing error")
+
+            response = await client.post(RECIPES_MODIFY_URL, data={"name": "Test"})
+
+            assert response.status_code == 200
+            assert "Critical error processing form." in response.text
+            assert CSS_ERROR_CLASS in response.text
+
+            # Verify the functions were called
+            mock_validate.assert_called_once()
+            mock_parse.assert_called_once()
+
+
 class TestGenerateDiffHtml:
     def _to_comparable(self, items: list[Any]) -> list[tuple[str, str]]:
         """Converts items (strings/FT objects) to a list of (type_name_str, content_str)
@@ -910,11 +931,8 @@ class TestGenerateDiffHtml:
             if isinstance(item, str):
                 result.append(("str", item))
             elif isinstance(item, FT):
-                # item.tag will be 'del' or 'ins'
-                # item.children[0] should be the text content if it's simple text
                 result.append((item.tag, item.children[0]))
             else:
-                # Fallback for unexpected types, might fail test if needed
                 result.append((type(item).__name__, str(item)))
         return result
 
@@ -1182,7 +1200,6 @@ class TestRecipeUIFragments:
             "UkIcon 'minus-circle' not found in ingredient delete button"
         )
         assert isinstance(icon_element, Tag)
-        # Ensure class_list is a list before checking with 'in'
         class_list = icon_element.get("class")
         if class_list is None:
             class_list = []
@@ -1235,7 +1252,6 @@ class TestRecipeUIFragments:
             "UkIcon 'minus-circle' not found in instruction delete button"
         )
         assert isinstance(icon_element, Tag)
-        # Ensure class_list is a list before checking with 'in'
         class_list = icon_element.get("class")
         if class_list is None:
             class_list = []
@@ -1825,7 +1841,7 @@ class TestRecipeUpdateDiff:
         assert response.status_code == 200
         html = response.text
         assert "Recipe state invalid for diff. Please check all fields." in html
-        assert "diff-content-wrapper" not in html  # Ensure the diff itself isn't shown
+        assert "diff-content-wrapper" not in html
 
         mock_logger_warning.assert_called_once()
         args, kwargs = mock_logger_warning.call_args
