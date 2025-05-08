@@ -368,7 +368,8 @@ class TestDeleteRecipe:
             assert response.json() == {"detail": "Database error deleting recipe"}
             # mock_delete should have been called with the specific recipe instance.
             # This requires session.get to have worked, so we're modifying the
-            # approach slightly. The API internally does session.get then session.delete.
+            # approach slightly. The API internally does session.get then
+            # session.delete.
             # We need to ensure mock_delete is called with an object that would be
             # equivalent to what session.get would return.
             # A more direct way to test this is to patch session.commit
