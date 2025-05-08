@@ -34,4 +34,5 @@ class RecipeBase(SQLModel):
 
 
 class Recipe(RecipeBase, table=True):
+    __tablename__ = "recipes"  # type: ignore[assignment]
     id: Optional[int] = Field(default=None, primary_key=True)

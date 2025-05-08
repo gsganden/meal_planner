@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.create_table(
-        "recipe",
+        "recipes",
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("ingredients", sa.JSON(), nullable=False),
         sa.Column("instructions", sa.JSON(), nullable=False),
@@ -32,4 +32,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_table("recipe")
+    op.drop_table("recipes")

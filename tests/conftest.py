@@ -4,10 +4,12 @@ from typing import AsyncGenerator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.engine import Connection
 from sqlmodel import Session as SQLModelSession
-from sqlmodel import SQLModel as SQLModelBase
 from sqlmodel import create_engine
 
+from alembic import command
+from alembic.config import Config
 from meal_planner.database import get_session
 from meal_planner.main import api_app, app
 
@@ -26,20 +28,33 @@ def test_engine():
 
 @pytest.fixture(scope="function")
 def dbsession(test_engine):
-    """Provides a transactional session with tables created for each test function."""
-    SQLModelBase.metadata.create_all(test_engine)
+    """Provides a transactional session with tables created via Alembic migrations."""
+    alembic_cfg = Config("alembic.ini")
+    alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
 
-    connection = test_engine.connect()
-    transaction = connection.begin()
-    session = SQLModelSession(bind=connection)
+    connection: Connection | None = None
+    try:
+        connection = test_engine.connect()
+        assert connection is not None
 
-    yield session
+        alembic_cfg.attributes["connection"] = connection
+        command.upgrade(alembic_cfg, "head")
+        alembic_cfg.attributes.pop("connection", None)
 
-    session.close()
-    transaction.rollback()
-    connection.close()
+        transaction = connection.begin()
+        session = SQLModelSession(bind=connection)
 
-    SQLModelBase.metadata.drop_all(test_engine)
+        yield session
+
+        session.close()
+        transaction.rollback()
+
+    finally:
+        if connection is not None:
+            downgrade_cfg = Config("alembic.ini")
+            downgrade_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+            command.downgrade(downgrade_cfg, "base")
+            connection.close()
 
 
 @pytest_asyncio.fixture(scope="function")
