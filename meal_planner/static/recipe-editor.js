@@ -36,10 +36,12 @@ function initializeUikitSortables() {
 
     lists.forEach(listElement => {
         if (listElement && listElement.hasAttribute('uk-sortable')) {
+            // Re-apply/refresh UIkit sortable to ensure it picks up new children
+            UIkit.sortable(listElement, {handle: '.drag-handle'}); 
+
             if (!listElement._uikitSortableStopListenerAttached) {
                 UIkit.util.on(listElement, 'stop', function (event) {
                     console.log('[recipe-editor.js] UIkit sortable \'stop\' event fired for target:', event.target);
-                    // event.target is the sortable list element
                     triggerDiffUpdate(event.target);
                 });
                 listElement._uikitSortableStopListenerAttached = true;
