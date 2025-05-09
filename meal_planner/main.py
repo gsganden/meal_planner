@@ -146,6 +146,7 @@ def with_layout(content):
             fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
         ),
         fh.Script(src="/static/main.js"),
+        fh.Script(src="/static/recipe-editor.js"),
     )
 
 
@@ -780,6 +781,7 @@ def _build_ingredients_section(ingredients: list[str]):
         *(_build_ingredient_input(i, ing) for i, ing in enumerate(ingredients)),
         id="ingredients-list",
         cls="mb-4",
+        uk_sortable="handle: .drag-handle",
     )
     add_ingredient_button = mu.Button(
         mu.UkIcon("plus-circle", cls=mu.TextT.primary),
@@ -798,6 +800,9 @@ def _build_ingredients_section(ingredients: list[str]):
 def _build_ingredient_input(index: int, value: str):
     """Builds a single ingredient input row."""
     return fh.Div(
+        mu.UkIcon(
+            "menu", cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600"
+        ),
         mu.Input(
             name="ingredients",
             value=value,
@@ -831,6 +836,7 @@ def _build_instructions_section(instructions: list[str]):
         *instruction_items,
         id="instructions-list",
         cls="mb-4",
+        uk_sortable="handle: .drag-handle",
     )
     add_instruction_button = mu.Button(
         mu.UkIcon("plus-circle", cls=mu.TextT.primary),
@@ -849,6 +855,9 @@ def _build_instructions_section(instructions: list[str]):
 def _build_instruction_input(index: int, value: str):
     """Builds a single instruction textarea row."""
     return fh.Div(
+        mu.UkIcon(
+            "menu", cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600"
+        ),
         mu.TextArea(
             value,
             name="instructions",

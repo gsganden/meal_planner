@@ -1,14 +1,11 @@
-// This file can be used for other site-wide JavaScript if needed.
-// Recipe editor specific JavaScript has been moved to recipe-editor.js
-
 // Function to trigger HTMX diff update
 function triggerDiffUpdate(elementContainingForm) {
-    console.log('[main.js] triggerDiffUpdate called for element:', elementContainingForm);
+    console.log('[recipe-editor.js] triggerDiffUpdate called for element:', elementContainingForm);
     const form = elementContainingForm.closest('form');
     if (form) {
         const diffWrapper = document.getElementById('diff-content-wrapper');
         const formData = htmx.values(form);
-        console.log('[main.js] Form data for diff update:', formData);
+        console.log('[recipe-editor.js] Form data for diff update:', formData);
         if (diffWrapper) {
             htmx.ajax('POST', '/recipes/ui/update-diff', {
                 target: diffWrapper,
@@ -41,7 +38,7 @@ function initializeUikitSortables() {
         if (listElement && listElement.hasAttribute('uk-sortable')) {
             if (!listElement._uikitSortableStopListenerAttached) {
                 UIkit.util.on(listElement, 'stop', function (event) {
-                    console.log('[main.js] UIkit sortable 'stop' event fired for target:', event.target);
+                    console.log('[recipe-editor.js] UIkit sortable \'stop\' event fired for target:', event.target);
                     // event.target is the sortable list element
                     triggerDiffUpdate(event.target);
                 });
@@ -84,8 +81,8 @@ document.body.addEventListener('click', function(event) {
              itemToRemove.parentElement.id === 'instructions-list')) {
             
             itemToRemove.remove();
-            console.log('[main.js] Item removed by click, triggering diff update for element:', deleteButton);
+            console.log('[recipe-editor.js] Item removed by click, triggering diff update for element:', deleteButton);
             triggerDiffUpdate(deleteButton);
         }
     }
-});
+}); 
