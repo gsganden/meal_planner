@@ -68,21 +68,4 @@ document.addEventListener('DOMContentLoaded', function() {
 // Re-initialize sortables after HTMX content swaps
 document.body.addEventListener('htmx:afterSettle', function(event) {
     initializeUikitSortables();
-});
-
-// Handle item deletion for ingredients and instructions
-document.body.addEventListener('click', function(event) {
-    const deleteButton = event.target.closest('.delete-item-button');
-    if (deleteButton) {
-        const itemToRemove = deleteButton.closest('div[id^="ingredient-"], div[id^="instruction-"]');
-        
-        if (itemToRemove && itemToRemove.parentElement &&
-            (itemToRemove.parentElement.id === 'ingredients-list' || 
-             itemToRemove.parentElement.id === 'instructions-list')) {
-            
-            itemToRemove.remove();
-            console.log('[recipe-editor.js] Item removed by click, triggering diff update for element:', deleteButton);
-            triggerDiffUpdate(deleteButton);
-        }
-    }
 }); 
