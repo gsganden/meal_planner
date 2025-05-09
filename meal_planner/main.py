@@ -121,6 +121,40 @@ def with_layout(content):
         .htmx-indicator.htmx-request { opacity: 1; }
     """)
 
+    recipe_display_specific_styles = fh.Style("""
+        h2.text-2xl.font-bold {
+            font-size: 1.5rem !important; /* text-2xl */
+            font-weight: 700 !important; /* font-bold */
+        }
+        .recipe-display-container h3.text-xl.font-bold,
+        h3.text-xl.font-bold {
+            font-size: 1.25rem !important;
+            font-weight: 700 !important;
+        }
+        .recipe-display-container h4.text-lg.font-semibold,
+        h4.text-lg.font-semibold {
+            font-size: 1.125rem !important;
+            font-weight: 600 !important;
+            margin-bottom: 0.25rem !important; 
+        }
+        .recipe-display-container ul.list-disc.list-inside,
+        ul.list-disc.list-inside {
+            list-style-type: disc !important;
+            padding-left: 1.75rem !important; 
+            margin-bottom: 0.75rem !important;
+        }
+        #recipe-display-wrapper {
+            background-color: #f3f4f6 !important; /* approx bg-gray-100 */
+            padding: 1rem !important; /* approx p-4 */
+            border: 1px solid #e5e7eb !important; /* approx border (border-gray-200) */
+            border-radius: 0.25rem !important; /* approx rounded */
+        }
+        html[data-theme='dark'] #recipe-display-wrapper {
+             background-color: #374151 !important; /* approx dark:bg-gray-700 */
+             border-color: #4b5563 !important; /* approx dark:border-gray-600 */
+        }
+    """)
+
     hamburger_button = fh.Div(
         mu.Button(
             mu.UkIcon("menu"),
@@ -139,6 +173,7 @@ def with_layout(content):
     return (
         fh.Title("Meal Planner"),
         indicator_style,
+        recipe_display_specific_styles,
         hamburger_button,
         mobile_sidebar_container,
         fh.Div(cls="flex flex-col md:flex-row w-full")(
@@ -230,7 +265,7 @@ def get():
     return with_layout(
         mu.Titled(
             "Create Recipe",
-            mu.Card(input_section, cls="mt-6"),
+            mu.Card(input_section, cls="mt-6 mb-6"),
             edit_form_target_div,
             review_section_target_div,
             id="content",
@@ -348,20 +383,20 @@ def _build_recipe_display(recipe_data: dict):
         A fasthtml.Div component ready for display.
     """
     components = [
-        fh.H3(recipe_data["name"], cls="text-xl font-bold mb-3"),
+        fh.H3(recipe_data.get("name", "Untitled Recipe"), cls="text-xl font-bold mb-3"),
         fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
         fh.Ul(
-            *[fh.Li(ing) for ing in recipe_data.get("ingredients", [])],
+            *[fh.Li(str(ing)) for ing in recipe_data.get("ingredients", [])],
             cls="list-disc list-inside mb-3",
         ),
     ]
-    instructions = recipe_data.get("instructions", [])
-    if instructions:
+    instructions_list = recipe_data.get("instructions", [])
+    if instructions_list:
         components.extend(
             [
                 fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
                 fh.Ul(
-                    *[fh.Li(inst) for inst in instructions],
+                    *[fh.Li(str(inst)) for inst in instructions_list],
                     cls="list-disc list-inside mb-3",
                 ),
             ]
@@ -369,7 +404,8 @@ def _build_recipe_display(recipe_data: dict):
 
     return fh.Div(
         *components,
-        cls="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-sm max-w-none",
+        cls="p-4 border rounded text-sm max-w-none",
+        id="recipe-display-wrapper",
     )
 
 
@@ -1003,13 +1039,15 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         )
         processed_recipe.ingredients = ["No ingredients found"]
 
-    reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-2xl mb-2 mt-6")
+    reference_heading = fh.H2(
+        "Extracted Recipe (Reference)", cls="text-2xl font-bold mt-6 mb-4"
+    )
     rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
 
     rendered_recipe_html = fh.Div(
         reference_heading,
         rendered_content_div,
-        cls="mb-6",
+        cls="mb-6 reference-recipe-display",
     )
 
     edit_form_card, review_section_card = _build_edit_review_form(
@@ -1274,6 +1312,9 @@ async def _request_recipe_modification(
 @rt("/recipes/ui/add-ingredient", methods=["POST"])
 def post_add_ingredient_row():
     return fh.Div(
+        mu.UkIcon(
+            "menu", cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600"
+        ),
         mu.Input(
             name="ingredients",
             value="",
@@ -1300,6 +1341,9 @@ def post_add_ingredient_row():
 @rt("/recipes/ui/add-instruction", methods=["POST"])
 def post_add_instruction_row():
     return fh.Div(
+        mu.UkIcon(
+            "menu", cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600"
+        ),
         mu.TextArea(
             "",
             name="instructions",
