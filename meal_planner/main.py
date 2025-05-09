@@ -157,6 +157,7 @@ def with_layout(content):
                 hx_swap="outerHTML",
             ),
         ),
+        fh.Script(src="/static/recipe-editor.js"),
     )
 
 
@@ -852,6 +853,10 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
     """Render ingredient input divs as a list of fasthtml.Tag components."""
     items_list = []
     for i, ing_value in enumerate(ingredients):
+        drag_handle_component = mu.UkIcon(
+            "menu",
+            cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600",
+        )
         input_component = fh.Input(
             type="text",
             name="ingredients",
@@ -877,6 +882,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
         )
 
         item_div = fh.Div(
+            drag_handle_component,
             input_component,
             button_component,
             cls="flex items-center mb-2",
@@ -893,6 +899,12 @@ def _build_ingredients_section(ingredients: list[str]):
         *ingredient_item_components,
         id="ingredients-list",
         cls="mb-4",
+        uk_sortable="handle: .drag-handle",
+        hx_trigger="moved",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_include="closest form",
     )
     add_ingredient_button = mu.Button(
         mu.UkIcon("plus-circle", cls=mu.TextT.primary),
@@ -913,6 +925,10 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
     """Render instruction textarea divs as a list of fasthtml.Tag components."""
     items_list = []
     for i, inst_value in enumerate(instructions):
+        drag_handle_component = mu.UkIcon(
+            "menu",
+            cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600",
+        )
         textarea_component = fh.Textarea(
             inst_value,
             name="instructions",
@@ -938,6 +954,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
         )
 
         item_div = fh.Div(
+            drag_handle_component,
             textarea_component,
             button_component,
             cls="flex items-start mb-2",
@@ -954,6 +971,12 @@ def _build_instructions_section(instructions: list[str]):
         *instruction_item_components,
         id="instructions-list",
         cls="mb-4",
+        uk_sortable="handle: .drag-handle",
+        hx_trigger="moved",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_include="closest form",
     )
     add_instruction_button = mu.Button(
         mu.UkIcon("plus-circle", cls=mu.TextT.primary),
