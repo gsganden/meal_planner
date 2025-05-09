@@ -121,37 +121,36 @@ def with_layout(content):
         .htmx-indicator.htmx-request { opacity: 1; }
     """)
 
+    # Targeted CSS overrides for recipe display to counteract UIkit base styles
     recipe_display_specific_styles = fh.Style("""
-        h2.text-2xl.font-bold {
-            font-size: 1.5rem !important; /* text-2xl */
-            font-weight: 700 !important; /* font-bold */
-        }
-        .recipe-display-container h3.text-xl.font-bold,
-        h3.text-xl.font-bold {
-            font-size: 1.25rem !important;
-            font-weight: 700 !important;
-        }
-        .recipe-display-container h4.text-lg.font-semibold,
-        h4.text-lg.font-semibold {
-            font-size: 1.125rem !important;
-            font-weight: 600 !important;
-            margin-bottom: 0.25rem !important; 
-        }
-        .recipe-display-container ul.list-disc.list-inside,
-        ul.list-disc.list-inside {
-            list-style-type: disc !important;
-            padding-left: 1.75rem !important; 
-            margin-bottom: 0.75rem !important;
-        }
         #recipe-display-wrapper {
-            background-color: #f3f4f6 !important; /* approx bg-gray-100 */
-            padding: 1rem !important; /* approx p-4 */
-            border: 1px solid #e5e7eb !important; /* approx border (border-gray-200) */
-            border-radius: 0.25rem !important; /* approx rounded */
+            background-color: #f3f4f6; /* Tailwind bg-gray-100 */
+            padding: 1rem;            /* Tailwind p-4 */
+            border: 1px solid #e5e7eb; /* Tailwind border & border-gray-200 */
+            border-radius: 0.25rem;   /* Tailwind rounded */
         }
         html[data-theme='dark'] #recipe-display-wrapper {
-             background-color: #374151 !important; /* approx dark:bg-gray-700 */
-             border-color: #4b5563 !important; /* approx dark:border-gray-600 */
+            background-color: #374151; /* Tailwind dark:bg-gray-700 */
+            border-color: #4b5563;   /* Tailwind dark:border-gray-600 */
+        }
+        /* Force the 'Extracted Recipe (Reference)' h2 to normal weight */
+        .reference-recipe-display > h2 {
+            font-weight: 400 !important; /* Normal weight, to match other h2s */
+        }
+        #recipe-display-wrapper h3 {
+            font-size: 1.25rem; /* Tailwind text-xl */
+            font-weight: 700;   /* Tailwind font-bold */
+            margin-bottom: 0.75rem; /* Tailwind mb-3 */
+        }
+        #recipe-display-wrapper h4 {
+            font-size: 1.125rem; /* Tailwind text-lg */
+            font-weight: 600;    /* Tailwind font-semibold */
+            margin-bottom: 0.25rem; /* Tailwind mb-1 */
+        }
+        #recipe-display-wrapper ul {
+            list-style-type: disc;
+            padding-left: 1.25rem !important; /* Tailwind pl-5, forced for alignment */
+            margin-bottom: 0.75rem; /* Tailwind mb-3 */
         }
     """)
 
@@ -387,7 +386,7 @@ def _build_recipe_display(recipe_data: dict):
         fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
         fh.Ul(
             *[fh.Li(str(ing)) for ing in recipe_data.get("ingredients", [])],
-            cls="list-disc list-inside mb-3",
+            cls="list-disc list-outside pl-5 mb-3",
         ),
     ]
     instructions_list = recipe_data.get("instructions", [])
@@ -397,14 +396,15 @@ def _build_recipe_display(recipe_data: dict):
                 fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
                 fh.Ul(
                     *[fh.Li(str(inst)) for inst in instructions_list],
-                    cls="list-disc list-inside mb-3",
+                    cls="list-disc list-outside pl-5 mb-3",
                 ),
             ]
         )
 
+    # Restore full Div structure, ensuring id is passed directly
     return fh.Div(
         *components,
-        cls="p-4 border rounded text-sm max-w-none",
+        cls="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-sm max-w-none",
         id="recipe-display-wrapper",
     )
 
@@ -1039,9 +1039,8 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         )
         processed_recipe.ingredients = ["No ingredients found"]
 
-    reference_heading = fh.H2(
-        "Extracted Recipe (Reference)", cls="text-2xl font-bold mt-6 mb-4"
-    )
+    reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-3xl mt-6 mb-4")
+
     rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
 
     rendered_recipe_html = fh.Div(
@@ -1050,15 +1049,14 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         cls="mb-6 reference-recipe-display",
     )
 
+    # Restore OOB swaps for edit form and review section
     edit_form_card, review_section_card = _build_edit_review_form(
         processed_recipe, processed_recipe
     )
-
     edit_oob_div = fh.Div(
         edit_form_card,
         hx_swap_oob="innerHTML:#edit-form-target",
     )
-
     review_oob_div = fh.Div(
         review_section_card,
         hx_swap_oob="innerHTML:#review-section-target",
