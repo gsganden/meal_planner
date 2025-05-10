@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import fasthtml.common as fh
 import html2text
@@ -558,8 +558,8 @@ CSS_ERROR_CLASS = f"{mu.TextT.error} mb-4"
 
 def generate_diff_html(
     before_text: str, after_text: str
-) -> tuple[list[str], list[str]]:
-    """Generates two lists of strings for diff display."""
+) -> tuple[list[Any], list[Any]]:
+    """Generates two lists of fasthtml components/strings for diff display."""
     before_lines = before_text.splitlines()
     after_lines = after_text.splitlines()
     matcher = difflib.SequenceMatcher(None, before_lines, after_lines)
@@ -569,19 +569,24 @@ def generate_diff_html(
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             for line in before_lines[i1:i2]:
-                before_items.append(line)
-                after_items.append(line)
+                before_items.extend([line, "\n"])
+                after_items.extend([line, "\n"])
         elif tag == "replace":
             for line in before_lines[i1:i2]:
-                before_items.append(Del(line))
+                before_items.extend([Del(line), "\n"])
             for line in after_lines[j1:j2]:
-                after_items.append(Ins(line))
+                after_items.extend([Ins(line), "\n"])
         elif tag == "delete":
             for line in before_lines[i1:i2]:
-                before_items.append(Del(line))
+                before_items.extend([Del(line), "\n"])
         elif tag == "insert":
             for line in after_lines[j1:j2]:
-                after_items.append(Ins(line))
+                after_items.extend([Ins(line), "\n"])
+
+    if before_items and before_items[-1] == "\n":
+        before_items.pop()
+    if after_items and after_items[-1] == "\n":
+        after_items.pop()
 
     return before_items, after_items
 
