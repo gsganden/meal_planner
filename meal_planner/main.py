@@ -121,39 +121,6 @@ def with_layout(content):
         .htmx-indicator.htmx-request { opacity: 1; }
     """)
 
-    # Targeted CSS overrides for recipe display to counteract UIkit base styles
-    recipe_display_specific_styles = Style("""
-        #recipe-display-wrapper {
-            background-color: #f3f4f6; /* Tailwind bg-gray-100 */
-            padding: 1rem;            /* Tailwind p-4 */
-            border: 1px solid #e5e7eb; /* Tailwind border & border-gray-200 */
-            border-radius: 0.25rem;   /* Tailwind rounded */
-        }
-        html[data-theme='dark'] #recipe-display-wrapper {
-            background-color: #374151; /* Tailwind dark:bg-gray-700 */
-            border-color: #4b5563;   /* Tailwind dark:border-gray-600 */
-        }
-        /* Force the 'Extracted Recipe (Reference)' h2 to normal weight */
-        .reference-recipe-display > h2 {
-            font-weight: 400 !important; /* Normal weight, to match other h2s */
-        }
-        #recipe-display-wrapper h3 {
-            font-size: 1.25rem; /* Tailwind text-xl */
-            font-weight: 700;   /* Tailwind font-bold */
-            margin-bottom: 0.75rem; /* Tailwind mb-3 */
-        }
-        #recipe-display-wrapper h4 {
-            font-size: 1.125rem; /* Tailwind text-lg */
-            font-weight: 600;    /* Tailwind font-semibold */
-            margin-bottom: 0.25rem; /* Tailwind mb-1 */
-        }
-        #recipe-display-wrapper ul {
-            list-style-type: disc;
-            padding-left: 1.25rem !important; /* Tailwind pl-5, forced for alignment */
-            margin-bottom: 0.75rem; /* Tailwind mb-3 */
-        }
-    """)
-
     hamburger_button = Div(
         Button(
             UkIcon("menu"),
@@ -172,7 +139,6 @@ def with_layout(content):
     return (
         Title("Meal Planner"),
         indicator_style,
-        recipe_display_specific_styles,
         hamburger_button,
         mobile_sidebar_container,
         Div(cls="flex flex-col md:flex-row w-full")(
@@ -382,7 +348,7 @@ def _build_recipe_display(recipe_data: dict):
         H4("Ingredients", cls="text-lg font-semibold mb-1"),
         Ul(
             *[Li(str(ing)) for ing in recipe_data.get("ingredients", [])],
-            cls="list-disc list-outside pl-5 mb-3",
+            cls=ListT.bullet,
         ),
     ]
     instructions_list = recipe_data.get("instructions", [])
@@ -392,15 +358,15 @@ def _build_recipe_display(recipe_data: dict):
                 H4("Instructions", cls="text-lg font-semibold mb-1"),
                 Ul(
                     *[Li(str(inst)) for inst in instructions_list],
-                    cls="list-disc list-outside pl-5 mb-3",
+                    cls=ListT.bullet,
                 ),
             ]
         )
 
     # Restore full Div structure, ensuring id is passed directly
-    return Div(
+    return Card(
         *components,
-        cls="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-sm max-w-none",
+        cls=CardT.secondary,
         id="recipe-display-wrapper",
     )
 
