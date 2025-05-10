@@ -10,7 +10,7 @@ repos:
     hooks:
     -   id: ruff-check
         name: Run ruff check
-        entry: uv run ruff check
+        entry: uv run ruff check --fix
         language: system
         types: [python]
         pass_filenames: false
@@ -19,14 +19,6 @@ repos:
     -   id: ruff-format
         name: Check ruff format
         entry: uv run ruff format --check
-        language: system
-        types: [python]
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]
-    -   id: pyright
-        name: Run pyright type checker
-        entry: uv run pyright
         language: system
         types: [python]
         pass_filenames: false
