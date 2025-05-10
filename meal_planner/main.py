@@ -13,7 +13,6 @@ import instructor
 import monsterui.all as mu
 from bs4.element import Tag
 from fastapi import FastAPI, Request, status
-from fasthtml.common import Del, Ins
 from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
@@ -573,15 +572,15 @@ def generate_diff_html(
                 after_items.extend([line, "\n"])
         elif tag == "replace":
             for line in before_lines[i1:i2]:
-                before_items.extend([Del(line), "\n"])
+                before_items.extend([fh.Del(line), "\n"])
             for line in after_lines[j1:j2]:
-                after_items.extend([Ins(line), "\n"])
+                after_items.extend([fh.Ins(line), "\n"])
         elif tag == "delete":
             for line in before_lines[i1:i2]:
-                before_items.extend([Del(line), "\n"])
+                before_items.extend([fh.Del(line), "\n"])
         elif tag == "insert":
             for line in after_lines[j1:j2]:
-                after_items.extend([Ins(line), "\n"])
+                after_items.extend([fh.Ins(line), "\n"])
 
     if before_items and before_items[-1] == "\n":
         before_items.pop()
