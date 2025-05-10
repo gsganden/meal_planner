@@ -942,14 +942,11 @@ class TestGenerateDiffHtml:
         before_items, after_items = main_module.generate_diff_html(before, after)
         assert self._to_comparable(before_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("str", "line3"),
         ]
         assert self._to_comparable(after_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("ins", "line2"),
-            ("str", "\n"),
             ("str", "line3"),
         ]
 
@@ -959,14 +956,11 @@ class TestGenerateDiffHtml:
         before_items, after_items = main_module.generate_diff_html(before, after)
         assert self._to_comparable(before_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("del", "line2"),
-            ("str", "\n"),
             ("str", "line3"),
         ]
         assert self._to_comparable(after_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("str", "line3"),
         ]
 
@@ -976,16 +970,12 @@ class TestGenerateDiffHtml:
         before_items, after_items = main_module.generate_diff_html(before, after)
         assert self._to_comparable(before_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("del", "line TWO"),
-            ("str", "\n"),
             ("str", "line3"),
         ]
         assert self._to_comparable(after_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("ins", "line 2"),
-            ("str", "\n"),
             ("str", "line3"),
         ]
 
@@ -995,12 +985,10 @@ class TestGenerateDiffHtml:
         before_items, after_items = main_module.generate_diff_html(before, after)
         assert self._to_comparable(before_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("str", "line2"),
         ]
         assert self._to_comparable(after_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("str", "line2"),
         ]
 
@@ -1010,20 +998,14 @@ class TestGenerateDiffHtml:
         before_items, after_items = main_module.generate_diff_html(before, after)
         assert self._to_comparable(before_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("del", "line to delete"),
-            ("str", "\n"),
             ("str", "line3"),
-            ("str", "\n"),
             ("str", "line4"),
         ]
         assert self._to_comparable(after_items) == [
             ("str", "line1"),
-            ("str", "\n"),
             ("str", "line3"),
-            ("str", "\n"),
             ("ins", "line inserted"),
-            ("str", "\n"),
             ("str", "line4"),
         ]
 
