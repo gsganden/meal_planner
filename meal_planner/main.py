@@ -176,7 +176,6 @@ def get():
             ),
             cls="flex items-end",
         ),
-        cls="mb-4",
     )
 
     text_area_container = Div(
@@ -201,7 +200,6 @@ def get():
             cls=ButtonT.primary,
         ),
         Loading(id="extract-indicator", cls="htmx-indicator ml-2"),
-        cls="mt-4",
     )
 
     disclaimer = P(
@@ -224,13 +222,13 @@ def get():
         cls="space-y-4 mb-6",
     )
 
-    edit_form_target_div = Div(id="edit-form-target", cls="mt-6")
-    review_section_target_div = Div(id="review-section-target", cls="mt-6")
+    edit_form_target_div = Div(id="edit-form-target")
+    review_section_target_div = Div(id="review-section-target")
 
     return with_layout(
         Titled(
             "Create Recipe",
-            Card(input_section, cls="mt-6 mb-6"),
+            Card(input_section),
             edit_form_target_div,
             review_section_target_div,
             id="content",
@@ -956,7 +954,6 @@ async def post_fetch_text(recipe_url: str | None = None):
             name="recipe_text",
             rows=15,
             placeholder="Paste recipe text here, or fetch from URL above.",
-            cls="mb-4",
         ),
         id="recipe_text_container",
     )
