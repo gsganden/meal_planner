@@ -207,16 +207,16 @@ def get():
     disclaimer = P(
         "Recipe extraction uses AI and may not be perfectly accurate. Always "
         "double-check the results.",
-        cls=f"{TextT.muted} text-xs mt-1",
+        cls=TextT.muted,
     )
 
     results_div = Div(id="recipe-results")
 
     input_section = Div(
-        H2("Extract Recipe", cls="text-3xl mb-4"),
-        H3("URL", cls="text-xl mb-2"),
+        H2("Extract Recipe"),
+        H3("URL"),
         url_input_component,
-        H3("Text", cls="text-xl mb-2 mt-4"),
+        H3("Text"),
         text_area_container,
         extract_button_group,
         disclaimer,
@@ -251,13 +251,13 @@ async def get_recipes_htmx():
             e.response.text,
             exc_info=True,
         )
-        return with_layout(Div("Error fetching recipes from API.", cls=CSS_ERROR_CLASS))
+        return with_layout(Div("Error fetching recipes from API.", cls=TextT.error))
     except Exception as e:
         logger.error("Error fetching recipes: %s", e, exc_info=True)
         return with_layout(
             Div(
                 "An unexpected error occurred while fetching recipes.",
-                cls=CSS_ERROR_CLASS,
+                cls=TextT.error,
             )
         )
 
@@ -276,7 +276,7 @@ async def get_recipes_htmx():
                 )
                 for recipe in recipes_data
             ],
-            cls="list-disc list-inside",
+            cls=ListT.disc,
         )
 
     return with_layout(Titled("All Recipes", content, id="content"))
@@ -308,7 +308,7 @@ async def get_single_recipe_page(recipe_id: int):
                     "Error",
                     P(
                         "Error fetching recipe from API.",
-                        cls=CSS_ERROR_CLASS,
+                        cls=TextT.error,
                     ),
                 )
             )
@@ -324,7 +324,7 @@ async def get_single_recipe_page(recipe_id: int):
                 "Error",
                 P(
                     "An unexpected error occurred.",
-                    cls=CSS_ERROR_CLASS,
+                    cls=TextT.error,
                 ),
             )
         )
@@ -344,8 +344,8 @@ def _build_recipe_display(recipe_data: dict):
         A fasthtml.Div component ready for display.
     """
     components = [
-        H3(recipe_data.get("name", "Untitled Recipe"), cls="text-xl font-bold mb-3"),
-        H4("Ingredients", cls="text-lg font-semibold mb-1"),
+        H3(recipe_data.get("name", "Untitled Recipe")),
+        H4("Ingredients"),
         Ul(
             *[Li(str(ing)) for ing in recipe_data.get("ingredients", [])],
             cls=ListT.bullet,
@@ -355,7 +355,7 @@ def _build_recipe_display(recipe_data: dict):
     if instructions_list:
         components.extend(
             [
-                H4("Instructions", cls="text-lg font-semibold mb-1"),
+                H4("Instructions"),
                 Ul(
                     *[Li(str(inst)) for inst in instructions_list],
                     cls=ListT.bullet,
@@ -555,9 +555,6 @@ def _close_parenthesis(text: str) -> str:
     return text
 
 
-CSS_ERROR_CLASS = f"{TextT.error} mb-4"
-
-
 def generate_diff_html(before_text: str, after_text: str) -> tuple[str, str]:
     """Generates two HTML strings showing a diff between before and after text."""
     before_lines = before_text.splitlines()
@@ -665,7 +662,7 @@ def _build_edit_review_form(
     review_section = _build_review_section(original_recipe, current_recipe)
 
     combined_edit_section = Div(
-        H2("Edit Recipe", cls="text-3xl mb-4"),
+        H2("Edit Recipe"),
         controls_section,
         editable_section,
     )
@@ -715,10 +712,10 @@ def _build_modification_controls(
     )
     edit_disclaimer = P(
         "AI recipe modification is experimental. Review changes carefully.",
-        cls=f"{TextT.muted} text-xs mt-1 mb-4",
+        cls=TextT.muted,
     )
     return Div(
-        H3("Modify with AI", cls="text-xl mb-2"),
+        H3("Modify with AI"),
         modification_input,
         modify_button_container,
         edit_disclaimer,
@@ -750,7 +747,7 @@ def _build_editable_section(current_recipe: RecipeBase):
     instructions_section = _build_instructions_section(current_recipe.instructions)
 
     return Div(
-        H3("Edit Manually", cls="text-xl mb-4"),
+        H3("Edit Manually"),
         name_input,
         ingredients_section,
         instructions_section,
@@ -789,7 +786,7 @@ def _build_ingredients_section(ingredients: list[str]):
         cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
     )
     return Div(
-        H3("Ingredients", cls="text-xl mb-2"),
+        H3("Ingredients"),
         ingredient_inputs,
         add_ingredient_button,
     )
@@ -844,7 +841,7 @@ def _build_instructions_section(instructions: list[str]):
         cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
     )
     return Div(
-        H3("Instructions", cls="text-xl mb-2"),
+        H3("Instructions"),
         instruction_inputs,
         add_instruction_button,
     )
@@ -887,7 +884,7 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
     save_button_container = _build_save_button()
     return Card(
         Div(
-            H2("Review Changes", cls="text-2xl mb-4"),
+            H2("Review Changes"),
             diff_content_wrapper,
             save_button_container,
         )
@@ -916,7 +913,7 @@ def _build_save_button():
 async def post_fetch_text(recipe_url: str | None = None):
     if not recipe_url:
         logger.error("Fetch text called without URL.")
-        return Div("Please provide a Recipe URL to fetch.", cls=CSS_ERROR_CLASS)
+        return Div("Please provide a Recipe URL to fetch.", cls=TextT.error)
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", recipe_url)
@@ -931,7 +928,7 @@ async def post_fetch_text(recipe_url: str | None = None):
         )
         return Div(
             "Error fetching URL. Please check the URL and your connection.",
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
         )
     except httpx.HTTPStatusError as e:
         logger.error(
@@ -939,18 +936,18 @@ async def post_fetch_text(recipe_url: str | None = None):
         )
         return Div(
             "Error fetching URL: The server returned an error.",
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
         )
     except RuntimeError as e:
         logger.error(
             "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return Div("Failed to process the content from the URL.", cls=CSS_ERROR_CLASS)
+        return Div("Failed to process the content from the URL.", cls=TextT.error)
     except Exception as e:
         logger.error(
             "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return Div("Unexpected error fetching text.", cls=CSS_ERROR_CLASS)
+        return Div("Unexpected error fetching text.", cls=TextT.error)
 
     return Div(
         TextArea(
@@ -969,7 +966,7 @@ async def post_fetch_text(recipe_url: str | None = None):
 async def post(recipe_url: str | None = None, recipe_text: str | None = None):
     if not recipe_text:
         logging.error("Recipe extraction called without text.")
-        return Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
+        return Div("No text content provided for extraction.", cls=TextT.error)
 
     try:
         log_source = "provided text"
@@ -989,7 +986,7 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         )
         return Div(
             "Recipe extraction failed. An unexpected error occurred during processing.",
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
         )
 
     if not processed_recipe.ingredients:
@@ -999,7 +996,7 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         )
         processed_recipe.ingredients = ["No ingredients found"]
 
-    reference_heading = H2("Extracted Recipe (Reference)", cls="text-3xl mt-6 mb-4")
+    reference_heading = H2("Extracted Recipe (Reference)")
 
     rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
 
@@ -1035,14 +1032,14 @@ async def post_save_recipe(request: Request):
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
         return Span(
             "Invalid recipe data. Please check the fields.",
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
             id="save-button-container",
         )
     except Exception as e:
         logger.error("Error parsing form data during save: %s", e, exc_info=True)
         return Span(
             "Error processing form data.",
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
             id="save-button-container",
         )
 
@@ -1093,7 +1090,7 @@ async def post_save_recipe(request: Request):
     if message_is_error:
         return Span(
             user_final_message,
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
             id="save-button-container",
         )
     else:
@@ -1136,11 +1133,11 @@ async def post_modify_recipe(request: Request):
                 inner_e,
                 exc_info=True,
             )
-            error_content = f"<div class='{CSS_ERROR_CLASS}'>"
+            error_content = f"<div class='{TextT.error}'>"
             error_content += "Critical error processing form.</div>"
             return HTMLResponse(content=error_content)
 
-        error_message = Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
+        error_message = Div(str(e), cls=(TextT.error, "mt-2"))
         modification_prompt = str(form_data.get("modification_prompt", ""))
         current_recipe = original_recipe
 
@@ -1158,7 +1155,7 @@ async def post_modify_recipe(request: Request):
     if not modification_prompt:
         logger.info("Modification requested with empty prompt. Returning form.")
         error_message = Div(
-            "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
+            "Please enter modification instructions.", cls=(TextT.error, "mt-2")
         )
         edit_form_card, review_section_card = _build_edit_review_form(
             current_recipe,
@@ -1182,7 +1179,7 @@ async def post_modify_recipe(request: Request):
         )
 
     except RecipeModificationError as e:
-        error_message = Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
+        error_message = Div(str(e), cls=(TextT.error, "mt-2"))
         edit_form_card, review_section_card = _build_edit_review_form(
             current_recipe,
             original_recipe,
@@ -1374,14 +1371,14 @@ async def post_update_diff(request: Request):
         return Div(
             "Recipe state invalid for diff",
             id="diff-content-wrapper",
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
         )
     except Exception as e:
         logger.error("Error preparing data for diff view: %s", e, exc_info=True)
         return Div(
             "Error preparing data for diff",
             id="diff-content-wrapper",
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
         )
 
     try:
@@ -1395,5 +1392,5 @@ async def post_update_diff(request: Request):
         return Div(
             "Error generating diff view",
             id="diff-content-wrapper",
-            cls=CSS_ERROR_CLASS,
+            cls=TextT.error,
         )
