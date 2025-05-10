@@ -865,7 +865,6 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
             "flex items-center justify-center ml-2",
         )
 
-        # Align items-start for multiline textarea
         item_div = fh.Div(
             textarea_component,
             button_component,
@@ -1152,7 +1151,6 @@ async def post_modify_recipe(request: Request):
     original_recipe = None
     modification_prompt = ""
 
-    # --- Step 1: Try Parsing ---
     try:
         (
             current_recipe,
@@ -1177,22 +1175,17 @@ async def post_modify_recipe(request: Request):
             # Critical failure during error handling
             return fh.Div("Critical error processing form.", cls=CSS_ERROR_CLASS)
 
-    # --- Step 2: Check Prompt (if parsing succeeded) ---
     if error_message_content is None and not modification_prompt:
         logger.info("Modification requested with empty prompt. Returning form.")
         error_message_content = fh.Div(
             "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
         )
 
-    # --- Step 3: Try Modification (if parsing succeeded and prompt present) ---
     if error_message_content is None:
-        # We should only reach here if parsing succeeded and prompt is present
-        # Both current_recipe and original_recipe should be valid RecipeBase objects
         try:
             modified_recipe = await _request_recipe_modification(
                 current_recipe, modification_prompt
             )
-            # SUCCESS PATH: Build form with modified recipe
             edit_form_card, review_section_card = _build_edit_review_form(
                 modified_recipe, original_recipe
             )
@@ -1205,6 +1198,7 @@ async def post_modify_recipe(request: Request):
 
         except RecipeModificationError as e:
             error_message_content = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
+
     recipe_to_display = current_recipe if current_recipe else original_recipe
     original_for_display = original_recipe if original_recipe else recipe_to_display
 
@@ -1311,18 +1305,15 @@ async def post_delete_ingredient_row(request: Request, index: int):
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
-        # Regenerate the list of ingredient components
         new_ingredient_item_components = _render_ingredient_list_items(
             new_current_recipe.ingredients
         )
-        # Target class for ingredients list (mb-4)
         ingredients_list_component = fh.Div(
             *new_ingredient_item_components,
             id="ingredients-list",
             cls="mb-4",
         )
 
-        # OOB diff wrapper has its own flex/space styling.
         before_notstr, after_notstr = _build_diff_content_children(
             original_recipe, new_current_recipe.markdown
         )
@@ -1339,7 +1330,6 @@ async def post_delete_ingredient_row(request: Request, index: int):
             f"Validation error processing ingredient deletion at index {index}: {e}",
             exc_info=True,
         )
-        # Re-parse form for pre-delete state on validation error
         data_for_error_render = _parse_recipe_form_data(form_data)
         ingredients_for_error_render = data_for_error_render.get("ingredients", [])
 
@@ -1403,7 +1393,6 @@ async def post_delete_instruction_row(request: Request, index: int):
             f"Validation error processing instruction deletion at index {index}: {e}",
             exc_info=True,
         )
-        # Re-parse form for pre-delete state on validation error
         data_for_error_render = _parse_recipe_form_data(form_data)
         instructions_for_error_render = data_for_error_render.get("instructions", [])
 
