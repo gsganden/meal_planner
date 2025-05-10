@@ -1,9 +1,12 @@
+from typing import Any, cast
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
+import monsterui.all as mu
 import pytest
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+from fastcore.xml import FT
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
@@ -13,6 +16,7 @@ from meal_planner.main import (
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
     CSS_ERROR_CLASS,
     MODEL_NAME,
+    ModifyFormError,
     _parse_recipe_form_data,
     app,
     fetch_and_clean_text_from_url,
@@ -44,6 +48,34 @@ FIELD_MODIFICATION_PROMPT = "modification_prompt"
 FIELD_ORIGINAL_NAME = "original_name"
 FIELD_ORIGINAL_INGREDIENTS = "original_ingredients"
 FIELD_ORIGINAL_INSTRUCTIONS = "original_instructions"
+
+
+def _build_ui_fragment_form_data(
+    name="Test Recipe",
+    ingredients=None,
+    instructions=None,
+    original_name=None,
+    original_ingredients=None,
+    original_instructions=None,
+) -> dict:
+    ingredients = ingredients if ingredients is not None else ["ing1"]
+    instructions = instructions if instructions is not None else ["step1"]
+    original_name = original_name if original_name is not None else name
+    original_ingredients = (
+        original_ingredients if original_ingredients is not None else ingredients
+    )
+    original_instructions = (
+        original_instructions if original_instructions is not None else instructions
+    )
+
+    return {
+        "name": name,
+        "ingredients": ingredients,
+        "instructions": instructions,
+        "original_name": original_name,
+        "original_ingredients": original_ingredients,
+        "original_instructions": original_instructions,
+    }
 
 
 @pytest.mark.anyio
@@ -870,41 +902,130 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
     assert mock_parse.call_count == 2
 
 
+@pytest.mark.anyio
+async def test_modify_critical_failure(client: AsyncClient):
+    """Test critical failure during form parsing in post_modify_recipe."""
+    with patch("meal_planner.main._parse_and_validate_modify_form") as mock_validate:
+        mock_validate.side_effect = ModifyFormError("Form validation error")
+
+        with patch("meal_planner.main._parse_recipe_form_data") as mock_parse:
+            mock_parse.side_effect = Exception("Critical parsing error")
+
+            response = await client.post(RECIPES_MODIFY_URL, data={"name": "Test"})
+
+            assert response.status_code == 200
+            assert "Critical error processing form." in response.text
+            assert CSS_ERROR_CLASS in response.text
+
+            # Verify the functions were called
+            mock_validate.assert_called_once()
+            mock_parse.assert_called_once()
+
+
 class TestGenerateDiffHtml:
+    def _to_comparable(self, items: list[Any]) -> list[tuple[str, str]]:
+        """Converts items (strings/FT objects) to a list of (type_name_str, content_str)
+        tuples for comparison."""
+        result = []
+        for item in items:
+            if isinstance(item, str):
+                result.append(("str", item))
+            elif isinstance(item, FT):
+                result.append((item.tag, item.children[0]))
+            else:
+                result.append((type(item).__name__, str(item)))
+        return result
+
     def test_diff_insert(self):
         before = "line1\nline3"
         after = "line1\nline2\nline3"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\nline3"
-        assert after_html == "line1\n<ins>line2</ins>\nline3"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("ins", "line2"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
 
     def test_diff_delete(self):
         before = "line1\nline2\nline3"
         after = "line1\nline3"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\n<del>line2</del>\nline3"
-        assert after_html == "line1\nline3"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("del", "line2"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
 
     def test_diff_replace(self):
         before = "line1\nline TWO\nline3"
         after = "line1\nline 2\nline3"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\n<del>line TWO</del>\nline3"
-        assert after_html == "line1\n<ins>line 2</ins>\nline3"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("del", "line TWO"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("ins", "line 2"),
+            ("str", "\n"),
+            ("str", "line3"),
+        ]
 
     def test_diff_equal(self):
         before = "line1\nline2"
         after = "line1\nline2"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\nline2"
-        assert after_html == "line1\nline2"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line2"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line2"),
+        ]
 
     def test_diff_combined(self):
         before = "line1\nline to delete\nline3\nline4"
         after = "line1\nline3\nline inserted\nline4"
-        before_html, after_html = main_module.generate_diff_html(before, after)
-        assert before_html == "line1\n<del>line to delete</del>\nline3\nline4"
-        assert after_html == "line1\nline3\n<ins>line inserted</ins>\nline4"
+        before_items, after_items = main_module.generate_diff_html(before, after)
+        assert self._to_comparable(before_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("del", "line to delete"),
+            ("str", "\n"),
+            ("str", "line3"),
+            ("str", "\n"),
+            ("str", "line4"),
+        ]
+        assert self._to_comparable(after_items) == [
+            ("str", "line1"),
+            ("str", "\n"),
+            ("str", "line3"),
+            ("str", "\n"),
+            ("ins", "line inserted"),
+            ("str", "\n"),
+            ("str", "line4"),
+        ]
 
 
 class TestParseRecipeFormData:
@@ -1032,56 +1153,540 @@ class TestPostprocessRecipe:
 class TestRecipeUIFragments:
     ADD_INGREDIENT_URL = "/recipes/ui/add-ingredient"
     ADD_INSTRUCTION_URL = "/recipes/ui/add-instruction"
-    REMOVE_ITEM_URL = "/recipes/ui/remove-item"
-    TOUCH_NAME_URL = "/recipes/ui/touch-name"
+    DELETE_INGREDIENT_BASE_URL = "/recipes/ui/delete-ingredient"
+    DELETE_INSTRUCTION_BASE_URL = "/recipes/ui/delete-instruction"
+    # TOUCH_NAME_URL = "/recipes/ui/touch-name" # Commented out as per previous steps
 
     async def test_add_ingredient(self, client: AsyncClient):
-        response = await client.post(self.ADD_INGREDIENT_URL)
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["existing ing"], instructions=["step1"]
+        )
+        response = await client.post(self.ADD_INGREDIENT_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text
-        assert 'name="ingredients"' in html
-        assert 'placeholder="New Ingredient"' in html
-        assert 'class="uk-input' in html
-        assert "hx-post=" in html
-        assert "hx-target=" in html
-        assert "hx-trigger=" in html
-        assert "hx-include=" in html
-        assert "delete-item-button" in html
-        assert "hx-delete=" not in html
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        ingredients_list_div = soup.find("div", id="ingredients-list")
+        assert ingredients_list_div, "Ingredients list div not found"
+        assert isinstance(ingredients_list_div, Tag)
+        ingredient_inputs = ingredients_list_div.find_all(
+            "input", {"name": "ingredients"}
+        )
+        assert len(ingredient_inputs) == 2, (
+            f"Expected 2 ingredient inputs, got {len(ingredient_inputs)}"
+        )
+
+        new_ingredient_input = ingredient_inputs[-1]
+        assert isinstance(new_ingredient_input, Tag)
+        assert new_ingredient_input.get("value", "") == ""
+        assert new_ingredient_input["placeholder"] == "Ingredient"
+
+        new_item_div = new_ingredient_input.find_parent("div", class_="flex")
+        assert new_item_div, "Parent div for new ingredient not found"
+        assert isinstance(new_item_div, Tag)
+        delete_button = new_item_div.find(
+            "button",
+            {
+                "hx-post": lambda x: bool(
+                    x and x.startswith(f"{self.DELETE_INGREDIENT_BASE_URL}/")
+                )
+            },
+        )
+        assert delete_button, "Delete button for new ingredient not found"
+        assert isinstance(delete_button, Tag)
+
+        # Restore and correct assertions
+        icon_element = delete_button.find("uk-icon", attrs={"icon": "minus-circle"})
+        assert icon_element, (
+            "UkIcon 'minus-circle' not found in ingredient delete button"
+        )
+        assert isinstance(icon_element, Tag)
+        class_list = icon_element.get("class")
+        if class_list is None:
+            class_list = []
+        assert str(mu.TextT.error) in class_list
+
+        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
+        assert oob_div, "OOB diff wrapper not found"
+        assert isinstance(oob_div, Tag)
+        assert oob_div.find("pre", id="diff-before-pre"), "Diff before pre not found"
+        assert oob_div.find("pre", id="diff-after-pre"), "Diff after pre not found"
 
     async def test_add_instruction(self, client: AsyncClient):
-        response = await client.post(self.ADD_INSTRUCTION_URL)
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["existing step"]
+        )
+        response = await client.post(self.ADD_INSTRUCTION_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text
-        assert 'name="instructions"' in html
-        assert 'placeholder="New Instruction Step"' in html
-        assert 'class="uk-textarea' in html
-        assert "hx-post=" in html
-        assert "hx-target=" in html
-        assert "hx-trigger=" in html
-        assert "hx-include=" in html
-        assert "<textarea" in html
-        assert 'type="button"' in html
-        assert "delete-item-button" in html
-        assert "hx-delete=" not in html
+        soup = BeautifulSoup(response.text, "html.parser")
 
-    async def test_remove_item(self, client: AsyncClient):
-        response = await client.delete(self.REMOVE_ITEM_URL)
-        assert response.status_code == 200
-        assert response.text == ""
+        instructions_list_div = soup.find("div", id="instructions-list")
+        assert instructions_list_div, "Instructions list div not found"
+        assert isinstance(instructions_list_div, Tag)
+        instruction_textareas = instructions_list_div.find_all(
+            "textarea", {"name": "instructions"}
+        )
+        assert len(instruction_textareas) == 2, (
+            f"Expected 2 instruction textareas, got {len(instruction_textareas)}"
+        )
 
-    async def test_touch_name(self, client: AsyncClient):
-        test_name = "Touched Name"
-        response = await client.post(self.TOUCH_NAME_URL, data={"name": test_name})
+        new_instruction_textarea = instruction_textareas[-1]
+        assert isinstance(new_instruction_textarea, Tag)
+        assert new_instruction_textarea.text == ""
+        assert new_instruction_textarea["placeholder"] == "Instruction Step"
+
+        new_item_div = new_instruction_textarea.find_parent("div", class_="flex")
+        assert new_item_div, "Parent div for new instruction not found"
+        assert isinstance(new_item_div, Tag)
+        delete_button = new_item_div.find(
+            "button",
+            {
+                "hx-post": lambda x: bool(
+                    x and x.startswith(f"{self.DELETE_INSTRUCTION_BASE_URL}/")
+                )
+            },
+        )
+        assert delete_button, "Delete button for new instruction not found"
+        assert isinstance(delete_button, Tag)
+        icon_element = delete_button.find("uk-icon", attrs={"icon": "minus-circle"})
+        assert icon_element, (
+            "UkIcon 'minus-circle' not found in instruction delete button"
+        )
+        assert isinstance(icon_element, Tag)
+        class_list = icon_element.get("class")
+        if class_list is None:
+            class_list = []
+        assert str(mu.TextT.error) in class_list
+
+        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
+        assert oob_div, "OOB diff wrapper not found"
+        assert isinstance(oob_div, Tag)
+        assert oob_div.find("pre", id="diff-before-pre"), "Diff before pre not found"
+        assert oob_div.find("pre", id="diff-after-pre"), "Diff after pre not found"
+
+    async def test_delete_ingredient(self, client: AsyncClient):
+        initial_ingredients = ["ing_to_keep1", "ing_to_delete", "ing_to_keep2"]
+        form_data = _build_ui_fragment_form_data(
+            ingredients=initial_ingredients, instructions=["step1"]
+        )
+        index_to_delete = 1  # "ing_to_delete"
+
+        response = await client.post(
+            f"{self.DELETE_INGREDIENT_BASE_URL}/{index_to_delete}", data=form_data
+        )
         assert response.status_code == 200
-        html = response.text
-        assert 'id="name"' in html
-        assert f'value="{test_name}"' in html
-        assert "hx-post=" in html
-        assert "hx-target=" in html
-        assert "hx-swap=" in html
-        assert "hx-trigger=" in html
-        assert "hx-include=" in html
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        ingredients_list_div = soup.find("div", id="ingredients-list")
+        assert ingredients_list_div, "Ingredients list div for delete not found"
+        assert isinstance(ingredients_list_div, Tag)
+        ingredient_inputs = ingredients_list_div.find_all(
+            "input", {"name": "ingredients"}
+        )
+        assert len(ingredient_inputs) == 2, (
+            f"Expected 2 ingredients after delete, got {len(ingredient_inputs)}"
+        )
+
+        rendered_ingredient_values = [
+            cast(Tag, inp)["value"] for inp in ingredient_inputs
+        ]
+        assert "ing_to_keep1" in rendered_ingredient_values
+        assert "ing_to_keep2" in rendered_ingredient_values
+        assert "ing_to_delete" not in rendered_ingredient_values
+
+        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
+        assert oob_div, "OOB diff wrapper for delete not found"
+        assert isinstance(oob_div, Tag)
+        assert oob_div.find("pre", id="diff-before-pre"), (
+            "Diff before pre for delete not found"
+        )
+        assert oob_div.find("pre", id="diff-after-pre"), (
+            "Diff after pre for delete not found"
+        )
+
+    async def test_delete_instruction(self, client: AsyncClient):
+        initial_instructions = ["step_to_keep1", "step_to_delete", "step_to_keep2"]
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=initial_instructions
+        )
+        index_to_delete = 1  # "step_to_delete"
+
+        response = await client.post(
+            f"{self.DELETE_INSTRUCTION_BASE_URL}/{index_to_delete}", data=form_data
+        )
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        instructions_list_div = soup.find("div", id="instructions-list")
+        assert instructions_list_div, "Instructions list div for delete not found"
+        assert isinstance(instructions_list_div, Tag)
+        instruction_textareas = instructions_list_div.find_all(
+            "textarea", {"name": "instructions"}
+        )
+        assert len(instruction_textareas) == 2, (
+            f"Expected 2 instructions after delete, got {len(instruction_textareas)}"
+        )
+
+        rendered_instruction_values = [ta.text for ta in instruction_textareas]
+        assert "step_to_keep1" in rendered_instruction_values
+        assert "step_to_keep2" in rendered_instruction_values
+        assert "step_to_delete" not in rendered_instruction_values
+
+        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
+        assert oob_div, "OOB diff wrapper for delete not found"
+        assert isinstance(oob_div, Tag)
+        assert oob_div.find("pre", id="diff-before-pre"), (
+            "Diff before pre for delete not found"
+        )
+        assert oob_div.find("pre", id="diff-after-pre"), (
+            "Diff after pre for delete not found"
+        )
+
+    @pytest.mark.parametrize("invalid_index", [5])
+    @patch("meal_planner.main.logger.warning")
+    async def test_delete_ingredient_invalid_index(
+        self, mock_logger_warning, client: AsyncClient, invalid_index: int
+    ):
+        initial_ingredients = ["ing1", "ing2"]
+        form_data = _build_ui_fragment_form_data(
+            ingredients=initial_ingredients, instructions=["step1"]
+        )
+
+        response = await client.post(
+            f"{self.DELETE_INGREDIENT_BASE_URL}/{invalid_index}", data=form_data
+        )
+        assert (
+            response.status_code == 200
+        )  # Route still returns successfully with current items
+        soup = BeautifulSoup(response.text, "html.parser")
+        ingredient_inputs = soup.find_all("input", {"name": "ingredients"})
+        assert len(ingredient_inputs) == len(initial_ingredients)  # No change
+        mock_logger_warning.assert_called_once_with(
+            f"Attempted to delete ingredient at invalid index {invalid_index}"
+        )
+
+    @pytest.mark.parametrize("invalid_index", [5])
+    @patch("meal_planner.main.logger.warning")
+    async def test_delete_instruction_invalid_index(
+        self, mock_logger_warning, client: AsyncClient, invalid_index: int
+    ):
+        initial_instructions = ["inst1", "inst2"]
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=initial_instructions
+        )
+
+        response = await client.post(
+            f"{self.DELETE_INSTRUCTION_BASE_URL}/{invalid_index}", data=form_data
+        )
+        assert (
+            response.status_code == 200
+        )  # Route still returns successfully with current items
+        soup = BeautifulSoup(response.text, "html.parser")
+        instruction_textareas = soup.find_all("textarea", {"name": "instructions"})
+        assert len(instruction_textareas) == len(initial_instructions)  # No change
+        mock_logger_warning.assert_called_once_with(
+            f"Attempted to delete instruction at invalid index {invalid_index}"
+        )
+
+    @patch("meal_planner.main._parse_recipe_form_data")
+    @patch("meal_planner.main.logger.error")
+    async def test_delete_ingredient_validation_error(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        validation_exc = ValidationError.from_exception_data(
+            title="TestVE_del_ing", line_errors=[]
+        )
+        # Initial form data for the test
+        initial_ingredients = ["ing1_to_delete", "ing2_remains"]
+        form_data_dict = _build_ui_fragment_form_data(
+            ingredients=initial_ingredients, instructions=["s1"]
+        )
+
+        # Mock _parse_recipe_form_data:
+        # 1st call (in try block of main.py): raises ValidationError
+        # 2nd call (in except ValidationError block): returns the original form data
+        mock_parse.side_effect = [
+            validation_exc,
+            form_data_dict.copy(),
+        ]
+        index_to_delete = 0
+
+        response = await client.post(
+            f"{self.DELETE_INGREDIENT_BASE_URL}/{index_to_delete}", data=form_data_dict
+        )
+        assert response.status_code == 200
+        assert "Error updating list after delete. Validation failed." in response.text
+        assert CSS_ERROR_CLASS in response.text
+
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg_fragment = "Validation error processing ingredient deletion"
+        assert expected_log_msg_fragment in args[0]
+        assert str(validation_exc) in args[0]
+        assert kwargs.get("exc_info") is True
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        # Check that the list is re-rendered with original items
+        ingredients_list_div = soup.find("div", id="ingredients-list")
+        assert ingredients_list_div, "Ingredients list div for error case not found"
+        assert isinstance(ingredients_list_div, Tag)
+        ingredient_inputs = ingredients_list_div.find_all(
+            "input", {"name": "ingredients"}
+        )
+        assert len(ingredient_inputs) == len(initial_ingredients)  # Original count
+
+        # Check NO OOB diff content
+        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
+        assert not oob_div, "OOB diff wrapper should NOT be present on validation error"
+
+    @patch("meal_planner.main._parse_recipe_form_data")
+    @patch("meal_planner.main.logger.error")
+    async def test_delete_ingredient_generic_exception(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        generic_exc = Exception("Generic parse error for del_ing")
+        mock_parse.side_effect = (
+            generic_exc  # Only called once in the try block for this case
+        )
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["s1"]
+        )
+        index_to_delete = 0
+
+        response = await client.post(
+            f"{self.DELETE_INGREDIENT_BASE_URL}/{index_to_delete}", data=form_data
+        )
+        assert response.status_code == 200
+        assert "Error processing delete request." in response.text
+        assert CSS_ERROR_CLASS in response.text
+
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg = (
+            f"Error deleting ingredient at index {index_to_delete}: {generic_exc}"
+        )
+        assert args[0] == expected_log_msg
+        assert kwargs.get("exc_info") is True
+
+    @patch("meal_planner.main._parse_recipe_form_data")
+    @patch("meal_planner.main.logger.error")
+    async def test_delete_instruction_validation_error(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        validation_exc = ValidationError.from_exception_data(
+            title="TestVE_del_inst", line_errors=[]
+        )
+        # Initial form data for the test
+        initial_instructions = ["s1_to_delete", "s2_remains"]
+        form_data_dict = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=initial_instructions
+        )
+
+        # Mock _parse_recipe_form_data:
+        # 1st call (in try block of main.py): raises ValidationError
+        # 2nd call (in except ValidationError block): returns the original form data
+        mock_parse.side_effect = [
+            validation_exc,
+            form_data_dict.copy(),
+        ]
+        index_to_delete = 0
+
+        response = await client.post(
+            f"{self.DELETE_INSTRUCTION_BASE_URL}/{index_to_delete}", data=form_data_dict
+        )
+        assert response.status_code == 200
+        assert "Error updating list after delete. Validation failed." in response.text
+        assert CSS_ERROR_CLASS in response.text
+
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg_fragment = "Validation error processing instruction deletion"
+        assert expected_log_msg_fragment in args[0]
+        assert str(validation_exc) in args[0]
+        assert kwargs.get("exc_info") is True
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        # Check that the list is re-rendered with original items
+        instructions_list_div = soup.find("div", id="instructions-list")
+        assert instructions_list_div, "Instructions list div for error case not found"
+        assert isinstance(instructions_list_div, Tag)
+        instruction_textareas = instructions_list_div.find_all(
+            "textarea", {"name": "instructions"}
+        )
+        assert len(instruction_textareas) == len(initial_instructions)  # Original count
+
+        # Check NO OOB diff content
+        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
+        assert not oob_div, "OOB diff wrapper should NOT be present on validation error"
+
+    @patch("meal_planner.main._parse_recipe_form_data")
+    @patch("meal_planner.main.logger.error")
+    async def test_delete_instruction_generic_exception(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        generic_exc = Exception("Generic parse error for del_inst")
+        mock_parse.side_effect = generic_exc  # Only called once in the try block
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["s1"]
+        )
+        index_to_delete = 0
+
+        response = await client.post(
+            f"{self.DELETE_INSTRUCTION_BASE_URL}/{index_to_delete}", data=form_data
+        )
+        assert response.status_code == 200
+        assert "Error processing delete request." in response.text
+        assert CSS_ERROR_CLASS in response.text
+
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg = (
+            f"Error deleting instruction at index {index_to_delete}: {generic_exc}"
+        )
+        assert args[0] == expected_log_msg
+        assert kwargs.get("exc_info") is True
+
+    @patch("meal_planner.main._parse_recipe_form_data")
+    @patch("meal_planner.main.logger.error")
+    async def test_add_ingredient_validation_error(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        validation_exc = ValidationError.from_exception_data(
+            title="TestVE_add_ing", line_errors=[]
+        )
+        mock_parse.side_effect = [
+            validation_exc,
+            _build_ui_fragment_form_data(ingredients=["fallback_ing"]),
+        ]
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["s1"]
+        )
+
+        response = await client.post(self.ADD_INGREDIENT_URL, data=form_data)
+        assert response.status_code == 200
+        assert "Error updating list after add." in response.text
+        assert CSS_ERROR_CLASS in response.text
+
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg = (
+            f"Validation error processing ingredient addition: {validation_exc}"
+        )
+        assert args[0] == expected_log_msg
+        assert kwargs.get("exc_info") is True
+
+    @patch("meal_planner.main._parse_recipe_form_data")
+    @patch("meal_planner.main.logger.error")
+    async def test_add_ingredient_generic_exception(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        generic_exc = Exception("Generic parse error for add_ing")
+        mock_parse.side_effect = generic_exc  # Only called once
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["s1"]
+        )
+
+        response = await client.post(self.ADD_INGREDIENT_URL, data=form_data)
+        assert response.status_code == 200
+        assert "Error processing add request." in response.text
+        assert CSS_ERROR_CLASS in response.text
+
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg = f"Error adding ingredient: {generic_exc}"
+        assert args[0] == expected_log_msg
+        assert kwargs.get("exc_info") is True
+
+    @patch("meal_planner.main._parse_recipe_form_data")
+    @patch("meal_planner.main.logger.error")
+    async def test_add_instruction_validation_error(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        validation_exc = ValidationError.from_exception_data(
+            title="TestVE_add_inst", line_errors=[]
+        )
+        mock_parse.side_effect = [
+            validation_exc,
+            _build_ui_fragment_form_data(instructions=["fallback_inst"]),
+        ]
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["s1"]
+        )
+
+        response = await client.post(self.ADD_INSTRUCTION_URL, data=form_data)
+        assert response.status_code == 200
+        assert "Error updating list after add." in response.text
+        assert CSS_ERROR_CLASS in response.text
+
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg = (
+            f"Validation error processing instruction addition: {validation_exc}"
+        )
+        assert args[0] == expected_log_msg
+        assert kwargs.get("exc_info") is True
+
+    @patch("meal_planner.main._parse_recipe_form_data")
+    @patch("meal_planner.main.logger.error")
+    async def test_add_instruction_generic_exception(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        generic_exc = Exception("Generic parse error for add_inst")
+        mock_parse.side_effect = generic_exc  # Only called once
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["s1"]
+        )
+
+        response = await client.post(self.ADD_INSTRUCTION_URL, data=form_data)
+        assert response.status_code == 200
+        assert "Error processing add request." in response.text
+        assert CSS_ERROR_CLASS in response.text
+
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg = f"Error adding instruction: {generic_exc}"
+        assert args[0] == expected_log_msg
+        assert kwargs.get("exc_info") is True
+
+    async def test_delete_instruction_missing_ingredients_in_form(
+        self, client: AsyncClient
+    ):
+        """Test successful instruction deletion when form data initially lacks
+        ingredients fields."""
+        initial_instructions = ["step_to_keep1", "step_to_delete", "step_to_keep2"]
+        index_to_delete = 1  # This index is for the `try` block's attempt.
+
+        form_data_dict = {
+            "name": "Test Recipe Name",
+            "instructions": initial_instructions,
+            "original_name": "Test Recipe Name",
+            "original_instructions": initial_instructions,
+        }
+
+        response = await client.post(
+            f"{self.DELETE_INSTRUCTION_BASE_URL}/{index_to_delete}", data=form_data_dict
+        )
+        assert response.status_code == 200  # The route itself succeeds
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # This scenario now falls into the ValidationError in main.py because
+        # RecipeData(name="...", ingredients=[], instructions=["s1","s2"]) will fail.
+        # The `except ValidationError` block in `main.py` now re-renders the
+        # list based on the original form data (before delete attempt).
+        assert "Error updating list after delete. Validation failed." in response.text
+
+        instructions_list_div = soup.find("div", id="instructions-list")
+        assert instructions_list_div, "Instructions list div for delete error not found"
+        assert isinstance(instructions_list_div, Tag)
+        instruction_textareas = instructions_list_div.find_all(
+            "textarea", {"name": "instructions"}
+        )
+        assert len(instruction_textareas) == len(initial_instructions)
+
+        # Check NO OOB diff content
+        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
+        assert not oob_div, (
+            "OOB diff wrapper should NOT be present on validation error path"
+        )
 
 
 @pytest.mark.anyio
@@ -1091,10 +1696,7 @@ class TestRecipeUpdateDiff:
     def _build_diff_form_data(
         self, current: RecipeBase, original: RecipeBase | None = None
     ) -> dict:
-        RecipeBase(**current.model_dump())
-        if original:
-            RecipeBase(**original.model_dump())
-        else:
+        if original is None:
             original = current
         form_data = {
             "name": current.name,
@@ -1112,8 +1714,9 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text
-        assert 'id="diff-content-wrapper"' in html
+        html = response.text  # Change back from response_text
+        assert '<pre id="diff-before-pre"' in html
+        assert '<pre id="diff-after-pre"' in html
         assert "<del>" not in html
         assert "<ins>" not in html
         assert "# Same" in html
@@ -1129,7 +1732,9 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text
+        html = response.text  # Change back
+        assert '<pre id="diff-before-pre"' in html
+        assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
         assert "<ins># Current</ins>" in html
         assert "- i1" in html
@@ -1146,7 +1751,9 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text
+        html = response.text  # Change back
+        assert '<pre id="diff-before-pre"' in html
+        assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
         assert "<ins># Current</ins>" in html
         assert "- i1" in html
@@ -1163,7 +1770,9 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text
+        html = response.text  # Change back
+        assert '<pre id="diff-before-pre"' in html
+        assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
         assert "<ins># Current</ins>" in html
         assert "<del>- i1</del>" in html
@@ -1171,33 +1780,55 @@ class TestRecipeUpdateDiff:
         assert "<del>- s1</del>" in html
         assert "<ins>- s1_mod</ins>" in html
 
-    @patch("meal_planner.main._build_diff_content")
-    async def test_diff_generation_error(self, mock_build_diff, client: AsyncClient):
-        mock_build_diff.side_effect = Exception("Simulated diff error")
+    @patch("meal_planner.main._build_diff_content_children")
+    @patch("meal_planner.main.logger.error")
+    async def test_diff_generation_error(
+        self, mock_logger_error, mock_build_diff, client: AsyncClient
+    ):
+        diff_exception = Exception("Simulated diff error")
+        mock_build_diff.side_effect = diff_exception
         recipe = RecipeBase(name="Error Recipe", ingredients=["i"], instructions=["s"])
         form_data = self._build_diff_form_data(recipe, recipe)
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
         html = response.text
-        assert 'id="diff-content-wrapper"' in html
         assert f'class="{CSS_ERROR_CLASS}"' in html
-        assert "Error generating diff view" in html
+        assert "Error updating diff view" in html
+
         mock_build_diff.assert_called_once()
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        assert args[0] == "Error updating diff: %s"
+        assert args[1] is diff_exception
+        assert kwargs.get("exc_info") is True
 
     @pytest.mark.parametrize(
-        "invalid_field, invalid_value",
+        "invalid_field, invalid_value, error_title_suffix",
         [
-            pytest.param(FIELD_NAME, "", id="current_empty_name"),
-            pytest.param(FIELD_INGREDIENTS, [""], id="current_empty_ingredient"),
-            pytest.param(FIELD_ORIGINAL_NAME, "", id="original_empty_name"),
+            pytest.param(FIELD_NAME, "", "curr_name", id="current_empty_name"),
             pytest.param(
-                FIELD_ORIGINAL_INGREDIENTS, [""], id="original_empty_ingredient"
+                FIELD_INGREDIENTS, [""], "curr_ing", id="current_empty_ingredient"
+            ),
+            pytest.param(
+                FIELD_ORIGINAL_NAME, "", "orig_name", id="original_empty_name"
+            ),
+            pytest.param(
+                FIELD_ORIGINAL_INGREDIENTS,
+                [""],
+                "orig_ing",
+                id="original_empty_ingredient",
             ),
         ],
     )
+    @patch("meal_planner.main.logger.warning")
     async def test_update_diff_validation_error(
-        self, client: AsyncClient, invalid_field: str, invalid_value: str | list[str]
+        self,
+        mock_logger_warning,
+        client: AsyncClient,
+        invalid_field: str,
+        invalid_value: str | list[str],
+        error_title_suffix: str,
     ):
         """Test that update diff returns 200 OK even with empty list inputs,
         as validation might happen later."""
@@ -1209,7 +1840,14 @@ class TestRecipeUpdateDiff:
 
         assert response.status_code == 200
         html = response.text
-        assert "diff-content-wrapper" in html
+        assert "Recipe state invalid for diff. Please check all fields." in html
+        assert "diff-content-wrapper" not in html
+
+        mock_logger_warning.assert_called_once()
+        args, kwargs = mock_logger_warning.call_args
+        assert args[0] == "Validation error during diff update: %s"
+        assert isinstance(args[1], ValidationError)
+        assert kwargs.get("exc_info") is False
 
 
 @pytest.mark.anyio
@@ -1224,8 +1862,7 @@ async def test_update_diff_parsing_exception(mock_parse, client: AsyncClient):
     )
 
     assert response.status_code == 200
-    assert "Error preparing data for diff" in response.text
-    assert 'id="diff-content-wrapper"' in response.text
+    assert "Error updating diff view." in response.text
     assert CSS_ERROR_CLASS in response.text
     assert mock_parse.call_count == 1
 
