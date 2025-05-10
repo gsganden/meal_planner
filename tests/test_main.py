@@ -11,7 +11,6 @@ from starlette.datastructures import FormData
 import meal_planner.main as main_module
 from meal_planner.main import (
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
-    CSS_ERROR_CLASS,
     MODEL_NAME,
     _parse_recipe_form_data,
     app,
@@ -100,7 +99,7 @@ class TestRecipeFetchTextEndpoint:
         response = await client.post(RECIPES_FETCH_TEXT_URL, data={})
         assert response.status_code == 200
         assert "Please provide a Recipe URL to fetch." in response.text
-        assert f'class="{CSS_ERROR_CLASS}"' in response.text
+        assert f'class="{TextT.error}"' in response.text
 
     @pytest.mark.parametrize(
         "exception_type, exception_args, expected_message",
@@ -156,7 +155,7 @@ class TestRecipeFetchTextEndpoint:
 
         assert response.status_code == 200
         assert expected_message in response.text
-        assert f'class="{CSS_ERROR_CLASS}"' in response.text
+        assert f'class="{TextT.error}"' in response.text
 
 
 @pytest.mark.anyio
@@ -790,7 +789,7 @@ class TestRecipeModifyEndpoint:
 
         assert response.status_code == 200
         assert "Please enter modification instructions." in response.text
-        assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
+        assert f'class="{TextT.error} mt-2"' in response.text
         assert 'id="name"' in response.text
         assert (
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
@@ -821,7 +820,7 @@ class TestRecipeModifyEndpoint:
         assert (
             "Recipe modification failed. An unexpected error occurred." in response.text
         )
-        assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
+        assert f'class="{TextT.error} mt-2"' in response.text
         assert 'id="name"' in response.text
         assert (
             f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
@@ -848,7 +847,7 @@ class TestRecipeModifyEndpoint:
 
         assert response.status_code == 200
         assert "Invalid recipe data. Please check the fields." in response.text
-        assert CSS_ERROR_CLASS in response.text
+        assert TextT.error in response.text
         with patch(
             "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
         ) as local_mock_llm:
@@ -866,7 +865,7 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
 
     assert response.status_code == 200
     assert "Critical error processing form." in response.text
-    assert CSS_ERROR_CLASS in response.text
+    assert TextT.error in response.text
     assert mock_parse.call_count == 2
 
 
@@ -1181,7 +1180,7 @@ class TestRecipeUpdateDiff:
         assert response.status_code == 200
         html = response.text
         assert 'id="diff-content-wrapper"' in html
-        assert f'class="{CSS_ERROR_CLASS}"' in html
+        assert f'class="{TextT.error}"' in html
         assert "Error generating diff view" in html
         mock_build_diff.assert_called_once()
 
@@ -1226,7 +1225,7 @@ async def test_update_diff_parsing_exception(mock_parse, client: AsyncClient):
     assert response.status_code == 200
     assert "Error preparing data for diff" in response.text
     assert 'id="diff-content-wrapper"' in response.text
-    assert CSS_ERROR_CLASS in response.text
+    assert TextT.error in response.text
     assert mock_parse.call_count == 1
 
 
@@ -1245,7 +1244,7 @@ async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
 
     assert response.status_code == 200
     assert "Error processing form data." in response.text
-    assert CSS_ERROR_CLASS in response.text
+    assert TextT.error in response.text
     mock_parse.assert_called_once()
 
 
@@ -1283,7 +1282,7 @@ class TestGetRecipesPageErrors:
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
         assert "Error fetching recipes from API." in response.text
-        assert CSS_ERROR_CLASS in response.text
+        assert TextT.error in response.text
         mock_api_get.assert_awaited_once_with("/api/v0/recipes")
 
     @patch("meal_planner.main.internal_client.get")
@@ -1295,7 +1294,7 @@ class TestGetRecipesPageErrors:
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
         assert "An unexpected error occurred while fetching recipes." in response.text
-        assert CSS_ERROR_CLASS in response.text
+        assert TextT.error in response.text
         mock_api_get.assert_awaited_once_with("/api/v0/recipes")
 
 
