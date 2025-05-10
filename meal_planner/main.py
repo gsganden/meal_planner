@@ -270,11 +270,22 @@ async def get_recipes_htmx():
                         href=f"/recipes/{recipe['id']}",
                         hx_target="#content",
                         hx_push_url="true",
-                    )
+                        cls="mr-2",
+                    ),
+                    mu.Button(
+                        mu.UkIcon("minus-circle", cls=mu.TextT.error),
+                        title="Delete",
+                        hx_delete=f"/api/v0/recipes/{recipe['id']}",
+                        hx_target="closest li",
+                        hx_swap="outerHTML",
+                        hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
+                        cls=f"{mu.ButtonT.sm} p-1",
+                    ),
+                    id=f"recipe-item-{recipe['id']}",
+                    cls="flex items-center justify-start gap-x-2 mb-1",
                 )
                 for recipe in recipes_data
             ],
-            cls="list-disc list-inside",
         )
 
     return with_layout(mu.Titled("All Recipes", content, id="content"))
