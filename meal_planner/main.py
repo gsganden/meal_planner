@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import fasthtml.common as fh
 import html2text
@@ -558,7 +558,7 @@ CSS_ERROR_CLASS = f"{mu.TextT.error} mb-4"
 
 def generate_diff_html(
     before_text: str, after_text: str
-) -> tuple[list[Any], list[Any]]:
+) -> tuple[list[str | fh.FT], list[str | fh.FT]]:
     """Generates two lists of fasthtml components/strings for diff display."""
     before_lines = before_text.splitlines()
     after_lines = after_text.splitlines()
