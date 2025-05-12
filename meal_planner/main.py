@@ -776,7 +776,7 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
 
 def _build_editable_section(current_recipe: RecipeBase):
     """Builds the 'Edit Manually' section with inputs for name, ingredients,
-    and instructions using data from a dictionary."""
+    and instructions."""
     name_input = _build_name_input(current_recipe.name)
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
