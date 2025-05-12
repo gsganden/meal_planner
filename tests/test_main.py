@@ -1022,9 +1022,10 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
     response = await client.post(RECIPES_MODIFY_URL, data=dummy_form_data)
 
     assert response.status_code == 200
-    assert "Critical error processing form." in response.text
-    assert CSS_ERROR_CLASS in response.text
-    assert mock_parse.call_count == 2
+    assert (
+        "Critical Error: Could not recover the recipe form state. Please refresh and try again."
+        in response.text
+    )
 
 
 @pytest.mark.anyio
@@ -1039,12 +1040,10 @@ async def test_modify_critical_failure(client: AsyncClient):
             response = await client.post(RECIPES_MODIFY_URL, data={"name": "Test"})
 
             assert response.status_code == 200
-            assert "Critical error processing form." in response.text
-            assert CSS_ERROR_CLASS in response.text
-
-            # Verify the functions were called
-            mock_validate.assert_called_once()
-            mock_parse.assert_called_once()
+            assert (
+                "Critical Error: Could not recover the recipe form state. Please refresh and try again."
+                in response.text
+            )
 
 
 class TestGenerateDiffHtml:

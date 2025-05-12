@@ -655,18 +655,43 @@ def _build_edit_review_form(
     current_recipe: RecipeBase,
     original_recipe: RecipeBase | None = None,
     modification_prompt_value: str | None = None,
-    error_message_content=None,
+    error_message_content: fh.FT | None = None,
 ):
-    """Builds the structured, editable recipe form with live diff."""
-    if original_recipe is None:
-        original_recipe = current_recipe
+    """Builds the primary recipe editing interface components.
+
+    This function constructs the main card containing the editable recipe form
+    (manual edits and AI modification controls) and the separate review card
+    containing the diff view and save button.
+
+    Args:
+        current_recipe: The RecipeBase object representing the current state
+            of the recipe being edited.
+        original_recipe: An optional RecipeBase object representing the initial
+            state of the recipe before any edits (or modifications). This is used
+            as the baseline for the diff view. If None, `current_recipe` is used
+            as the baseline.
+        modification_prompt_value: An optional string containing the user's
+            previous AI modification request, used to pre-fill the input.
+        error_message_content: Optional FastHTML content (e.g., a Div with an
+            error message) to display within the modification controls section.
+
+    Returns:
+        A tuple containing two components:
+        1. main_edit_card (mu.Card): The card containing the modification
+           controls and the editable fields (name, ingredients, instructions).
+        2. review_section_card (mu.Card): The card containing the diff view
+           and the save button.
+    """
+    diff_baseline_recipe = original_recipe
+    if diff_baseline_recipe is None:
+        diff_baseline_recipe = current_recipe
 
     controls_section = _build_modification_controls(
         modification_prompt_value, error_message_content
     )
-    original_hidden_fields = _build_original_hidden_fields(original_recipe)
+    original_hidden_fields = _build_original_hidden_fields(diff_baseline_recipe)
     editable_section = _build_editable_section(current_recipe)
-    review_section = _build_review_section(original_recipe, current_recipe)
+    review_section = _build_review_section(diff_baseline_recipe, current_recipe)
 
     combined_edit_section = fh.Div(
         fh.H2("Edit Recipe", cls="text-3xl mb-4"),
@@ -751,7 +776,7 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
 
 def _build_editable_section(current_recipe: RecipeBase):
     """Builds the 'Edit Manually' section with inputs for name, ingredients,
-    and instructions."""
+    and instructions using data from a dictionary."""
     name_input = _build_name_input(current_recipe.name)
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
@@ -904,6 +929,7 @@ def _build_instructions_section(instructions: list[str]):
 
 def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBase):
     """Builds the 'Review Changes' section with the diff view."""
+    # No longer need to create a temporary object, just use the current one
     before_component, after_component = _build_diff_content_children(
         original_recipe, current_recipe.markdown
     )
@@ -913,7 +939,7 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
         cls="flex space-x-4 mt-4",
         id="diff-content-wrapper",
     )
-    save_button_container = _build_save_button(current_recipe)
+    save_button_container = _build_save_button()  # No longer needs recipe data
     return mu.Card(
         fh.Div(
             fh.H2("Review Changes", cls="text-2xl mb-4"),
@@ -923,8 +949,10 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
     )
 
 
-def _build_save_button(recipe: RecipeBase) -> fh.FT:
+def _build_save_button() -> fh.FT:
     """Builds the save button container."""
+    # Note: Save button doesn't strictly need the recipe data itself,
+    # as it includes the whole form on post.
     return fh.Div(
         mu.Button(
             "Save Recipe",
@@ -1149,90 +1177,116 @@ class RecipeModificationError(Exception):
 
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
-    form_data: FormData = await request.form()
-    error_message_content = None
-    current_recipe = None
-    original_recipe = None
-    modification_prompt = ""
+    form_data = await request.form()
+    modification_prompt = str(form_data.get("modification_prompt", ""))
+
+    error_message_for_ui: fh.FT | None = None
+    # State to use for rendering the form in case of errors
+    current_data_for_form_render: dict
+    original_recipe_for_form_render: RecipeBase
 
     try:
-        (
-            current_recipe,
-            original_recipe,
-            modification_prompt,
-        ) = _parse_and_validate_modify_form(form_data)  # Raises ModifyFormError
+        # Step 1: Validate the form state.
+        (validated_current_recipe, validated_original_recipe, _) = (
+            _parse_and_validate_modify_form(form_data)
+        )
 
-    except ModifyFormError as e:
-        # Handle parsing error: try to get original for display
-        error_message_content = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
+        # Defaults for error rendering if subsequent steps fail
+        current_data_for_form_render = validated_current_recipe.model_dump()
+        original_recipe_for_form_render = validated_original_recipe
+
+        # Step 2: Handle empty modification prompt.
+        if not modification_prompt:
+            logger.info("Modification requested with empty prompt.")
+            error_message_for_ui = fh.Div(
+                "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
+            )
+            # Fall through to common error rendering path.
+
+        else:
+            # Step 3: Attempt recipe modification by LLM.
+            try:
+                modified_recipe = await _request_recipe_modification(
+                    validated_current_recipe, modification_prompt
+                )
+                edit_form_card, review_section_card = _build_edit_review_form(
+                    current_recipe=modified_recipe,
+                    original_recipe=validated_original_recipe,
+                    modification_prompt_value=modification_prompt,
+                    error_message_content=None,
+                )
+                oob_review = fh.Div(
+                    review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+                )
+                return fh.Div(
+                    edit_form_card, oob_review, id="edit-form-target", cls="mt-6"
+                )
+
+            except RecipeModificationError as llm_e:
+                logger.error("LLM modification error: %s", llm_e, exc_info=True)
+                error_message_for_ui = fh.Div(str(llm_e), cls=f"{CSS_ERROR_CLASS} mt-2")
+
+    except ModifyFormError as form_e:
+        logger.warning("Form validation/parsing error: %s", form_e, exc_info=False)
+        error_message_for_ui = fh.Div(str(form_e), cls=f"{CSS_ERROR_CLASS} mt-2")
         try:
-            original_data = _parse_recipe_form_data(form_data, prefix="original_")
-            original_recipe = RecipeBase(**original_data)  # Use this for display
-            if current_recipe is None:
-                current_recipe = original_recipe
-        except Exception as inner_e:
+            original_data_raw = _parse_recipe_form_data(form_data, prefix="original_")
+            original_recipe_for_form_render = RecipeBase(**original_data_raw)
+            current_data_for_form_render = original_data_raw
+        except Exception as parse_orig_e:
             logger.error(
-                "Could not parse original data on modify error: %s",
-                inner_e,
+                "Critical: Could not parse original data during ModifyFormError "
+                "handling: %s",
+                parse_orig_e,
                 exc_info=True,
             )
-            # Return error content wrapped in the target div for outerHTML swap
-            error_content = f"<div class='{CSS_ERROR_CLASS}'>"
-            error_content += "Critical error processing form.</div>"
-            # Break long f-string for readability
-            error_html = (
-                f"<div id='edit-form-target' class='mt-6'>{error_content}</div>"
+            # Cannot recover form state, return a critical error message directly
+            critical_error_msg = fh.Div(
+                "Critical Error: Could not recover the recipe form state. Please refresh and try again.",
+                cls=CSS_ERROR_CLASS,
+                id="edit-form-target",  # Replace the whole form area
             )
-            return HTMLResponse(content=error_html, status_code=200)
+            return critical_error_msg
 
-        error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
-        modification_prompt = str(form_data.get("modification_prompt", ""))
-        current_recipe = original_recipe
+    except Exception as e:
+        # Unexpected Error: Log and show generic error, try reverting to original.
+        logger.error(
+            "Unexpected error in recipe modification flow: %s", e, exc_info=True
+        )
+        # Cannot reliably determine state, return a critical error message directly
+        critical_error_msg = fh.Div(
+            "Critical Error: An unexpected error occurred. Please refresh and try again.",
+            cls=CSS_ERROR_CLASS,
+            id="edit-form-target",  # Replace the whole form area
+        )
+        return critical_error_msg
 
-    # --- Return Logic ---
-    if error_message:
-        edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe, original_recipe, modification_prompt, error_message
-        )
-        oob_review = fh.Div(
-            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
-        )
-        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
-
-    if not modification_prompt:
-        logger.info("Modification requested with empty prompt. Returning form.")
-        error_message_content = fh.Div(
-            "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
-        )
-        edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe, original_recipe, "", error_message
-        )
-        oob_review = fh.Div(
-            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
-        )
-        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
+    # --- COMMON ERROR RETURN PATH ---
+    # (ModifyFormError [where original parsing succeeded], empty prompt, LLM error)
 
     try:
-        modified_recipe = await _request_recipe_modification(
-            current_recipe, modification_prompt
+        current_recipe_for_render = RecipeBase(**current_data_for_form_render)
+    except ValidationError:
+        # Fallback if even the intended render data is invalid
+        logger.error(
+            "Data intended for form render failed validation: %s",
+            current_data_for_form_render,
         )
-        edit_form_card, review_section_card = _build_edit_review_form(
-            modified_recipe, original_recipe
+        current_recipe_for_render = RecipeBase(
+            name="[Validation Error]", ingredients=[], instructions=[]
         )
-        oob_review = fh.Div(
-            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
-        )
-        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
+        # Use the already validated original, assuming it's safe
 
-    except RecipeModificationError as e:
-        error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
-        edit_form_card, review_section_card = _build_edit_review_form(
-            current_recipe, original_recipe, modification_prompt, error_message
-        )
-        oob_review = fh.Div(
-            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
-        )
-        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
+    edit_form_card, review_section_card = _build_edit_review_form(
+        current_recipe=current_recipe_for_render,
+        original_recipe=original_recipe_for_form_render,  # This should already be a RecipeBase
+        modification_prompt_value=modification_prompt,  # Show user's prompt attempt
+        error_message_content=error_message_for_ui,
+    )
+    oob_review = fh.Div(
+        review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+    )
+    return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
 
 def _parse_and_validate_modify_form(
