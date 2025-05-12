@@ -2010,20 +2010,15 @@ class TestGetRecipesPageErrors:
         mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
         client: AsyncClient,
     ):
-        # Create a mock Response object that will raise an error
-        mock_response = AsyncMock(spec=Response)
-        mock_response.status_code = 500
-        # Configure raise_for_status to throw the specific error
         http_error = httpx.HTTPStatusError(
             "Internal Server Error",
             request=Request("GET", "/v0/recipes"),
             response=Response(500, request=Request("GET", "/v0/recipes")),
         )
-        mock_response.raise_for_status = MagicMock(side_effect=http_error)
-        # json() might not be called if raise_for_status() errors, but good to have
-        mock_response.json = AsyncMock(return_value={})
-
-        mock_api_client.get.return_value = mock_response
+        # Configure the mocked client's get method using the helper
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=500, error_to_raise=http_error
+        )
 
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
@@ -2039,17 +2034,15 @@ class TestGetRecipesPageErrors:
         client: AsyncClient,
     ):
         """Test API error handling via HTMX request."""
-        mock_response = AsyncMock(spec=Response)
-        mock_response.status_code = 500
         http_error = httpx.HTTPStatusError(
             "Internal Server Error",
             request=Request("GET", "/v0/recipes"),
             response=Response(500, request=Request("GET", "/v0/recipes")),
         )
-        mock_response.raise_for_status = MagicMock(side_effect=http_error)
-        mock_response.json = AsyncMock(return_value={})
-
-        mock_api_client.get.return_value = mock_response
+        # Configure the mocked client's get method using the helper
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=500, error_to_raise=http_error
+        )
 
         headers = {"HX-Request": "true"}
         response = await client.get(RECIPES_LIST_PATH, headers=headers)
@@ -2067,6 +2060,7 @@ class TestGetRecipesPageErrors:
         client: AsyncClient,
     ):
         # For generic errors, the .get() call itself might fail
+        # So, we set side_effect directly on the .get() method
         mock_api_client.get.side_effect = Exception("Generic API failure")
 
         response = await client.get(RECIPES_LIST_PATH)
@@ -2184,14 +2178,10 @@ class TestGetRecipesPageSuccess:
         mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
         client: AsyncClient,
     ):
-        # Create and configure a mock Response object
-        mock_response = AsyncMock(spec=Response)
-        mock_response.status_code = 200
-        mock_response.json.return_value = [{"id": 1, "name": "Recipe One"}]
-        mock_response.raise_for_status = MagicMock()
-
-        # Configure the mocked client's get method to return the mock response
-        mock_api_client.get.return_value = mock_response
+        # Configure the mocked client's get method using the helper
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=200, json_data=[{"id": 1, "name": "Recipe One"}]
+        )
 
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
@@ -2209,14 +2199,10 @@ class TestGetRecipesPageSuccess:
         client: AsyncClient,
     ):
         """Test successful recipe list retrieval via HTMX request."""
-        # Create and configure a mock Response object
-        mock_response = AsyncMock(spec=Response)
-        mock_response.status_code = 200
-        mock_response.json.return_value = [{"id": 1, "name": "Recipe One HTMX"}]
-        mock_response.raise_for_status = MagicMock()
-
-        # Configure the mocked client's get method
-        mock_api_client.get.return_value = mock_response
+        # Configure the mocked client's get method using the helper
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=200, json_data=[{"id": 1, "name": "Recipe One HTMX"}]
+        )
 
         headers = {"HX-Request": "true"}
         response = await client.get(RECIPES_LIST_PATH, headers=headers)
@@ -2236,14 +2222,10 @@ class TestGetRecipesPageSuccess:
         mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
         client: AsyncClient,
     ):
-        # Create and configure a mock Response object for empty data
-        mock_response = AsyncMock(spec=Response)
-        mock_response.status_code = 200
-        mock_response.json.return_value = []
-        mock_response.raise_for_status = MagicMock()
-
-        # Configure the mocked client's get method
-        mock_api_client.get.return_value = mock_response
+        # Configure the mocked client's get method using the helper
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=200, json_data=[]
+        )
 
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
@@ -2571,3 +2553,24 @@ async def test_modify_render_validation_error(
     assert call_kwargs["current_recipe"].name == "[Validation Error]"
 
     assert call_kwargs["original_recipe"] is mock_original_recipe_fixture
+
+
+# Helper function for creating mock httpx.Response objects
+def create_mock_api_response(
+    status_code: int,
+    json_data: list | dict | None = None,
+    error_to_raise: Exception | None = None,
+) -> AsyncMock:
+    mock_resp = AsyncMock(spec=Response)
+    mock_resp.status_code = status_code
+    if json_data is not None:
+        # Using MagicMock should be sufficient here as it's not awaited in the code under test
+        mock_resp.json = MagicMock(return_value=json_data)
+    else:
+        mock_resp.json = MagicMock(return_value={})
+
+    if error_to_raise:
+        mock_resp.raise_for_status = MagicMock(side_effect=error_to_raise)
+    else:
+        mock_resp.raise_for_status = MagicMock()
+    return mock_resp
