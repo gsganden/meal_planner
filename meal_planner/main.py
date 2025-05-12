@@ -52,17 +52,15 @@ api_app.include_router(RECIPES_API_ROUTER)
 
 app.mount("/api", api_app)
 
-# Client to make requests from UI routes to the main fasthtml app
 internal_client = httpx.AsyncClient(
     transport=ASGITransport(app=app),
-    base_url="http://internal",  # arbitrary
+    base_url="http://internal",
 )
 
-# Client specifically for requests from UI routes to the mounted API app
 api_transport = ASGITransport(app=api_app)
 internal_api_client = httpx.AsyncClient(
     transport=api_transport,
-    base_url="http://internal-api",  # Can be arbitrary, path matters
+    base_url="http://internal-api",
 )
 
 
@@ -142,7 +140,6 @@ def with_layout(content):
         hidden=True,
     )
 
-    # Define the main content div with HTMX attributes for list refresh
     main_content_div = fh.Div(
         content,
         cls="md:w-4/5 w-full p-4",
