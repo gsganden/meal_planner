@@ -59,7 +59,7 @@ internal_client = httpx.AsyncClient(
 )
 
 # Client specifically for requests from UI routes to the mounted API app
-api_transport = ASGITransport(app=api_app)  # Use the api_app directly
+api_transport = ASGITransport(app=api_app)
 internal_api_client = httpx.AsyncClient(
     transport=api_transport,
     base_url="http://internal-api",  # Can be arbitrary, path matters
@@ -147,10 +147,10 @@ def with_layout(content):
         content,
         cls="md:w-4/5 w-full p-4",
         id="content",
-        hx_trigger="recipeListChanged from:body",  # Listen for the trigger
-        hx_get="/recipes",  # Get the updated list component
-        hx_target="#recipe-list-area",  # Target the list container
-        hx_swap="outerHTML",  # Replace the list container
+        hx_trigger="recipeListChanged from:body",
+        hx_get="/recipes",
+        hx_target="#recipe-list-area",
+        hx_swap="outerHTML",
     )
 
     return (
@@ -160,7 +160,7 @@ def with_layout(content):
         mobile_sidebar_container,
         fh.Div(cls="flex flex-col md:flex-row w-full")(
             fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
-            main_content_div,  # Use the modified div here
+            main_content_div,
         ),
     )
 
