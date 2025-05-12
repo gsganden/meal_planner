@@ -35,8 +35,8 @@ RECIPES_LIST_PATH = "/recipes"
 RECIPES_EXTRACT_URL = "/recipes/extract"
 RECIPES_FETCH_TEXT_URL = "/recipes/fetch-text"
 RECIPES_EXTRACT_RUN_URL = "/recipes/extract/run"
-RECIPES_SAVE_URL = "/recipes/save"
 RECIPES_MODIFY_URL = "/recipes/modify"
+RECIPES_SAVE_URL = "/recipes/save"
 
 # Form Field Names
 FIELD_RECIPE_URL = "recipe_url"
@@ -885,6 +885,131 @@ class TestRecipeModifyEndpoint:
             "meal_planner.main.get_structured_llm_response", new_callable=AsyncMock
         ) as local_mock_llm:
             local_mock_llm.assert_not_called()
+
+    @patch("meal_planner.main.extract_recipe_from_text", new_callable=AsyncMock)
+    async def test_modify_recipe_multiple_times(
+        self,
+        mock_extract_recipe: AsyncMock,
+        mock_get_structured_llm_response: AsyncMock,
+        client: AsyncClient,
+    ):
+        """
+        Tests that the 'Modify with AI' button can be used multiple times
+        successfully. This specifically tests if the hx-target for the modify
+        button is correctly preserved/replaced after the first modification.
+        """
+        initial_recipe = RecipeBase(
+            name="Initial Recipe",
+            ingredients=["Pepper", "Garlic"],
+            instructions=["Season well", "Cook slowly"],
+        )
+        modified_recipe_v1 = RecipeBase(
+            name="Modified V1",
+            ingredients=["Salt", "Pepper", "Garlic"],
+            instructions=["Mix ingredients", "Season well", "Cook slowly"],
+        )
+        modified_recipe_v2 = RecipeBase(
+            name="Modified V2 (Vegan)",
+            ingredients=["Olive Oil", "Salt", "Pepper", "Garlic"],
+            instructions=[
+                "Sauté garlic",
+                "Mix ingredients",
+                "Season well",
+                "Cook slowly",
+            ],
+        )
+
+        # 1. Simulate initial recipe extraction
+        mock_extract_recipe.return_value = initial_recipe
+        extract_response = await client.post(
+            RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: "Some initial text"}
+        )
+        assert extract_response.status_code == 200
+        # Form is loaded via OOB swap; client doesn't see that directly.
+        # Assume form is now on the "page" for client interaction.
+
+        # 2. First Modification
+        mock_get_structured_llm_response.return_value = modified_recipe_v1
+        form_data_1 = self._build_modify_form_data(
+            current_recipe=initial_recipe,  # Current state is the extracted one
+            original_recipe=initial_recipe,  # Original state is also the extracted one
+            modification_prompt="Make it tastier",
+        )
+        modify_response_1 = await client.post(RECIPES_MODIFY_URL, data=form_data_1)
+        assert modify_response_1.status_code == 200
+        assert mock_get_structured_llm_response.call_count == 1
+
+        html_after_first_modify = ""
+        async for chunk in modify_response_1.aiter_text():
+            html_after_first_modify += chunk
+
+        # Verify the indicator attribute is present on the button in the *new* HTML
+        soup_v1 = BeautifulSoup(html_after_first_modify, "html.parser")
+
+        # Find the main container div first
+        edit_target_div = soup_v1.find("div", attrs={"id": "edit-form-target"})
+        assert edit_target_div is not None, (
+            "#edit-form-target div not found in response."
+        )
+
+        # Find the form within the container
+        form_v1 = edit_target_div.find("form", attrs={"id": "edit-review-form"})
+        assert form_v1 is not None, (
+            "#edit-review-form not found within #edit-form-target in response."
+        )
+
+        # Now find the button *within* the form
+        modify_button_v1 = form_v1.find("button", string="Modify Recipe")
+        assert modify_button_v1 is not None, (
+            "Modify button not found within #edit-review-form in response after "
+            "first modification."
+        )
+
+        # Stricter check for attribute existence and value
+        assert modify_button_v1.has_attr("hx-indicator"), (
+            "hx-indicator attribute missing from modify button after first "
+            "modification."
+        )
+        assert modify_button_v1.get("hx-indicator") == "#modify-indicator", (
+            "hx-indicator attribute has incorrect value on modify button after "
+            "first modification."
+        )
+
+        # 3. Second Modification
+        mock_get_structured_llm_response.return_value = modified_recipe_v2
+
+        # Extract current form values from the HTML returned by the *first* modification
+        current_data_after_v1_modify = _extract_current_recipe_data_from_html(
+            html_after_first_modify
+        )
+
+        # The "original" recipe remains the initially extracted one.
+        # Hidden fields should maintain this state.
+        form_data_2 = self._build_modify_form_data(
+            current_recipe=RecipeBase(**current_data_after_v1_modify),
+            # original_ fields should still point to the first extraction:
+            original_recipe=initial_recipe,
+            modification_prompt="Now make it vegan",
+        )
+
+        modify_response_2 = await client.post(RECIPES_MODIFY_URL, data=form_data_2)
+        assert modify_response_2.status_code == 200
+
+        # This is the key assertion for the bug:
+        # If hx-target was lost, LLM won't be called a second time.
+        assert mock_get_structured_llm_response.call_count == 2, (
+            "LLM was not called for the second modification attempt."
+        )
+
+        html_after_second_modify = ""
+        async for chunk in modify_response_2.aiter_text():
+            html_after_second_modify += chunk
+
+        # Optional: Verify content of the second modification
+        soup_v2 = BeautifulSoup(html_after_second_modify, "html.parser")
+        name_input_v2 = soup_v2.find("input", {"name": FIELD_NAME})
+        assert name_input_v2 is not None
+        assert name_input_v2["value"] == "Modified V2 (Vegan)"
 
 
 @pytest.mark.anyio
@@ -2298,3 +2423,24 @@ async def test_save_recipe_api_call_json_error_with_detail(
 
     mock_post.assert_awaited_once()
     mock_logger_debug.assert_any_call("API error detail: %s", error_detail_text)
+
+
+# Helper function to extract current (non-original) form values
+def _extract_current_recipe_data_from_html(html_content: str) -> dict:
+    soup = BeautifulSoup(html_content, "html.parser")
+    form = soup.find("form", attrs={"id": "edit-review-form"})
+    if not form:
+        raise ValueError("Form with id 'edit-review-form' not found in HTML")
+
+    name_input = form.find("input", attrs={"name": FIELD_NAME})
+    name = name_input.get("value", "") if name_input else ""
+
+    ingredients_inputs = form.find_all("input", attrs={"name": FIELD_INGREDIENTS})
+    ingredients = [
+        ing_input.get("value", "")
+        for ing_input in ingredients_inputs
+        if "value" in ing_input.attrs
+    ]
+    instructions_areas = form.find_all("textarea", attrs={"name": FIELD_INSTRUCTIONS})
+    instructions = [inst_area.get_text() for inst_area in instructions_areas]
+    return {"name": name, "ingredients": ingredients, "instructions": instructions}

@@ -30,7 +30,6 @@ dev = [
     "httpx",
     "jupyter",
     "pre-commit",
-    "pyright",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
@@ -54,9 +53,6 @@ lint.select = ["E", "F", "W", "I", "B", "C4", "SIM", "S"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["meal_planner"]
-
-[tool.pyright]
-reportRedeclaration = false
 
 [tool.coverage.report]
 exclude_lines = [

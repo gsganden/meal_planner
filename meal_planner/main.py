@@ -670,8 +670,11 @@ def _build_edit_review_form(
 
     combined_edit_section = fh.Div(
         fh.H2("Edit Recipe", cls="text-3xl mb-4"),
-        controls_section,
-        editable_section,
+        fh.Div(
+            controls_section,
+            editable_section,
+            id="form-content-wrapper",
+        ),
     )
 
     diff_style = fh.Style("""\
@@ -1173,46 +1176,63 @@ async def post_modify_recipe(request: Request):
                 inner_e,
                 exc_info=True,
             )
-            # Critical failure during error handling
-            return fh.Div("Critical error processing form.", cls=CSS_ERROR_CLASS)
+            # Return error content wrapped in the target div for outerHTML swap
+            error_content = f"<div class='{CSS_ERROR_CLASS}'>"
+            error_content += "Critical error processing form.</div>"
+            # Break long f-string for readability
+            error_html = (
+                f"<div id='edit-form-target' class='mt-6'>{error_content}</div>"
+            )
+            return HTMLResponse(content=error_html, status_code=200)
 
-    if error_message_content is None and not modification_prompt:
+        error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
+        modification_prompt = str(form_data.get("modification_prompt", ""))
+        current_recipe = original_recipe
+
+    # --- Return Logic ---
+    if error_message:
+        edit_form_card, review_section_card = _build_edit_review_form(
+            current_recipe, original_recipe, modification_prompt, error_message
+        )
+        oob_review = fh.Div(
+            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+        )
+        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
+
+    if not modification_prompt:
         logger.info("Modification requested with empty prompt. Returning form.")
         error_message_content = fh.Div(
             "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
         )
+        edit_form_card, review_section_card = _build_edit_review_form(
+            current_recipe, original_recipe, "", error_message
+        )
+        oob_review = fh.Div(
+            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+        )
+        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
-    if error_message_content is None:
-        try:
-            modified_recipe = await _request_recipe_modification(
-                current_recipe, modification_prompt
-            )
-            edit_form_card, review_section_card = _build_edit_review_form(
-                modified_recipe, original_recipe
-            )
-            return fh.Group(
-                edit_form_card,
-                fh.Div(
-                    review_section_card, hx_swap_oob="innerHTML:#review-section-target"
-                ),
-            )
+    try:
+        modified_recipe = await _request_recipe_modification(
+            current_recipe, modification_prompt
+        )
+        edit_form_card, review_section_card = _build_edit_review_form(
+            modified_recipe, original_recipe
+        )
+        oob_review = fh.Div(
+            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+        )
+        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
-        except RecipeModificationError as e:
-            error_message_content = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
-
-    recipe_to_display = current_recipe if current_recipe else original_recipe
-    original_for_display = original_recipe if original_recipe else recipe_to_display
-
-    edit_form_card, review_section_card = _build_edit_review_form(
-        recipe_to_display,
-        original_for_display,
-        modification_prompt,
-        error_message_content,
-    )
-    return fh.Group(
-        edit_form_card,
-        fh.Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
-    )
+    except RecipeModificationError as e:
+        error_message = fh.Div(str(e), cls=f"{CSS_ERROR_CLASS} mt-2")
+        edit_form_card, review_section_card = _build_edit_review_form(
+            current_recipe, original_recipe, modification_prompt, error_message
+        )
+        oob_review = fh.Div(
+            review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+        )
+        return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
 
 def _parse_and_validate_modify_form(
