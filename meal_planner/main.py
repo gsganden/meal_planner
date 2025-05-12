@@ -1242,7 +1242,8 @@ async def post_modify_recipe(request: Request):
             )
             # Cannot recover form state, return a critical error message directly
             critical_error_msg = fh.Div(
-                "Critical Error: Could not recover the recipe form state. Please refresh and try again.",
+                "Critical Error: Could not recover the recipe form state. Please "
+                "refresh and try again.",
                 cls=CSS_ERROR_CLASS,
                 id="edit-form-target",  # Replace the whole form area
             )
@@ -1255,7 +1256,8 @@ async def post_modify_recipe(request: Request):
         )
         # Cannot reliably determine state, return a critical error message directly
         critical_error_msg = fh.Div(
-            "Critical Error: An unexpected error occurred. Please refresh and try again.",
+            "Critical Error: An unexpected error occurred. Please refresh and try "
+            "again.",
             cls=CSS_ERROR_CLASS,
             id="edit-form-target",  # Replace the whole form area
         )
@@ -1279,8 +1281,8 @@ async def post_modify_recipe(request: Request):
 
     edit_form_card, review_section_card = _build_edit_review_form(
         current_recipe=current_recipe_for_render,
-        original_recipe=original_recipe_for_form_render,  # This should already be a RecipeBase
-        modification_prompt_value=modification_prompt,  # Show user's prompt attempt
+        original_recipe=original_recipe_for_form_render,
+        modification_prompt_value=modification_prompt,
         error_message_content=error_message_for_ui,
     )
     oob_review = fh.Div(

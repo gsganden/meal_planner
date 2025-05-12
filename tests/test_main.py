@@ -1023,8 +1023,8 @@ async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
 
     assert response.status_code == 200
     assert (
-        "Critical Error: Could not recover the recipe form state. Please refresh and try again."
-        in response.text
+        "Critical Error: Could not recover the recipe form state. Please refresh and "
+        "try again." in response.text
     )
 
 
@@ -1041,8 +1041,8 @@ async def test_modify_critical_failure(client: AsyncClient):
 
             assert response.status_code == 200
             assert (
-                "Critical Error: Could not recover the recipe form state. Please refresh and try again."
-                in response.text
+                "Critical Error: Could not recover the recipe form state. Please "
+                "refresh and try again." in response.text
             )
 
 
