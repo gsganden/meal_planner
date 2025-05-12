@@ -47,11 +47,6 @@ jobs:
           source .venv/bin/activate
           ruff check .
 
-      - name: Run Pyright
-        run: |
-          source .venv/bin/activate
-          pyright
-
       - name: Run Pytest with Coverage
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}

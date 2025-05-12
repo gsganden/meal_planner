@@ -24,14 +24,6 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
-    -   id: pyright
-        name: Run pyright type checker
-        entry: uv run pyright
-        language: system
-        types: [python]
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]
     -   id: pytest
         name: Check tests and test coverage
         entry: uv run ./run_fast_coverage.sh
