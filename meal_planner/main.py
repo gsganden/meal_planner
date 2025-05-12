@@ -140,16 +140,6 @@ def with_layout(content):
         hidden=True,
     )
 
-    main_content_div = fh.Div(
-        content,
-        cls="md:w-4/5 w-full p-4",
-        id="content",
-        hx_trigger="recipeListChanged from:body",
-        hx_get="/recipes",
-        hx_target="#recipe-list-area",
-        hx_swap="outerHTML",
-    )
-
     return (
         fh.Title("Meal Planner"),
         indicator_style,
@@ -157,7 +147,15 @@ def with_layout(content):
         mobile_sidebar_container,
         fh.Div(cls="flex flex-col md:flex-row w-full")(
             fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
-            main_content_div,
+            fh.Div(
+                content,
+                cls="md:w-4/5 w-full p-4",
+                id="content",
+                hx_trigger="recipeListChanged from:body",
+                hx_get="/recipes",
+                hx_target="#recipe-list-area",
+                hx_swap="outerHTML",
+            ),
         ),
     )
 
