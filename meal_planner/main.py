@@ -57,6 +57,12 @@ internal_client = httpx.AsyncClient(
     base_url="http://internal",  # arbitrary
 )
 
+# One client would suffice, but separating them makes mocking easier
+internal_api_client = httpx.AsyncClient(
+    transport=ASGITransport(app=api_app),
+    base_url="http://internal-api",  # arbitrary
+)
+
 
 def create_html_cleaner() -> html2text.HTML2Text:
     h = html2text.HTML2Text()
@@ -141,7 +147,15 @@ def with_layout(content):
         mobile_sidebar_container,
         fh.Div(cls="flex flex-col md:flex-row w-full")(
             fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
-            fh.Div(content, cls="md:w-4/5 w-full p-4", id="content"),
+            fh.Div(
+                content,
+                cls="md:w-4/5 w-full p-4",
+                id="content",
+                hx_trigger="recipeListChanged from:body",
+                hx_get="/recipes",
+                hx_target="#recipe-list-area",
+                hx_swap="outerHTML",
+            ),
         ),
     )
 
@@ -235,9 +249,11 @@ def get():
 
 
 @rt("/recipes")
-async def get_recipes_htmx():
+async def get_recipes_htmx(request: Request):
+    recipes_data = []
+    error_content = None
     try:
-        response = await internal_client.get("/api/v0/recipes")
+        response = await internal_api_client.get("/v0/recipes")
         response.raise_for_status()
         recipes_data = response.json()
     except httpx.HTTPStatusError as e:
@@ -247,17 +263,29 @@ async def get_recipes_htmx():
             e.response.text,
             exc_info=True,
         )
-        return with_layout(
-            fh.Div("Error fetching recipes from API.", cls=CSS_ERROR_CLASS)
+        error_class = getattr(mu.TextT, "error", "uk-text-danger")
+        error_content = mu.Titled(
+            "Error",
+            fh.Div("Error fetching recipes from API.", cls=f"{error_class} mb-4"),
+            id="recipe-list-area",
         )
     except Exception as e:
         logger.error("Error fetching recipes: %s", e, exc_info=True)
-        return with_layout(
+        error_class = getattr(mu.TextT, "error", "uk-text-danger")
+        error_content = mu.Titled(
+            "Error",
             fh.Div(
                 "An unexpected error occurred while fetching recipes.",
-                cls=CSS_ERROR_CLASS,
-            )
+                cls=f"{error_class} mb-4",
+            ),
+            id="recipe-list-area",
         )
+
+    if error_content:
+        if "HX-Request" in request.headers:
+            return error_content
+        else:
+            return with_layout(error_content)
 
     if not recipes_data:
         content = fh.Div("No recipes found.")
@@ -270,14 +298,29 @@ async def get_recipes_htmx():
                         href=f"/recipes/{recipe['id']}",
                         hx_target="#content",
                         hx_push_url="true",
-                    )
+                        cls="mr-2",
+                    ),
+                    mu.Button(
+                        mu.UkIcon("minus-circle", cls=mu.TextT.error),
+                        title="Delete",
+                        hx_delete=f"/api/v0/recipes/{recipe['id']}",
+                        hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
+                        cls=f"{mu.ButtonT.sm} p-1",
+                    ),
+                    id=f"recipe-item-{recipe['id']}",
+                    cls="flex items-center justify-start gap-x-2 mb-1",
                 )
                 for recipe in recipes_data
             ],
-            cls="list-disc list-inside",
+            id="recipe-list-ul",
         )
 
-    return with_layout(mu.Titled("All Recipes", content, id="content"))
+    list_component = mu.Titled("All Recipes", content, id="recipe-list-area")
+
+    if "HX-Request" in request.headers:
+        return list_component
+    else:
+        return with_layout(list_component)
 
 
 @rt("/recipes/{recipe_id:int}")

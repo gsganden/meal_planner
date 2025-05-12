@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 
@@ -90,3 +90,47 @@ async def get_recipe_by_id(
         )
 
     return recipe
+
+
+@API_ROUTER.delete("/v0/recipes/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_recipe(
+    recipe_id: int, session: Annotated[Session, Depends(get_session)]
+):
+    try:
+        recipe = session.get(Recipe, recipe_id)
+    except Exception as e:
+        logger.error(
+            "Database error fetching recipe ID %s for deletion: %s",
+            recipe_id,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error fetching recipe for deletion",
+        ) from e
+
+    if recipe is None:
+        logger.warning("Recipe with ID %s not found for deletion.", recipe_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found"
+        )
+
+    try:
+        session.delete(recipe)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.error(
+            "Database error deleting recipe ID %s: %s", recipe_id, e, exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error deleting recipe",
+        ) from e
+
+    logger.info("Deleted recipe with ID: %s", recipe_id)
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers={"HX-Trigger": "recipeListChanged"},
+    )

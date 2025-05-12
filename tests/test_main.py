@@ -919,20 +919,16 @@ class TestRecipeModifyEndpoint:
             ],
         )
 
-        # 1. Simulate initial recipe extraction
         mock_extract_recipe.return_value = initial_recipe
         extract_response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: "Some initial text"}
         )
         assert extract_response.status_code == 200
-        # Form is loaded via OOB swap; client doesn't see that directly.
-        # Assume form is now on the "page" for client interaction.
 
-        # 2. First Modification
         mock_get_structured_llm_response.return_value = modified_recipe_v1
         form_data_1 = self._build_modify_form_data(
-            current_recipe=initial_recipe,  # Current state is the extracted one
-            original_recipe=initial_recipe,  # Original state is also the extracted one
+            current_recipe=initial_recipe,
+            original_recipe=initial_recipe,
             modification_prompt="Make it tastier",
         )
         modify_response_1 = await client.post(RECIPES_MODIFY_URL, data=form_data_1)
@@ -943,29 +939,24 @@ class TestRecipeModifyEndpoint:
         async for chunk in modify_response_1.aiter_text():
             html_after_first_modify += chunk
 
-        # Verify the indicator attribute is present on the button in the *new* HTML
         soup_v1 = BeautifulSoup(html_after_first_modify, "html.parser")
 
-        # Find the main container div first
         edit_target_div = soup_v1.find("div", attrs={"id": "edit-form-target"})
         assert edit_target_div is not None, (
             "#edit-form-target div not found in response."
         )
 
-        # Find the form within the container
         form_v1 = edit_target_div.find("form", attrs={"id": "edit-review-form"})
         assert form_v1 is not None, (
             "#edit-review-form not found within #edit-form-target in response."
         )
 
-        # Now find the button *within* the form
         modify_button_v1 = form_v1.find("button", string="Modify Recipe")
         assert modify_button_v1 is not None, (
             "Modify button not found within #edit-review-form in response after "
             "first modification."
         )
 
-        # Stricter check for attribute existence and value
         assert modify_button_v1.has_attr("hx-indicator"), (
             "hx-indicator attribute missing from modify button after first "
             "modification."
@@ -975,19 +966,14 @@ class TestRecipeModifyEndpoint:
             "first modification."
         )
 
-        # 3. Second Modification
         mock_get_structured_llm_response.return_value = modified_recipe_v2
 
-        # Extract current form values from the HTML returned by the *first* modification
         current_data_after_v1_modify = _extract_current_recipe_data_from_html(
             html_after_first_modify
         )
 
-        # The "original" recipe remains the initially extracted one.
-        # Hidden fields should maintain this state.
         form_data_2 = self._build_modify_form_data(
             current_recipe=RecipeBase(**current_data_after_v1_modify),
-            # original_ fields should still point to the first extraction:
             original_recipe=initial_recipe,
             modification_prompt="Now make it vegan",
         )
@@ -995,8 +981,6 @@ class TestRecipeModifyEndpoint:
         modify_response_2 = await client.post(RECIPES_MODIFY_URL, data=form_data_2)
         assert modify_response_2.status_code == 200
 
-        # This is the key assertion for the bug:
-        # If hx-target was lost, LLM won't be called a second time.
         assert mock_get_structured_llm_response.call_count == 2, (
             "LLM was not called for the second modification attempt."
         )
@@ -1005,7 +989,6 @@ class TestRecipeModifyEndpoint:
         async for chunk in modify_response_2.aiter_text():
             html_after_second_modify += chunk
 
-        # Optional: Verify content of the second modification
         soup_v2 = BeautifulSoup(html_after_second_modify, "html.parser")
         name_input_v2 = soup_v2.find("input", {"name": FIELD_NAME})
         assert name_input_v2 is not None
@@ -1811,7 +1794,7 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text  # Change back from response_text
+        html = response.text
         assert '<pre id="diff-before-pre"' in html
         assert '<pre id="diff-after-pre"' in html
         assert "<del>" not in html
@@ -1829,7 +1812,7 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text  # Change back
+        html = response.text
         assert '<pre id="diff-before-pre"' in html
         assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
@@ -1848,7 +1831,7 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text  # Change back
+        html = response.text
         assert '<pre id="diff-before-pre"' in html
         assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
@@ -1867,7 +1850,7 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text  # Change back
+        html = response.text
         assert '<pre id="diff-before-pre"' in html
         assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
@@ -2004,33 +1987,67 @@ def test_build_edit_review_form_with_original():
 
 @pytest.mark.anyio
 class TestGetRecipesPageErrors:
-    @patch("meal_planner.main.internal_client.get")
+    @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_api_status_error(
-        self, mock_api_get, client: AsyncClient
+        self,
+        mock_api_client: AsyncMock,
+        client: AsyncClient,
     ):
-        "Test error handling when the API call returns a status error."
-        mock_api_get.side_effect = httpx.HTTPStatusError(
-            "API Error",
-            request=httpx.Request("GET", "/api/v0/recipes"),
-            response=httpx.Response(500),
+        http_error = httpx.HTTPStatusError(
+            "Internal Server Error",
+            request=Request("GET", "/v0/recipes"),
+            response=Response(500, request=Request("GET", "/v0/recipes")),
         )
-        response = await client.get(RECIPES_LIST_PATH)
-        assert response.status_code == 200
-        assert "Error fetching recipes from API." in response.text
-        assert CSS_ERROR_CLASS in response.text
-        mock_api_get.assert_awaited_once_with("/api/v0/recipes")
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=500, error_to_raise=http_error
+        )
 
-    @patch("meal_planner.main.internal_client.get")
-    async def test_get_recipes_page_api_generic_error(
-        self, mock_api_get, client: AsyncClient
-    ):
-        "Test error handling when the API call raises a generic exception."
-        mock_api_get.side_effect = Exception("Unexpected API failure")
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
+        assert "<title>Meal Planner</title>" in response.text
+        assert "Error fetching recipes from API." in response.text
+        assert 'id="recipe-list-area"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
+
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_api_error_htmx(
+        self,
+        mock_api_client: AsyncMock,
+        client: AsyncClient,
+    ):
+        """Test API error handling via HTMX request."""
+        http_error = httpx.HTTPStatusError(
+            "Internal Server Error",
+            request=Request("GET", "/v0/recipes"),
+            response=Response(500, request=Request("GET", "/v0/recipes")),
+        )
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=500, error_to_raise=http_error
+        )
+
+        headers = {"HX-Request": "true"}
+        response = await client.get(RECIPES_LIST_PATH, headers=headers)
+
+        assert response.status_code == 200
+        assert "<title>Meal Planner</title>" not in response.text
+        assert 'id="recipe-list-area"' in response.text
+        assert "Error fetching recipes from API." in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
+
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_api_generic_error(
+        self,
+        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        client: AsyncClient,
+    ):
+        mock_api_client.get.side_effect = Exception("Generic API failure")
+
+        response = await client.get(RECIPES_LIST_PATH)
+        assert response.status_code == 200
+        assert "<title>Meal Planner</title>" in response.text
         assert "An unexpected error occurred while fetching recipes." in response.text
-        assert CSS_ERROR_CLASS in response.text
-        mock_api_get.assert_awaited_once_with("/api/v0/recipes")
+        assert 'id="recipe-list-area"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
 
 
 @pytest.mark.anyio
@@ -2134,43 +2151,64 @@ async def test_save_recipe_api_call_request_error(client: AsyncClient, monkeypat
 
 @pytest.mark.anyio
 class TestGetRecipesPageSuccess:
-    async def test_get_recipes_page_success_with_data(self, client: AsyncClient):
-        recipe1_payload = {
-            "name": "Recipe One For Page Test",
-            "ingredients": ["i1"],
-            "instructions": ["s1"],
-        }
-        recipe2_payload = {
-            "name": "Recipe Two For Page Test",
-            "ingredients": ["i2"],
-            "instructions": ["s2"],
-        }
-        create_resp1 = await client.post("/api/v0/recipes", json=recipe1_payload)
-        assert create_resp1.status_code == 201
-        recipe1_id = create_resp1.json()["id"]
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_success_with_data(
+        self,
+        mock_api_client: AsyncMock,
+        client: AsyncClient,
+    ):
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=200, json_data=[{"id": 1, "name": "Recipe One"}]
+        )
 
-        create_resp2 = await client.post("/api/v0/recipes", json=recipe2_payload)
-        assert create_resp2.status_code == 201
-        recipe2_id = create_resp2.json()["id"]
-
-        page_url = RECIPES_LIST_PATH
-        response = await client.get(page_url)
+        response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
-        html_content = response.text
+        assert "<title>Meal Planner</title>" in response.text
+        assert 'id="recipe-list-area"' in response.text
+        assert '<ul id="recipe-list-ul">' in response.text
+        assert "Recipe One" in response.text
+        assert 'id="recipe-item-1"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
 
-        assert recipe1_payload["name"] in html_content
-        assert f'href="/recipes/{recipe1_id}"' in html_content
-        assert recipe2_payload["name"] in html_content
-        assert f'href="/recipes/{recipe2_id}"' in html_content
-        assert "No recipes found." not in html_content
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_success_htmx(
+        self,
+        mock_api_client: AsyncMock,
+        client: AsyncClient,
+    ):
+        """Test successful recipe list retrieval via HTMX request."""
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=200, json_data=[{"id": 1, "name": "Recipe One HTMX"}]
+        )
 
-    async def test_get_recipes_page_success_no_data(self, client: AsyncClient):
-        page_url = RECIPES_LIST_PATH
-        response = await client.get(page_url)
+        headers = {"HX-Request": "true"}
+        response = await client.get(RECIPES_LIST_PATH, headers=headers)
+
         assert response.status_code == 200
-        html_content = response.text
+        assert "<title>Meal Planner</title>" not in response.text
+        assert 'id="recipe-list-area"' in response.text
+        assert "All Recipes" in response.text
+        assert '<ul id="recipe-list-ul">' in response.text
+        assert "Recipe One HTMX" in response.text
+        assert 'id="recipe-item-1"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
 
-        assert "No recipes found." in html_content
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_success_no_data(
+        self,
+        mock_api_client: AsyncMock,
+        client: AsyncClient,
+    ):
+        mock_api_client.get.return_value = create_mock_api_response(
+            status_code=200, json_data=[]
+        )
+
+        response = await client.get(RECIPES_LIST_PATH)
+        assert response.status_code == 200
+        assert "<title>Meal Planner</title>" in response.text
+        assert "No recipes found." in response.text
+        assert 'id="recipe-list-area"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
 
 
 @pytest.mark.anyio
@@ -2397,7 +2435,6 @@ async def test_save_recipe_api_call_json_error_with_detail(
     mock_logger_debug.assert_any_call("API error detail: %s", error_detail_text)
 
 
-# Helper function to extract current (non-original) form values
 def _extract_current_recipe_data_from_html(html_content: str) -> dict:
     soup = BeautifulSoup(html_content, "html.parser")
     form = soup.find("form", attrs={"id": "edit-review-form"})
@@ -2491,3 +2528,22 @@ async def test_modify_render_validation_error(
     assert call_kwargs["current_recipe"].name == "[Validation Error]"
 
     assert call_kwargs["original_recipe"] is mock_original_recipe_fixture
+
+
+def create_mock_api_response(
+    status_code: int,
+    json_data: list | dict | None = None,
+    error_to_raise: Exception | None = None,
+) -> AsyncMock:
+    mock_resp = AsyncMock(spec=Response)
+    mock_resp.status_code = status_code
+    if json_data is not None:
+        mock_resp.json = MagicMock(return_value=json_data)
+    else:
+        mock_resp.json = MagicMock(return_value={})
+
+    if error_to_raise:
+        mock_resp.raise_for_status = MagicMock(side_effect=error_to_raise)
+    else:
+        mock_resp.raise_for_status = MagicMock()
+    return mock_resp

@@ -300,3 +300,66 @@ class TestGetRecipeById:
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error retrieving recipe"}
             mock_get.assert_called_once_with(Recipe, recipe_id)
+
+
+@pytest.mark.anyio
+class TestDeleteRecipe:
+    @pytest_asyncio.fixture()
+    async def created_recipe_id(
+        self, client: AsyncClient, valid_recipe_payload: dict
+    ) -> int:
+        """Creates a recipe and returns its ID."""
+        response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    async def test_delete_recipe_success(
+        self, client: AsyncClient, created_recipe_id: int
+    ):
+        """Test successful deletion of an existing recipe."""
+        delete_response = await client.delete(f"/api/v0/recipes/{created_recipe_id}")
+        assert delete_response.status_code == 204
+
+        get_response = await client.get(f"/api/v0/recipes/{created_recipe_id}")
+        assert get_response.status_code == 404
+
+    async def test_delete_non_existent_recipe(self, client: AsyncClient):
+        """Test deleting a recipe that does not exist."""
+        non_existent_id = 99999
+        response = await client.delete(f"/api/v0/recipes/{non_existent_id}")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Recipe not found"}
+
+    async def test_delete_recipe_db_fetch_error(
+        self, client: AsyncClient, monkeypatch, created_recipe_id: int
+    ):
+        """Test handling of database errors when fetching a recipe for deletion."""
+        with patch("sqlmodel.Session.get") as mock_get:
+            mock_get.side_effect = Exception("Simulated DB error on get")
+
+            response = await client.delete(f"/api/v0/recipes/{created_recipe_id}")
+
+            assert response.status_code == 500
+            assert response.json() == {
+                "detail": "Database error fetching recipe for deletion"
+            }
+            mock_get.assert_called_once_with(Recipe, created_recipe_id)
+
+    async def test_delete_recipe_db_delete_error(
+        self, client: AsyncClient, monkeypatch, created_recipe_id: int
+    ):
+        """Test handling of database errors during the actual delete operation."""
+        get_response = await client.get(f"/api/v0/recipes/{created_recipe_id}")
+        assert get_response.status_code == 200
+
+        with (
+            patch("sqlmodel.Session.delete"),
+            patch("sqlmodel.Session.commit") as mock_commit,
+        ):
+            mock_commit.side_effect = Exception("Simulated DB error on commit")
+
+            response = await client.delete(f"/api/v0/recipes/{created_recipe_id}")
+
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Database error deleting recipe"}
+            mock_commit.assert_called_once()
