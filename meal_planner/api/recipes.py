@@ -130,4 +130,7 @@ async def delete_recipe(
         ) from e
 
     logger.info("Deleted recipe with ID: %s", recipe_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers={"HX-Trigger": "recipeListChanged"},
+    )
