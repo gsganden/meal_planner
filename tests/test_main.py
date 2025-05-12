@@ -2443,3 +2443,90 @@ def _extract_current_recipe_data_from_html(html_content: str) -> dict:
     instructions_areas = form.find_all("textarea", attrs={"name": FIELD_INSTRUCTIONS})
     instructions = [inst_area.get_text() for inst_area in instructions_areas]
     return {"name": name, "ingredients": ingredients, "instructions": instructions}
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main._parse_and_validate_modify_form")
+async def test_modify_unexpected_exception(mock_validate, client: AsyncClient):
+    """Test the final unexpected exception handler in post_modify_recipe."""
+    mock_validate.side_effect = Exception("Completely unexpected error")
+    dummy_form_data = {FIELD_NAME: "Test", "original_name": "Orig"}
+
+    response = await client.post(RECIPES_MODIFY_URL, data=dummy_form_data)
+
+    assert response.status_code == 200
+    assert (
+        "Critical Error: An unexpected error occurred. Please refresh and try again."
+        in response.text
+    )
+    mock_validate.assert_called_once()
+
+
+@pytest.mark.anyio
+@patch("meal_planner.main._build_edit_review_form")  # Mock form building
+@patch("meal_planner.main.RecipeBase")  # Mock RecipeBase constructor
+@patch("meal_planner.main._request_recipe_modification", new_callable=AsyncMock)
+@patch("meal_planner.main._parse_and_validate_modify_form")
+async def test_modify_render_validation_error(
+    mock_validate: MagicMock,
+    mock_request_mod: AsyncMock,
+    mock_recipe_base: MagicMock,
+    mock_build_form: MagicMock,  # Added mock
+    client: AsyncClient,
+    mock_current_recipe_before_modify_fixture: RecipeBase,
+    mock_original_recipe_fixture: RecipeBase,
+):
+    """Test ValidationError during form re-rendering in common error path."""
+    # 1. Setup validation to succeed initially
+    mock_validate.return_value = (
+        mock_current_recipe_before_modify_fixture,
+        mock_original_recipe_fixture,
+        "Valid prompt",
+    )
+
+    # 2. Setup LLM modification to fail (recoverable error)
+    mock_request_mod.side_effect = main_module.RecipeModificationError("LLM Failed")
+
+    # 3. Setup RecipeBase constructor mock behavior:
+    # First call (in try block) raises ValidationError
+    # Second call (in except block) returns a mock instance configured like the fallback
+    validation_error = ValidationError.from_exception_data("TestValError", [])
+    fallback_instance_mock = MagicMock(spec=RecipeBase)
+    fallback_instance_mock.name = "[Validation Error]"
+    # Add other attributes if they might be accessed by mocked _build_edit_review_form
+    fallback_instance_mock.ingredients = []
+    fallback_instance_mock.instructions = []
+    mock_recipe_base.side_effect = [validation_error, fallback_instance_mock]
+
+    # 3.5 Configure the mocked form builder to return a 2-tuple
+    mock_build_form.return_value = (
+        MagicMock(name="edit_card"),
+        MagicMock(name="review_card"),
+    )
+
+    # 4. Prepare form data
+    form_data = TestRecipeModifyEndpoint()._build_modify_form_data(
+        mock_current_recipe_before_modify_fixture,
+        mock_original_recipe_fixture,
+        "Trigger LLM Error",
+    )
+
+    # 5. Make the call
+    response = await client.post(RECIPES_MODIFY_URL, data=form_data)
+
+    # 6. Assertions
+    assert response.status_code == 200
+    mock_validate.assert_called_once()
+    mock_request_mod.assert_called_once()
+
+    # Assert that RecipeBase was called (at least) for the validation error path
+    assert mock_recipe_base.call_count >= 1
+
+    # Assert form building was called with the fallback data
+    mock_build_form.assert_called_once()
+    call_args, call_kwargs = mock_build_form.call_args
+    assert call_kwargs["current_recipe"].name == "[Validation Error]"
+    assert call_kwargs["original_recipe"] == mock_original_recipe_fixture
+
+    # Check the final rendered HTML (mocked, but we check args)
+    # The actual response text isn't super useful here since we mocked form building
