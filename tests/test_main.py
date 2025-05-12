@@ -2564,7 +2564,6 @@ def create_mock_api_response(
     mock_resp = AsyncMock(spec=Response)
     mock_resp.status_code = status_code
     if json_data is not None:
-        # Using MagicMock should be sufficient here as it's not awaited in the code under test
         mock_resp.json = MagicMock(return_value=json_data)
     else:
         mock_resp.json = MagicMock(return_value={})
