@@ -950,8 +950,6 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
 
 def _build_save_button() -> fh.FT:
     """Builds the save button container."""
-    # Note: Save button doesn't strictly need the recipe data itself,
-    # as it includes the whole form on post.
     return fh.Div(
         mu.Button(
             "Save Recipe",
