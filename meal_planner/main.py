@@ -60,7 +60,7 @@ internal_client = httpx.AsyncClient(
 api_transport = ASGITransport(app=api_app)
 internal_api_client = httpx.AsyncClient(
     transport=api_transport,
-    base_url="http://internal-api",
+    base_url="http://internal-api",  # arbitrary
 )
 
 
