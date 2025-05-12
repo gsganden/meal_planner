@@ -919,20 +919,16 @@ class TestRecipeModifyEndpoint:
             ],
         )
 
-        # 1. Simulate initial recipe extraction
         mock_extract_recipe.return_value = initial_recipe
         extract_response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: "Some initial text"}
         )
         assert extract_response.status_code == 200
-        # Form is loaded via OOB swap; client doesn't see that directly.
-        # Assume form is now on the "page" for client interaction.
 
-        # 2. First Modification
         mock_get_structured_llm_response.return_value = modified_recipe_v1
         form_data_1 = self._build_modify_form_data(
-            current_recipe=initial_recipe,  # Current state is the extracted one
-            original_recipe=initial_recipe,  # Original state is also the extracted one
+            current_recipe=initial_recipe,
+            original_recipe=initial_recipe,
             modification_prompt="Make it tastier",
         )
         modify_response_1 = await client.post(RECIPES_MODIFY_URL, data=form_data_1)
@@ -943,29 +939,24 @@ class TestRecipeModifyEndpoint:
         async for chunk in modify_response_1.aiter_text():
             html_after_first_modify += chunk
 
-        # Verify the indicator attribute is present on the button in the *new* HTML
         soup_v1 = BeautifulSoup(html_after_first_modify, "html.parser")
 
-        # Find the main container div first
         edit_target_div = soup_v1.find("div", attrs={"id": "edit-form-target"})
         assert edit_target_div is not None, (
             "#edit-form-target div not found in response."
         )
 
-        # Find the form within the container
         form_v1 = edit_target_div.find("form", attrs={"id": "edit-review-form"})
         assert form_v1 is not None, (
             "#edit-review-form not found within #edit-form-target in response."
         )
 
-        # Now find the button *within* the form
         modify_button_v1 = form_v1.find("button", string="Modify Recipe")
         assert modify_button_v1 is not None, (
             "Modify button not found within #edit-review-form in response after "
             "first modification."
         )
 
-        # Stricter check for attribute existence and value
         assert modify_button_v1.has_attr("hx-indicator"), (
             "hx-indicator attribute missing from modify button after first "
             "modification."
@@ -975,19 +966,14 @@ class TestRecipeModifyEndpoint:
             "first modification."
         )
 
-        # 3. Second Modification
         mock_get_structured_llm_response.return_value = modified_recipe_v2
 
-        # Extract current form values from the HTML returned by the *first* modification
         current_data_after_v1_modify = _extract_current_recipe_data_from_html(
             html_after_first_modify
         )
 
-        # The "original" recipe remains the initially extracted one.
-        # Hidden fields should maintain this state.
         form_data_2 = self._build_modify_form_data(
             current_recipe=RecipeBase(**current_data_after_v1_modify),
-            # original_ fields should still point to the first extraction:
             original_recipe=initial_recipe,
             modification_prompt="Now make it vegan",
         )
@@ -995,8 +981,6 @@ class TestRecipeModifyEndpoint:
         modify_response_2 = await client.post(RECIPES_MODIFY_URL, data=form_data_2)
         assert modify_response_2.status_code == 200
 
-        # This is the key assertion for the bug:
-        # If hx-target was lost, LLM won't be called a second time.
         assert mock_get_structured_llm_response.call_count == 2, (
             "LLM was not called for the second modification attempt."
         )
@@ -1005,7 +989,6 @@ class TestRecipeModifyEndpoint:
         async for chunk in modify_response_2.aiter_text():
             html_after_second_modify += chunk
 
-        # Optional: Verify content of the second modification
         soup_v2 = BeautifulSoup(html_after_second_modify, "html.parser")
         name_input_v2 = soup_v2.find("input", {"name": FIELD_NAME})
         assert name_input_v2 is not None
@@ -1811,7 +1794,7 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text  # Change back from response_text
+        html = response.text
         assert '<pre id="diff-before-pre"' in html
         assert '<pre id="diff-after-pre"' in html
         assert "<del>" not in html
@@ -1829,7 +1812,7 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text  # Change back
+        html = response.text
         assert '<pre id="diff-before-pre"' in html
         assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
@@ -1848,7 +1831,7 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text  # Change back
+        html = response.text
         assert '<pre id="diff-before-pre"' in html
         assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
@@ -1867,7 +1850,7 @@ class TestRecipeUpdateDiff:
 
         response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
         assert response.status_code == 200
-        html = response.text  # Change back
+        html = response.text
         assert '<pre id="diff-before-pre"' in html
         assert '<pre id="diff-after-pre"' in html
         assert "<del># Orig</del>" in html
@@ -2007,7 +1990,7 @@ class TestGetRecipesPageErrors:
     @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_api_status_error(
         self,
-        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        mock_api_client: AsyncMock,
         client: AsyncClient,
     ):
         http_error = httpx.HTTPStatusError(
@@ -2015,7 +1998,6 @@ class TestGetRecipesPageErrors:
             request=Request("GET", "/v0/recipes"),
             response=Response(500, request=Request("GET", "/v0/recipes")),
         )
-        # Configure the mocked client's get method using the helper
         mock_api_client.get.return_value = create_mock_api_response(
             status_code=500, error_to_raise=http_error
         )
@@ -2030,7 +2012,7 @@ class TestGetRecipesPageErrors:
     @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_api_error_htmx(
         self,
-        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        mock_api_client: AsyncMock,
         client: AsyncClient,
     ):
         """Test API error handling via HTMX request."""
@@ -2039,7 +2021,6 @@ class TestGetRecipesPageErrors:
             request=Request("GET", "/v0/recipes"),
             response=Response(500, request=Request("GET", "/v0/recipes")),
         )
-        # Configure the mocked client's get method using the helper
         mock_api_client.get.return_value = create_mock_api_response(
             status_code=500, error_to_raise=http_error
         )
@@ -2059,8 +2040,6 @@ class TestGetRecipesPageErrors:
         mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
         client: AsyncClient,
     ):
-        # For generic errors, the .get() call itself might fail
-        # So, we set side_effect directly on the .get() method
         mock_api_client.get.side_effect = Exception("Generic API failure")
 
         response = await client.get(RECIPES_LIST_PATH)
@@ -2175,10 +2154,9 @@ class TestGetRecipesPageSuccess:
     @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_success_with_data(
         self,
-        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        mock_api_client: AsyncMock,
         client: AsyncClient,
     ):
-        # Configure the mocked client's get method using the helper
         mock_api_client.get.return_value = create_mock_api_response(
             status_code=200, json_data=[{"id": 1, "name": "Recipe One"}]
         )
@@ -2195,11 +2173,10 @@ class TestGetRecipesPageSuccess:
     @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_success_htmx(
         self,
-        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        mock_api_client: AsyncMock,
         client: AsyncClient,
     ):
         """Test successful recipe list retrieval via HTMX request."""
-        # Configure the mocked client's get method using the helper
         mock_api_client.get.return_value = create_mock_api_response(
             status_code=200, json_data=[{"id": 1, "name": "Recipe One HTMX"}]
         )
@@ -2219,10 +2196,9 @@ class TestGetRecipesPageSuccess:
     @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_success_no_data(
         self,
-        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        mock_api_client: AsyncMock,
         client: AsyncClient,
     ):
-        # Configure the mocked client's get method using the helper
         mock_api_client.get.return_value = create_mock_api_response(
             status_code=200, json_data=[]
         )
@@ -2459,7 +2435,6 @@ async def test_save_recipe_api_call_json_error_with_detail(
     mock_logger_debug.assert_any_call("API error detail: %s", error_detail_text)
 
 
-# Helper function to extract current (non-original) form values
 def _extract_current_recipe_data_from_html(html_content: str) -> dict:
     soup = BeautifulSoup(html_content, "html.parser")
     form = soup.find("form", attrs={"id": "edit-review-form"})
@@ -2555,7 +2530,6 @@ async def test_modify_render_validation_error(
     assert call_kwargs["original_recipe"] is mock_original_recipe_fixture
 
 
-# Helper function for creating mock httpx.Response objects
 def create_mock_api_response(
     status_code: int,
     json_data: list | dict | None = None,
