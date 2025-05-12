@@ -12,7 +12,7 @@ import httpx
 import instructor
 import monsterui.all as mu
 from bs4.element import Tag
-from fastapi import APIRouter, FastAPI, Request, status, Depends
+from fastapi import FastAPI, Request, status
 from httpx import ASGITransport
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
