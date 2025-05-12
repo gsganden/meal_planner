@@ -52,9 +52,17 @@ api_app.include_router(RECIPES_API_ROUTER)
 
 app.mount("/api", api_app)
 
+# Client to make requests from UI routes to the main fasthtml app
 internal_client = httpx.AsyncClient(
     transport=ASGITransport(app=app),
     base_url="http://internal",  # arbitrary
+)
+
+# Client specifically for requests from UI routes to the mounted API app
+api_transport = ASGITransport(app=api_app)  # Use the api_app directly
+internal_api_client = httpx.AsyncClient(
+    transport=api_transport,
+    base_url="http://internal-api",  # Can be arbitrary, path matters
 )
 
 
@@ -250,7 +258,7 @@ async def get_recipes_htmx(request: Request):
     recipes_data = []
     error_content = None
     try:
-        response = await internal_client.get("/api/v0/recipes")
+        response = await internal_api_client.get("/v0/recipes")
         response.raise_for_status()
         recipes_data = response.json()
     except httpx.HTTPStatusError as e:

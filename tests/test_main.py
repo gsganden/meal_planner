@@ -2004,33 +2004,77 @@ def test_build_edit_review_form_with_original():
 
 @pytest.mark.anyio
 class TestGetRecipesPageErrors:
-    @patch("meal_planner.main.internal_client.get")
+    @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_api_status_error(
-        self, mock_api_get, client: AsyncClient
+        self,
+        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        client: AsyncClient,
     ):
-        "Test error handling when the API call returns a status error."
-        mock_api_get.side_effect = httpx.HTTPStatusError(
-            "API Error",
-            request=httpx.Request("GET", "/api/v0/recipes"),
-            response=httpx.Response(500),
+        # Create a mock Response object that will raise an error
+        mock_response = AsyncMock(spec=Response)
+        mock_response.status_code = 500
+        # Configure raise_for_status to throw the specific error
+        http_error = httpx.HTTPStatusError(
+            "Internal Server Error",
+            request=Request("GET", "/v0/recipes"),
+            response=Response(500, request=Request("GET", "/v0/recipes")),
         )
-        response = await client.get(RECIPES_LIST_PATH)
-        assert response.status_code == 200
-        assert "Error fetching recipes from API." in response.text
-        assert CSS_ERROR_CLASS in response.text
-        mock_api_get.assert_awaited_once_with("/api/v0/recipes")
+        mock_response.raise_for_status = MagicMock(side_effect=http_error)
+        # json() might not be called if raise_for_status() errors, but good to have
+        mock_response.json = AsyncMock(return_value={})
 
-    @patch("meal_planner.main.internal_client.get")
-    async def test_get_recipes_page_api_generic_error(
-        self, mock_api_get, client: AsyncClient
-    ):
-        "Test error handling when the API call raises a generic exception."
-        mock_api_get.side_effect = Exception("Unexpected API failure")
+        mock_api_client.get.return_value = mock_response
+
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
+        assert "<title>Meal Planner</title>" in response.text
+        assert "Error fetching recipes from API." in response.text
+        assert 'id="recipe-list-area"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
+
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_api_error_htmx(
+        self,
+        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        client: AsyncClient,
+    ):
+        """Test API error handling via HTMX request."""
+        mock_response = AsyncMock(spec=Response)
+        mock_response.status_code = 500
+        http_error = httpx.HTTPStatusError(
+            "Internal Server Error",
+            request=Request("GET", "/v0/recipes"),
+            response=Response(500, request=Request("GET", "/v0/recipes")),
+        )
+        mock_response.raise_for_status = MagicMock(side_effect=http_error)
+        mock_response.json = AsyncMock(return_value={})
+
+        mock_api_client.get.return_value = mock_response
+
+        headers = {"HX-Request": "true"}
+        response = await client.get(RECIPES_LIST_PATH, headers=headers)
+
+        assert response.status_code == 200
+        assert "<title>Meal Planner</title>" not in response.text
+        assert 'id="recipe-list-area"' in response.text
+        assert "Error fetching recipes from API." in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
+
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_api_generic_error(
+        self,
+        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        client: AsyncClient,
+    ):
+        # For generic errors, the .get() call itself might fail
+        mock_api_client.get.side_effect = Exception("Generic API failure")
+
+        response = await client.get(RECIPES_LIST_PATH)
+        assert response.status_code == 200
+        assert "<title>Meal Planner</title>" in response.text
         assert "An unexpected error occurred while fetching recipes." in response.text
-        assert CSS_ERROR_CLASS in response.text
-        mock_api_get.assert_awaited_once_with("/api/v0/recipes")
+        assert 'id="recipe-list-area"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
 
 
 @pytest.mark.anyio
@@ -2134,43 +2178,79 @@ async def test_save_recipe_api_call_request_error(client: AsyncClient, monkeypat
 
 @pytest.mark.anyio
 class TestGetRecipesPageSuccess:
-    async def test_get_recipes_page_success_with_data(self, client: AsyncClient):
-        recipe1_payload = {
-            "name": "Recipe One For Page Test",
-            "ingredients": ["i1"],
-            "instructions": ["s1"],
-        }
-        recipe2_payload = {
-            "name": "Recipe Two For Page Test",
-            "ingredients": ["i2"],
-            "instructions": ["s2"],
-        }
-        create_resp1 = await client.post("/api/v0/recipes", json=recipe1_payload)
-        assert create_resp1.status_code == 201
-        recipe1_id = create_resp1.json()["id"]
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_success_with_data(
+        self,
+        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        client: AsyncClient,
+    ):
+        # Create and configure a mock Response object
+        mock_response = AsyncMock(spec=Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = [{"id": 1, "name": "Recipe One"}]
+        mock_response.raise_for_status = MagicMock()
 
-        create_resp2 = await client.post("/api/v0/recipes", json=recipe2_payload)
-        assert create_resp2.status_code == 201
-        recipe2_id = create_resp2.json()["id"]
+        # Configure the mocked client's get method to return the mock response
+        mock_api_client.get.return_value = mock_response
 
-        page_url = RECIPES_LIST_PATH
-        response = await client.get(page_url)
+        response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
-        html_content = response.text
+        assert "<title>Meal Planner</title>" in response.text
+        assert 'id="recipe-list-area"' in response.text
+        assert '<ul id="recipe-list-ul">' in response.text
+        assert "Recipe One" in response.text
+        assert 'id="recipe-item-1"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
 
-        assert recipe1_payload["name"] in html_content
-        assert f'href="/recipes/{recipe1_id}"' in html_content
-        assert recipe2_payload["name"] in html_content
-        assert f'href="/recipes/{recipe2_id}"' in html_content
-        assert "No recipes found." not in html_content
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_success_htmx(
+        self,
+        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        client: AsyncClient,
+    ):
+        """Test successful recipe list retrieval via HTMX request."""
+        # Create and configure a mock Response object
+        mock_response = AsyncMock(spec=Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = [{"id": 1, "name": "Recipe One HTMX"}]
+        mock_response.raise_for_status = MagicMock()
 
-    async def test_get_recipes_page_success_no_data(self, client: AsyncClient):
-        page_url = RECIPES_LIST_PATH
-        response = await client.get(page_url)
+        # Configure the mocked client's get method
+        mock_api_client.get.return_value = mock_response
+
+        headers = {"HX-Request": "true"}
+        response = await client.get(RECIPES_LIST_PATH, headers=headers)
+
         assert response.status_code == 200
-        html_content = response.text
+        assert "<title>Meal Planner</title>" not in response.text
+        assert 'id="recipe-list-area"' in response.text
+        assert "All Recipes" in response.text
+        assert '<ul id="recipe-list-ul">' in response.text
+        assert "Recipe One HTMX" in response.text
+        assert 'id="recipe-item-1"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
 
-        assert "No recipes found." in html_content
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_success_no_data(
+        self,
+        mock_api_client: AsyncMock,  # mock_api_client is autospecced AsyncClient mock
+        client: AsyncClient,
+    ):
+        # Create and configure a mock Response object for empty data
+        mock_response = AsyncMock(spec=Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = MagicMock()
+
+        # Configure the mocked client's get method
+        mock_api_client.get.return_value = mock_response
+
+        response = await client.get(RECIPES_LIST_PATH)
+        assert response.status_code == 200
+        assert "<title>Meal Planner</title>" in response.text
+        assert "No recipes found." in response.text
+        assert 'id="recipe-list-area"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
 
 
 @pytest.mark.anyio
