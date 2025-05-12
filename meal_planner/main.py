@@ -929,7 +929,6 @@ def _build_instructions_section(instructions: list[str]):
 
 def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBase):
     """Builds the 'Review Changes' section with the diff view."""
-    # No longer need to create a temporary object, just use the current one
     before_component, after_component = _build_diff_content_children(
         original_recipe, current_recipe.markdown
     )
@@ -939,7 +938,7 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
         cls="flex space-x-4 mt-4",
         id="diff-content-wrapper",
     )
-    save_button_container = _build_save_button()  # No longer needs recipe data
+    save_button_container = _build_save_button()
     return mu.Card(
         fh.Div(
             fh.H2("Review Changes", cls="text-2xl mb-4"),
@@ -1181,30 +1180,24 @@ async def post_modify_recipe(request: Request):
     modification_prompt = str(form_data.get("modification_prompt", ""))
 
     error_message_for_ui: fh.FT | None = None
-    # State to use for rendering the form in case of errors
     current_data_for_form_render: dict
     original_recipe_for_form_render: RecipeBase
 
     try:
-        # Step 1: Validate the form state.
         (validated_current_recipe, validated_original_recipe, _) = (
             _parse_and_validate_modify_form(form_data)
         )
 
-        # Defaults for error rendering if subsequent steps fail
         current_data_for_form_render = validated_current_recipe.model_dump()
         original_recipe_for_form_render = validated_original_recipe
 
-        # Step 2: Handle empty modification prompt.
         if not modification_prompt:
             logger.info("Modification requested with empty prompt.")
             error_message_for_ui = fh.Div(
                 "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
             )
-            # Fall through to common error rendering path.
 
         else:
-            # Step 3: Attempt recipe modification by LLM.
             try:
                 modified_recipe = await _request_recipe_modification(
                     validated_current_recipe, modification_prompt
@@ -1240,36 +1233,29 @@ async def post_modify_recipe(request: Request):
                 parse_orig_e,
                 exc_info=True,
             )
-            # Cannot recover form state, return a critical error message directly
             critical_error_msg = fh.Div(
                 "Critical Error: Could not recover the recipe form state. Please "
                 "refresh and try again.",
                 cls=CSS_ERROR_CLASS,
-                id="edit-form-target",  # Replace the whole form area
+                id="edit-form-target",
             )
             return critical_error_msg
 
     except Exception as e:
-        # Unexpected Error: Log and show generic error, try reverting to original.
         logger.error(
             "Unexpected error in recipe modification flow: %s", e, exc_info=True
         )
-        # Cannot reliably determine state, return a critical error message directly
         critical_error_msg = fh.Div(
             "Critical Error: An unexpected error occurred. Please refresh and try "
             "again.",
             cls=CSS_ERROR_CLASS,
-            id="edit-form-target",  # Replace the whole form area
+            id="edit-form-target",
         )
         return critical_error_msg
-
-    # --- COMMON ERROR RETURN PATH ---
-    # (ModifyFormError [where original parsing succeeded], empty prompt, LLM error)
 
     try:
         current_recipe_for_render = RecipeBase(**current_data_for_form_render)
     except ValidationError:
-        # Fallback if even the intended render data is invalid
         logger.error(
             "Data intended for form render failed validation: %s",
             current_data_for_form_render,
@@ -1277,7 +1263,6 @@ async def post_modify_recipe(request: Request):
         current_recipe_for_render = RecipeBase(
             name="[Validation Error]", ingredients=[], instructions=[]
         )
-        # Use the already validated original, assuming it's safe
 
     edit_form_card, review_section_card = _build_edit_review_form(
         current_recipe=current_recipe_for_render,

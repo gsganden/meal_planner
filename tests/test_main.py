@@ -1279,7 +1279,6 @@ class TestRecipeUIFragments:
     ADD_INSTRUCTION_URL = "/recipes/ui/add-instruction"
     DELETE_INGREDIENT_BASE_URL = "/recipes/ui/delete-ingredient"
     DELETE_INSTRUCTION_BASE_URL = "/recipes/ui/delete-instruction"
-    # TOUCH_NAME_URL = "/recipes/ui/touch-name" # Commented out as per previous steps
 
     async def test_add_ingredient(self, client: AsyncClient):
         form_data = _build_ui_fragment_form_data(
@@ -1318,7 +1317,6 @@ class TestRecipeUIFragments:
         assert delete_button, "Delete button for new ingredient not found"
         assert isinstance(delete_button, Tag)
 
-        # Restore and correct assertions
         icon_element = delete_button.find("uk-icon", attrs={"icon": "minus-circle"})
         assert icon_element, (
             "UkIcon 'minus-circle' not found in ingredient delete button"
@@ -1392,7 +1390,7 @@ class TestRecipeUIFragments:
         form_data = _build_ui_fragment_form_data(
             ingredients=initial_ingredients, instructions=["step1"]
         )
-        index_to_delete = 1  # "ing_to_delete"
+        index_to_delete = 1
 
         response = await client.post(
             f"{self.DELETE_INGREDIENT_BASE_URL}/{index_to_delete}", data=form_data
@@ -1432,7 +1430,7 @@ class TestRecipeUIFragments:
         form_data = _build_ui_fragment_form_data(
             ingredients=["ing1"], instructions=initial_instructions
         )
-        index_to_delete = 1  # "step_to_delete"
+        index_to_delete = 1
 
         response = await client.post(
             f"{self.DELETE_INSTRUCTION_BASE_URL}/{index_to_delete}", data=form_data
@@ -1478,12 +1476,10 @@ class TestRecipeUIFragments:
         response = await client.post(
             f"{self.DELETE_INGREDIENT_BASE_URL}/{invalid_index}", data=form_data
         )
-        assert (
-            response.status_code == 200
-        )  # Route still returns successfully with current items
+        assert response.status_code == 200
         soup = BeautifulSoup(response.text, "html.parser")
         ingredient_inputs = soup.find_all("input", {"name": "ingredients"})
-        assert len(ingredient_inputs) == len(initial_ingredients)  # No change
+        assert len(ingredient_inputs) == len(initial_ingredients)
         mock_logger_warning.assert_called_once_with(
             f"Attempted to delete ingredient at invalid index {invalid_index}"
         )
@@ -1501,12 +1497,10 @@ class TestRecipeUIFragments:
         response = await client.post(
             f"{self.DELETE_INSTRUCTION_BASE_URL}/{invalid_index}", data=form_data
         )
-        assert (
-            response.status_code == 200
-        )  # Route still returns successfully with current items
+        assert response.status_code == 200
         soup = BeautifulSoup(response.text, "html.parser")
         instruction_textareas = soup.find_all("textarea", {"name": "instructions"})
-        assert len(instruction_textareas) == len(initial_instructions)  # No change
+        assert len(instruction_textareas) == len(initial_instructions)
         mock_logger_warning.assert_called_once_with(
             f"Attempted to delete instruction at invalid index {invalid_index}"
         )
@@ -1519,15 +1513,11 @@ class TestRecipeUIFragments:
         validation_exc = ValidationError.from_exception_data(
             title="TestVE_del_ing", line_errors=[]
         )
-        # Initial form data for the test
         initial_ingredients = ["ing1_to_delete", "ing2_remains"]
         form_data_dict = _build_ui_fragment_form_data(
             ingredients=initial_ingredients, instructions=["s1"]
         )
 
-        # Mock _parse_recipe_form_data:
-        # 1st call (in try block of main.py): raises ValidationError
-        # 2nd call (in except ValidationError block): returns the original form data
         mock_parse.side_effect = [
             validation_exc,
             form_data_dict.copy(),
@@ -1549,16 +1539,14 @@ class TestRecipeUIFragments:
         assert kwargs.get("exc_info") is True
 
         soup = BeautifulSoup(response.text, "html.parser")
-        # Check that the list is re-rendered with original items
         ingredients_list_div = soup.find("div", id="ingredients-list")
         assert ingredients_list_div, "Ingredients list div for error case not found"
         assert isinstance(ingredients_list_div, Tag)
         ingredient_inputs = ingredients_list_div.find_all(
             "input", {"name": "ingredients"}
         )
-        assert len(ingredient_inputs) == len(initial_ingredients)  # Original count
+        assert len(ingredient_inputs) == len(initial_ingredients)
 
-        # Check NO OOB diff content
         oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
         assert not oob_div, "OOB diff wrapper should NOT be present on validation error"
 
@@ -1568,9 +1556,7 @@ class TestRecipeUIFragments:
         self, mock_logger_error, mock_parse, client: AsyncClient
     ):
         generic_exc = Exception("Generic parse error for del_ing")
-        mock_parse.side_effect = (
-            generic_exc  # Only called once in the try block for this case
-        )
+        mock_parse.side_effect = generic_exc
         form_data = _build_ui_fragment_form_data(
             ingredients=["ing1"], instructions=["s1"]
         )
@@ -1599,15 +1585,11 @@ class TestRecipeUIFragments:
         validation_exc = ValidationError.from_exception_data(
             title="TestVE_del_inst", line_errors=[]
         )
-        # Initial form data for the test
         initial_instructions = ["s1_to_delete", "s2_remains"]
         form_data_dict = _build_ui_fragment_form_data(
             ingredients=["ing1"], instructions=initial_instructions
         )
 
-        # Mock _parse_recipe_form_data:
-        # 1st call (in try block of main.py): raises ValidationError
-        # 2nd call (in except ValidationError block): returns the original form data
         mock_parse.side_effect = [
             validation_exc,
             form_data_dict.copy(),
@@ -1629,16 +1611,14 @@ class TestRecipeUIFragments:
         assert kwargs.get("exc_info") is True
 
         soup = BeautifulSoup(response.text, "html.parser")
-        # Check that the list is re-rendered with original items
         instructions_list_div = soup.find("div", id="instructions-list")
         assert instructions_list_div, "Instructions list div for error case not found"
         assert isinstance(instructions_list_div, Tag)
         instruction_textareas = instructions_list_div.find_all(
             "textarea", {"name": "instructions"}
         )
-        assert len(instruction_textareas) == len(initial_instructions)  # Original count
+        assert len(instruction_textareas) == len(initial_instructions)
 
-        # Check NO OOB diff content
         oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
         assert not oob_div, "OOB diff wrapper should NOT be present on validation error"
 
@@ -1648,7 +1628,7 @@ class TestRecipeUIFragments:
         self, mock_logger_error, mock_parse, client: AsyncClient
     ):
         generic_exc = Exception("Generic parse error for del_inst")
-        mock_parse.side_effect = generic_exc  # Only called once in the try block
+        mock_parse.side_effect = generic_exc
         form_data = _build_ui_fragment_form_data(
             ingredients=["ing1"], instructions=["s1"]
         )
@@ -1704,7 +1684,7 @@ class TestRecipeUIFragments:
         self, mock_logger_error, mock_parse, client: AsyncClient
     ):
         generic_exc = Exception("Generic parse error for add_ing")
-        mock_parse.side_effect = generic_exc  # Only called once
+        mock_parse.side_effect = generic_exc
         form_data = _build_ui_fragment_form_data(
             ingredients=["ing1"], instructions=["s1"]
         )
@@ -1755,7 +1735,7 @@ class TestRecipeUIFragments:
         self, mock_logger_error, mock_parse, client: AsyncClient
     ):
         generic_exc = Exception("Generic parse error for add_inst")
-        mock_parse.side_effect = generic_exc  # Only called once
+        mock_parse.side_effect = generic_exc
         form_data = _build_ui_fragment_form_data(
             ingredients=["ing1"], instructions=["s1"]
         )
@@ -1774,10 +1754,8 @@ class TestRecipeUIFragments:
     async def test_delete_instruction_missing_ingredients_in_form(
         self, client: AsyncClient
     ):
-        """Test successful instruction deletion when form data initially lacks
-        ingredients fields."""
         initial_instructions = ["step_to_keep1", "step_to_delete", "step_to_keep2"]
-        index_to_delete = 1  # This index is for the `try` block's attempt.
+        index_to_delete = 1
 
         form_data_dict = {
             "name": "Test Recipe Name",
@@ -1789,13 +1767,9 @@ class TestRecipeUIFragments:
         response = await client.post(
             f"{self.DELETE_INSTRUCTION_BASE_URL}/{index_to_delete}", data=form_data_dict
         )
-        assert response.status_code == 200  # The route itself succeeds
+        assert response.status_code == 200
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # This scenario now falls into the ValidationError in main.py because
-        # RecipeData(name="...", ingredients=[], instructions=["s1","s2"]) will fail.
-        # The `except ValidationError` block in `main.py` now re-renders the
-        # list based on the original form data (before delete attempt).
         assert "Error updating list after delete. Validation failed." in response.text
 
         instructions_list_div = soup.find("div", id="instructions-list")
@@ -1806,7 +1780,6 @@ class TestRecipeUIFragments:
         )
         assert len(instruction_textareas) == len(initial_instructions)
 
-        # Check NO OOB diff content
         oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
         assert not oob_div, (
             "OOB diff wrapper should NOT be present on validation error path"
@@ -2333,7 +2306,7 @@ async def test_save_recipe_api_call_non_json_error_response(
     monkeypatch.setattr("meal_planner.main.internal_client.post", mock_post)
 
     form_data = {
-        FIELD_NAME: "Non JSON Error Test",
+        FIELD_NAME: "Non Json Error Test",
         FIELD_INGREDIENTS: ["ingredient"],
         FIELD_INSTRUCTIONS: ["instruction"],
     }
@@ -2463,70 +2436,58 @@ async def test_modify_unexpected_exception(mock_validate, client: AsyncClient):
 
 
 @pytest.mark.anyio
-@patch("meal_planner.main._build_edit_review_form")  # Mock form building
-@patch("meal_planner.main.RecipeBase")  # Mock RecipeBase constructor
+@patch("meal_planner.main._build_edit_review_form")
+@patch("meal_planner.main.RecipeBase")
 @patch("meal_planner.main._request_recipe_modification", new_callable=AsyncMock)
 @patch("meal_planner.main._parse_and_validate_modify_form")
 async def test_modify_render_validation_error(
     mock_validate: MagicMock,
     mock_request_mod: AsyncMock,
     mock_recipe_base: MagicMock,
-    mock_build_form: MagicMock,  # Added mock
+    mock_build_form: MagicMock,
     client: AsyncClient,
     mock_current_recipe_before_modify_fixture: RecipeBase,
     mock_original_recipe_fixture: RecipeBase,
 ):
     """Test ValidationError during form re-rendering in common error path."""
-    # 1. Setup validation to succeed initially
     mock_validate.return_value = (
         mock_current_recipe_before_modify_fixture,
         mock_original_recipe_fixture,
         "Valid prompt",
     )
 
-    # 2. Setup LLM modification to fail (recoverable error)
     mock_request_mod.side_effect = main_module.RecipeModificationError("LLM Failed")
 
-    # 3. Setup RecipeBase constructor mock behavior:
-    # First call (in try block) raises ValidationError
-    # Second call (in except block) returns a mock instance configured like the fallback
     validation_error = ValidationError.from_exception_data("TestValError", [])
     fallback_instance_mock = MagicMock(spec=RecipeBase)
     fallback_instance_mock.name = "[Validation Error]"
-    # Add other attributes if they might be accessed by mocked _build_edit_review_form
     fallback_instance_mock.ingredients = []
     fallback_instance_mock.instructions = []
     mock_recipe_base.side_effect = [validation_error, fallback_instance_mock]
 
-    # 3.5 Configure the mocked form builder to return a 2-tuple
     mock_build_form.return_value = (
         MagicMock(name="edit_card"),
         MagicMock(name="review_card"),
     )
 
-    # 4. Prepare form data
     form_data = TestRecipeModifyEndpoint()._build_modify_form_data(
         mock_current_recipe_before_modify_fixture,
         mock_original_recipe_fixture,
         "Trigger LLM Error",
     )
 
-    # 5. Make the call
     response = await client.post(RECIPES_MODIFY_URL, data=form_data)
 
-    # 6. Assertions
     assert response.status_code == 200
     mock_validate.assert_called_once()
     mock_request_mod.assert_called_once()
 
-    # Assert that RecipeBase was called (at least) for the validation error path
-    assert mock_recipe_base.call_count >= 1
+    assert mock_recipe_base.call_count == 2
 
-    # Assert form building was called with the fallback data
     mock_build_form.assert_called_once()
     call_args, call_kwargs = mock_build_form.call_args
-    assert call_kwargs["current_recipe"].name == "[Validation Error]"
-    assert call_kwargs["original_recipe"] == mock_original_recipe_fixture
 
-    # Check the final rendered HTML (mocked, but we check args)
-    # The actual response text isn't super useful here since we mocked form building
+    assert call_kwargs["current_recipe"] is fallback_instance_mock
+    assert call_kwargs["current_recipe"].name == "[Validation Error]"
+
+    assert call_kwargs["original_recipe"] is mock_original_recipe_fixture
