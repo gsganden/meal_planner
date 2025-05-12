@@ -57,9 +57,9 @@ internal_client = httpx.AsyncClient(
     base_url="http://internal",  # arbitrary
 )
 
-api_transport = ASGITransport(app=api_app)
+# One client would suffice, but separating them makes mocking easier
 internal_api_client = httpx.AsyncClient(
-    transport=api_transport,
+    transport=ASGITransport(app=api_app),
     base_url="http://internal-api",  # arbitrary
 )
 
