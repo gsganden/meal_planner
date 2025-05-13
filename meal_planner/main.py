@@ -6,14 +6,14 @@ import re
 from pathlib import Path
 from typing import TypeVar
 
-import fasthtml.common as fh
 import html2text
 import httpx
 import instructor
-import monsterui.all as mu
 from bs4.element import Tag
 from fastapi import FastAPI, Request, status
+from fasthtml.common import *
 from httpx import ASGITransport
+from monsterui.all import *
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 from starlette import status
@@ -44,7 +44,7 @@ openai_client = AsyncOpenAI(
 
 aclient = instructor.from_openai(openai_client)
 
-app = fh.FastHTMLWithLiveReload(hdrs=(mu.Theme.blue.headers()))
+app = FastHTMLWithLiveReload(hdrs=(Theme.blue.headers()))
 rt = app.route
 
 api_app = FastAPI()
@@ -77,32 +77,32 @@ HTML_CLEANER = create_html_cleaner()
 
 @rt("/")
 def get():
-    return with_layout(mu.Titled("Meal Planner"))
+    return with_layout(Titled("Meal Planner"))
 
 
 def sidebar():
-    nav = mu.NavContainer(
-        fh.Li(
-            fh.A(
-                mu.DivFullySpaced("Meal Planner"),
+    nav = NavContainer(
+        Li(
+            A(
+                DivFullySpaced("Meal Planner"),
                 href="/",
                 hx_target="#content",
                 hx_push_url="true",
             )
         ),
-        mu.NavParentLi(
-            fh.A(mu.DivFullySpaced("Recipes")),
-            mu.NavContainer(
-                fh.Li(
-                    fh.A(
+        NavParentLi(
+            A(DivFullySpaced("Recipes")),
+            NavContainer(
+                Li(
+                    A(
                         "Create",
                         href="/recipes/extract",
                         hx_target="#content",
                         hx_push_url="true",
                     )
                 ),
-                fh.Li(
-                    fh.A(
+                Li(
+                    A(
                         "View All",
                         href="/recipes",
                         hx_target="#content",
@@ -113,41 +113,41 @@ def sidebar():
             ),
         ),
         uk_nav=True,
-        cls=mu.NavT.primary,
+        cls=NavT.primary,
         uk_sticky="offset: 20",
     )
-    return fh.Div(nav, cls="space-y-4 p-4 w-full md:w-full")
+    return Div(nav, cls="space-y-4 p-4 w-full md:w-full")
 
 
 def with_layout(content):
-    indicator_style = fh.Style("""
+    indicator_style = Style("""
         .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
         .htmx-indicator.htmx-request { opacity: 1; }
     """)
 
-    hamburger_button = fh.Div(
-        mu.Button(
-            mu.UkIcon("menu"),
+    hamburger_button = Div(
+        Button(
+            UkIcon("menu"),
             data_uk_toggle="target: #mobile-sidebar",
             cls="p-2",
         ),
         cls="md:hidden flex justify-end p-2",
     )
 
-    mobile_sidebar_container = fh.Div(
+    mobile_sidebar_container = Div(
         sidebar(),
         id="mobile-sidebar",
         hidden=True,
     )
 
     return (
-        fh.Title("Meal Planner"),
+        Title("Meal Planner"),
         indicator_style,
         hamburger_button,
         mobile_sidebar_container,
-        fh.Div(cls="flex flex-col md:flex-row w-full")(
-            fh.Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
-            fh.Div(
+        Div(cls="flex flex-col md:flex-row w-full")(
+            Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
+            Div(
                 content,
                 cls="md:w-4/5 w-full p-4",
                 id="content",
@@ -157,32 +157,32 @@ def with_layout(content):
                 hx_swap="outerHTML",
             ),
         ),
-        fh.Script(src="/static/recipe-editor.js"),
+        Script(src="/static/recipe-editor.js"),
     )
 
 
 @rt("/recipes/extract")
 def get():
-    url_input_component = fh.Div(
-        fh.Div(
-            mu.Input(
+    url_input_component = Div(
+        Div(
+            Input(
                 id="recipe_url",
                 name="recipe_url",
                 type="url",
                 placeholder="https://example.com/recipe",
                 cls="flex-grow mr-2",
             ),
-            fh.Div(
-                mu.Button(
+            Div(
+                Button(
                     "Fetch Text from URL",
                     hx_post="/recipes/fetch-text",
                     hx_target="#recipe_text_container",
                     hx_swap="outerHTML",
                     hx_include="[name='recipe_url']",
                     hx_indicator="#fetch-indicator",
-                    cls=mu.ButtonT.primary,
+                    cls=ButtonT.primary,
                 ),
-                mu.Loading(id="fetch-indicator", cls="htmx-indicator ml-2"),
+                Loading(id="fetch-indicator", cls="htmx-indicator ml-2"),
                 cls="flex items-center",
             ),
             cls="flex items-end",
@@ -190,8 +190,8 @@ def get():
         cls="mb-4",
     )
 
-    text_area_container = fh.Div(
-        mu.TextArea(
+    text_area_container = Div(
+        TextArea(
             id="recipe_text",
             name="recipe_text",
             placeholder="Paste full recipe text here, or fetch from URL above.",
@@ -201,33 +201,33 @@ def get():
         id="recipe_text_container",
     )
 
-    extract_button_group = fh.Div(
-        mu.Button(
+    extract_button_group = Div(
+        Button(
             "Extract Recipe",
             hx_post="/recipes/extract/run",
             hx_target="#recipe-results",
             hx_swap="innerHTML",
             hx_include="#recipe_text_container",
             hx_indicator="#extract-indicator",
-            cls=mu.ButtonT.primary,
+            cls=ButtonT.primary,
         ),
-        mu.Loading(id="extract-indicator", cls="htmx-indicator ml-2"),
+        Loading(id="extract-indicator", cls="htmx-indicator ml-2"),
         cls="mt-4",
     )
 
-    disclaimer = fh.P(
+    disclaimer = P(
         "Recipe extraction uses AI and may not be perfectly accurate. Always "
         "double-check the results.",
-        cls=f"{mu.TextT.muted} text-xs mt-1",
+        cls=f"{TextT.muted} text-xs mt-1",
     )
 
-    results_div = fh.Div(id="recipe-results")
+    results_div = Div(id="recipe-results")
 
-    input_section = fh.Div(
-        fh.H2("Extract Recipe", cls="text-3xl mb-4"),
-        fh.H3("URL", cls="text-xl mb-2"),
+    input_section = Div(
+        H2("Extract Recipe"),
+        H3("URL"),
         url_input_component,
-        fh.H3("Text", cls="text-xl mb-2 mt-4"),
+        H3("Text"),
         text_area_container,
         extract_button_group,
         disclaimer,
@@ -235,13 +235,13 @@ def get():
         cls="space-y-4 mb-6",
     )
 
-    edit_form_target_div = fh.Div(id="edit-form-target", cls="mt-6")
-    review_section_target_div = fh.Div(id="review-section-target", cls="mt-6")
+    edit_form_target_div = Div(id="edit-form-target", cls="mt-6")
+    review_section_target_div = Div(id="review-section-target", cls="mt-6")
 
     return with_layout(
-        mu.Titled(
+        Titled(
             "Create Recipe",
-            mu.Card(input_section, cls="mt-6"),
+            Card(input_section, cls="mt-6"),
             edit_form_target_div,
             review_section_target_div,
             id="content",
@@ -264,18 +264,18 @@ async def get_recipes_htmx(request: Request):
             e.response.text,
             exc_info=True,
         )
-        error_class = getattr(mu.TextT, "error", "uk-text-danger")
-        error_content = mu.Titled(
+        error_class = getattr(TextT, "error", "uk-text-danger")
+        error_content = Titled(
             "Error",
-            fh.Div("Error fetching recipes from API.", cls=f"{error_class} mb-4"),
+            Div("Error fetching recipes from API.", cls=f"{error_class} mb-4"),
             id="recipe-list-area",
         )
     except Exception as e:
         logger.error("Error fetching recipes: %s", e, exc_info=True)
-        error_class = getattr(mu.TextT, "error", "uk-text-danger")
-        error_content = mu.Titled(
+        error_class = getattr(TextT, "error", "uk-text-danger")
+        error_content = Titled(
             "Error",
-            fh.Div(
+            Div(
                 "An unexpected error occurred while fetching recipes.",
                 cls=f"{error_class} mb-4",
             ),
@@ -289,24 +289,24 @@ async def get_recipes_htmx(request: Request):
             return with_layout(error_content)
 
     if not recipes_data:
-        content = fh.Div("No recipes found.")
+        content = Div("No recipes found.")
     else:
-        content = fh.Ul(
+        content = Ul(
             *[
-                fh.Li(
-                    fh.A(
+                Li(
+                    A(
                         recipe["name"],
                         href=f"/recipes/{recipe['id']}",
                         hx_target="#content",
                         hx_push_url="true",
                         cls="mr-2",
                     ),
-                    mu.Button(
-                        mu.UkIcon("minus-circle", cls=mu.TextT.error),
+                    Button(
+                        UkIcon("minus-circle", cls=TextT.error),
                         title="Delete",
                         hx_delete=f"/api/v0/recipes/{recipe['id']}",
                         hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
-                        cls=f"{mu.ButtonT.sm} p-1",
+                        cls=f"{ButtonT.sm} p-1",
                     ),
                     id=f"recipe-item-{recipe['id']}",
                     cls="flex items-center justify-start gap-x-2 mb-1",
@@ -316,7 +316,7 @@ async def get_recipes_htmx(request: Request):
             id="recipe-list-ul",
         )
 
-    list_component = mu.Titled("All Recipes", content, id="recipe-list-area")
+    list_component = Titled("All Recipes", content, id="recipe-list-area")
 
     if "HX-Request" in request.headers:
         return list_component
@@ -335,9 +335,7 @@ async def get_single_recipe_page(recipe_id: int):
         if e.response.status_code == 404:
             logger.warning("Recipe ID %s not found when loading page.", recipe_id)
             return with_layout(
-                mu.Titled(
-                    "Recipe Not Found", fh.P("The requested recipe does not exist.")
-                )
+                Titled("Recipe Not Found", P("The requested recipe does not exist."))
             )
         else:
             logger.error(
@@ -348,9 +346,9 @@ async def get_single_recipe_page(recipe_id: int):
                 exc_info=True,
             )
             return with_layout(
-                mu.Titled(
+                Titled(
                     "Error",
-                    fh.P(
+                    P(
                         "Error fetching recipe from API.",
                         cls=CSS_ERROR_CLASS,
                     ),
@@ -364,9 +362,9 @@ async def get_single_recipe_page(recipe_id: int):
             exc_info=True,
         )
         return with_layout(
-            mu.Titled(
+            Titled(
                 "Error",
-                fh.P(
+                P(
                     "An unexpected error occurred.",
                     cls=CSS_ERROR_CLASS,
                 ),
@@ -379,37 +377,37 @@ async def get_single_recipe_page(recipe_id: int):
 
 
 def _build_recipe_display(recipe_data: dict):
-    """Builds a Div containing the formatted recipe details.
+    """Builds a Card containing the formatted recipe details.
 
     Args:
         recipe_data: A dictionary containing 'name', 'ingredients', 'instructions'.
 
     Returns:
-        A fasthtml.Div component ready for display.
+        A monsterui.Card component ready for display.
     """
     components = [
-        fh.H3(recipe_data["name"], cls="text-xl font-bold mb-3"),
-        fh.H4("Ingredients", cls="text-lg font-semibold mb-1"),
-        fh.Ul(
-            *[fh.Li(ing) for ing in recipe_data.get("ingredients", [])],
-            cls="list-disc list-inside mb-3",
+        H3(recipe_data["name"]),
+        H4("Ingredients"),
+        Ul(
+            *[Li(ing) for ing in recipe_data.get("ingredients", [])],
+            cls=ListT.bullet,
         ),
     ]
     instructions = recipe_data.get("instructions", [])
     if instructions:
         components.extend(
             [
-                fh.H4("Instructions", cls="text-lg font-semibold mb-1"),
-                fh.Ul(
-                    *[fh.Li(inst) for inst in instructions],
-                    cls="list-disc list-inside mb-3",
+                H4("Instructions"),
+                Ul(
+                    *[Li(inst) for inst in instructions],
+                    cls=ListT.bullet,
                 ),
             ]
         )
 
-    return fh.Div(
+    return Card(
         *components,
-        cls="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-sm max-w-none",
+        cls=CardT.secondary,
     )
 
 
@@ -597,12 +595,12 @@ def _close_parenthesis(text: str) -> str:
     return text
 
 
-CSS_ERROR_CLASS = f"{mu.TextT.error} mb-4"
+CSS_ERROR_CLASS = f"{TextT.error} mb-4"
 
 
 def generate_diff_html(
     before_text: str, after_text: str
-) -> tuple[list[str | fh.FT], list[str | fh.FT]]:
+) -> tuple[list[str | FT], list[str | FT]]:
     """Generates two lists of fasthtml components/strings for diff display."""
     before_lines = before_text.splitlines()
     after_lines = after_text.splitlines()
@@ -617,15 +615,15 @@ def generate_diff_html(
                 after_items.extend([line, "\n"])
         elif tag == "replace":
             for line in before_lines[i1:i2]:
-                before_items.extend([fh.Del(line), "\n"])
+                before_items.extend([Del(line), "\n"])
             for line in after_lines[j1:j2]:
-                after_items.extend([fh.Ins(line), "\n"])
+                after_items.extend([Ins(line), "\n"])
         elif tag == "delete":
             for line in before_lines[i1:i2]:
-                before_items.extend([fh.Del(line), "\n"])
+                before_items.extend([Del(line), "\n"])
         elif tag == "insert":
             for line in after_lines[j1:j2]:
-                after_items.extend([fh.Ins(line), "\n"])
+                after_items.extend([Ins(line), "\n"])
 
     if before_items and before_items[-1] == "\n":
         before_items.pop()
@@ -659,7 +657,7 @@ def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
 
 def _build_diff_content_children(
     original_recipe: RecipeBase, current_markdown: str
-) -> tuple[fh.FT, fh.FT]:
+) -> tuple[FT, FT]:
     """Builds fasthtml.Div components for 'before' and 'after' diff areas."""
     before_items, after_items = generate_diff_html(
         original_recipe.markdown, current_markdown
@@ -670,26 +668,26 @@ def _build_diff_content_children(
         "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs"
     )
 
-    before_div_component = fh.Div(
-        fh.Strong("Initial Extracted Recipe (Reference)"),
-        fh.Pre(
+    before_div_component = Card(
+        Strong("Initial Extracted Recipe (Reference)"),
+        Pre(
             *before_items,
             id="diff-before-pre",
             cls=base_classes,
             style=pre_style,
         ),
-        cls="w-1/2",
+        cls=CardT.secondary,
     )
 
-    after_div_component = fh.Div(
-        fh.Strong("Current Edited Recipe"),
-        fh.Pre(
+    after_div_component = Card(
+        Strong("Current Edited Recipe"),
+        Pre(
             *after_items,
             id="diff-after-pre",
             cls=base_classes,
             style=pre_style,
         ),
-        cls="w-1/2",
+        cls=CardT.secondary,
     )
 
     return before_div_component, after_div_component
@@ -699,7 +697,7 @@ def _build_edit_review_form(
     current_recipe: RecipeBase,
     original_recipe: RecipeBase | None = None,
     modification_prompt_value: str | None = None,
-    error_message_content: fh.FT | None = None,
+    error_message_content: FT | None = None,
 ):
     """Builds the primary recipe editing interface components.
 
@@ -721,9 +719,9 @@ def _build_edit_review_form(
 
     Returns:
         A tuple containing two components:
-        1. main_edit_card (mu.Card): The card containing the modification
+        1. main_edit_card (Card): The card containing the modification
            controls and the editable fields (name, ingredients, instructions).
-        2. review_section_card (mu.Card): The card containing the diff view
+        2. review_section_card (Card): The card containing the diff view
            and the save button.
     """
     diff_baseline_recipe = original_recipe
@@ -737,23 +735,24 @@ def _build_edit_review_form(
     editable_section = _build_editable_section(current_recipe)
     review_section = _build_review_section(diff_baseline_recipe, current_recipe)
 
-    combined_edit_section = fh.Div(
-        fh.H2("Edit Recipe", cls="text-3xl mb-4"),
-        fh.Div(
+    combined_edit_section = Div(
+        H2("Edit Recipe"),
+        Div(
             controls_section,
             editable_section,
             id="form-content-wrapper",
         ),
+        cls="space-y-4",
     )
 
-    diff_style = fh.Style("""\
+    diff_style = Style("""\
         /* Apply background colors, let default text decoration apply */
         ins { @apply bg-green-100 dark:bg-green-700 dark:bg-opacity-40; }\
         del { @apply bg-red-100 dark:bg-red-700 dark:bg-opacity-40; }\
     """)
 
-    main_edit_card = mu.Card(
-        mu.Form(
+    main_edit_card = Card(
+        Form(
             combined_edit_section,
             *original_hidden_fields,
             id="edit-review-form",
@@ -768,7 +767,7 @@ def _build_modification_controls(
     modification_prompt_value: str | None, error_message_content
 ):
     """Builds the 'Modify with AI' control section."""
-    modification_input = mu.Input(
+    modification_input = Input(
         id="modification_prompt",
         name="modification_prompt",
         placeholder="e.g., Make it vegan, double the servings",
@@ -776,25 +775,25 @@ def _build_modification_controls(
         value=modification_prompt_value or "",
         cls="mb-2",
     )
-    modify_button_container = fh.Div(
-        mu.Button(
+    modify_button_container = Div(
+        Button(
             "Modify Recipe",
             hx_post="/recipes/modify",
             hx_target="#edit-form-target",
             hx_swap="outerHTML",
             hx_include="closest form",
             hx_indicator="#modify-indicator",
-            cls=mu.ButtonT.primary,
+            cls=ButtonT.primary,
         ),
-        mu.Loading(id="modify-indicator", cls="htmx-indicator ml-2"),
+        Loading(id="modify-indicator", cls="htmx-indicator ml-2"),
         cls="mb-4",
     )
-    edit_disclaimer = fh.P(
+    edit_disclaimer = P(
         "AI recipe modification is experimental. Review changes carefully.",
-        cls=f"{mu.TextT.muted} text-xs mt-1 mb-4",
+        cls=f"{TextT.muted} text-xs mt-1 mb-4",
     )
-    return fh.Div(
-        fh.H3("Modify with AI", cls="text-xl mb-2"),
+    return Div(
+        H3("Modify with AI"),
         modification_input,
         modify_button_container,
         edit_disclaimer,
@@ -806,13 +805,13 @@ def _build_modification_controls(
 def _build_original_hidden_fields(original_recipe: RecipeBase):
     """Builds the hidden input fields for the original recipe data."""
     return (
-        fh.Input(type="hidden", name="original_name", value=original_recipe.name),
+        Input(type="hidden", name="original_name", value=original_recipe.name),
         *(
-            fh.Input(type="hidden", name="original_ingredients", value=ing)
+            Input(type="hidden", name="original_ingredients", value=ing)
             for ing in original_recipe.ingredients
         ),
         *(
-            fh.Input(type="hidden", name="original_instructions", value=inst)
+            Input(type="hidden", name="original_instructions", value=inst)
             for inst in original_recipe.instructions
         ),
     )
@@ -825,8 +824,8 @@ def _build_editable_section(current_recipe: RecipeBase):
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
 
-    return fh.Div(
-        fh.H3("Edit Manually", cls="text-xl mb-4"),
+    return Div(
+        H3("Edit Manually"),
         name_input,
         ingredients_section,
         instructions_section,
@@ -835,7 +834,7 @@ def _build_editable_section(current_recipe: RecipeBase):
 
 def _build_name_input(name_value: str):
     """Builds the input field for the recipe name."""
-    return mu.Input(
+    return Input(
         id="name",
         name="name",
         label="Recipe Name",
@@ -853,11 +852,11 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
     """Render ingredient input divs as a list of fasthtml.Tag components."""
     items_list = []
     for i, ing_value in enumerate(ingredients):
-        drag_handle_component = mu.UkIcon(
+        drag_handle_component = UkIcon(
             "menu",
             cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600",
         )
-        input_component = fh.Input(
+        input_component = Input(
             type="text",
             name="ingredients",
             value=ing_value,
@@ -870,8 +869,8 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
             hx_include="closest form",
         )
 
-        button_component = fh.Button(
-            mu.UkIcon("minus-circle", cls=mu.TextT.error),
+        button_component = Button(
+            UkIcon("minus-circle", cls=TextT.error),
             type="button",
             hx_post=f"/recipes/ui/delete-ingredient/{i}",
             hx_target="#ingredients-list",
@@ -881,7 +880,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
             "flex items-center justify-center ml-2",
         )
 
-        item_div = fh.Div(
+        item_div = Div(
             drag_handle_component,
             input_component,
             button_component,
@@ -895,7 +894,7 @@ def _build_ingredients_section(ingredients: list[str]):
     """Builds the ingredients list section with inputs and add/remove buttons."""
     ingredient_item_components = _render_ingredient_list_items(ingredients)
 
-    ingredient_inputs_container = fh.Div(
+    ingredient_inputs_container = Div(
         *ingredient_item_components,
         id="ingredients-list",
         cls="mb-4",
@@ -906,16 +905,16 @@ def _build_ingredients_section(ingredients: list[str]):
         hx_swap="innerHTML",
         hx_include="closest form",
     )
-    add_ingredient_button = mu.Button(
-        mu.UkIcon("plus-circle", cls=mu.TextT.primary),
+    add_ingredient_button = Button(
+        UkIcon("plus-circle", cls=TextT.primary),
         hx_post="/recipes/ui/add-ingredient",
         hx_target="#ingredients-list",
         hx_swap="innerHTML",
         hx_include="closest form",
         cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
     )
-    return fh.Div(
-        fh.H3("Ingredients", cls="text-xl mb-2"),
+    return Div(
+        H3("Ingredients"),
         ingredient_inputs_container,
         add_ingredient_button,
     )
@@ -925,11 +924,11 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
     """Render instruction textarea divs as a list of fasthtml.Tag components."""
     items_list = []
     for i, inst_value in enumerate(instructions):
-        drag_handle_component = mu.UkIcon(
+        drag_handle_component = UkIcon(
             "menu",
             cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600",
         )
-        textarea_component = fh.Textarea(
+        textarea_component = Textarea(
             inst_value,
             name="instructions",
             placeholder="Instruction Step",
@@ -942,8 +941,8 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
             hx_include="closest form",
         )
 
-        button_component = fh.Button(
-            mu.UkIcon("minus-circle", cls=mu.TextT.error),
+        button_component = Button(
+            UkIcon("minus-circle", cls=TextT.error),
             type="button",
             hx_post=f"/recipes/ui/delete-instruction/{i}",
             hx_target="#instructions-list",
@@ -953,7 +952,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
             "flex items-center justify-center ml-2",
         )
 
-        item_div = fh.Div(
+        item_div = Div(
             drag_handle_component,
             textarea_component,
             button_component,
@@ -967,7 +966,7 @@ def _build_instructions_section(instructions: list[str]):
     """Builds the instructions list section with textareas and add/remove buttons."""
     instruction_item_components = _render_instruction_list_items(instructions)
 
-    instruction_inputs_container = fh.Div(
+    instruction_inputs_container = Div(
         *instruction_item_components,
         id="instructions-list",
         cls="mb-4",
@@ -978,16 +977,16 @@ def _build_instructions_section(instructions: list[str]):
         hx_swap="innerHTML",
         hx_include="closest form",
     )
-    add_instruction_button = mu.Button(
-        mu.UkIcon("plus-circle", cls=mu.TextT.primary),
+    add_instruction_button = Button(
+        UkIcon("plus-circle", cls=TextT.primary),
         hx_post="/recipes/ui/add-instruction",
         hx_target="#instructions-list",
         hx_swap="innerHTML",
         hx_include="closest form",
         cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
     )
-    return fh.Div(
-        fh.H3("Instructions", cls="text-xl mb-2"),
+    return Div(
+        H3("Instructions"),
         instruction_inputs_container,
         add_instruction_button,
     )
@@ -998,35 +997,35 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
     before_component, after_component = _build_diff_content_children(
         original_recipe, current_recipe.markdown
     )
-    diff_content_wrapper = fh.Div(
+    diff_content_wrapper = Div(
         before_component,
         after_component,
         cls="flex space-x-4 mt-4",
         id="diff-content-wrapper",
     )
     save_button_container = _build_save_button()
-    return mu.Card(
-        fh.Div(
-            fh.H2("Review Changes", cls="text-2xl mb-4"),
+    return Card(
+        Div(
+            H2("Review Changes"),
             diff_content_wrapper,
             save_button_container,
         )
     )
 
 
-def _build_save_button() -> fh.FT:
+def _build_save_button() -> FT:
     """Builds the save button container."""
-    return fh.Div(
-        mu.Button(
+    return Div(
+        Button(
             "Save Recipe",
             hx_post="/recipes/save",
             hx_target="#save-button-container",
             hx_swap="outerHTML",
             hx_include="#edit-review-form",
             hx_indicator="#save-indicator",
-            cls=mu.ButtonT.primary,
+            cls=ButtonT.primary,
         ),
-        mu.Loading(id="save-indicator", cls="htmx-indicator ml-2"),
+        Loading(id="save-indicator", cls="htmx-indicator ml-2"),
         id="save-button-container",
         cls="mt-6",
     )
@@ -1036,7 +1035,7 @@ def _build_save_button() -> fh.FT:
 async def post_fetch_text(recipe_url: str | None = None):
     if not recipe_url:
         logger.error("Fetch text called without URL.")
-        return fh.Div("Please provide a Recipe URL to fetch.", cls=CSS_ERROR_CLASS)
+        return Div("Please provide a Recipe URL to fetch.", cls=CSS_ERROR_CLASS)
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", recipe_url)
@@ -1049,7 +1048,7 @@ async def post_fetch_text(recipe_url: str | None = None):
             e,
             exc_info=False,
         )
-        return fh.Div(
+        return Div(
             "Error fetching URL. Please check the URL and your connection.",
             cls=CSS_ERROR_CLASS,
         )
@@ -1057,7 +1056,7 @@ async def post_fetch_text(recipe_url: str | None = None):
         logger.error(
             "HTTP Status Error fetching text from %s: %s", recipe_url, e, exc_info=False
         )
-        return fh.Div(
+        return Div(
             "Error fetching URL: The server returned an error.",
             cls=CSS_ERROR_CLASS,
         )
@@ -1065,17 +1064,15 @@ async def post_fetch_text(recipe_url: str | None = None):
         logger.error(
             "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return fh.Div(
-            "Failed to process the content from the URL.", cls=CSS_ERROR_CLASS
-        )
+        return Div("Failed to process the content from the URL.", cls=CSS_ERROR_CLASS)
     except Exception as e:
         logger.error(
             "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return fh.Div("Unexpected error fetching text.", cls=CSS_ERROR_CLASS)
+        return Div("Unexpected error fetching text.", cls=CSS_ERROR_CLASS)
 
-    return fh.Div(
-        mu.TextArea(
+    return Div(
+        TextArea(
             cleaned_text,
             id="recipe_text",
             name="recipe_text",
@@ -1091,7 +1088,7 @@ async def post_fetch_text(recipe_url: str | None = None):
 async def post(recipe_url: str | None = None, recipe_text: str | None = None):
     if not recipe_text:
         logging.error("Recipe extraction called without text.")
-        return fh.Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
+        return Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
 
     try:
         log_source = "provided text"
@@ -1109,7 +1106,7 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             e,
             exc_info=True,
         )
-        return fh.Div(
+        return Div(
             "Recipe extraction failed. An unexpected error occurred during processing.",
             cls=CSS_ERROR_CLASS,
         )
@@ -1121,10 +1118,10 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         )
         processed_recipe.ingredients = ["No ingredients found"]
 
-    reference_heading = fh.H2("Extracted Recipe (Reference)", cls="text-2xl mb-2 mt-6")
+    reference_heading = H2("Extracted Recipe (Reference)")
     rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
 
-    rendered_recipe_html = fh.Div(
+    rendered_recipe_html = Div(
         reference_heading,
         rendered_content_div,
         cls="mb-6",
@@ -1134,17 +1131,17 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
         processed_recipe, processed_recipe
     )
 
-    edit_oob_div = fh.Div(
+    edit_oob_div = Div(
         edit_form_card,
         hx_swap_oob="innerHTML:#edit-form-target",
     )
 
-    review_oob_div = fh.Div(
+    review_oob_div = Div(
         review_section_card,
         hx_swap_oob="innerHTML:#review-section-target",
     )
 
-    return fh.Group(rendered_recipe_html, edit_oob_div, review_oob_div)
+    return Group(rendered_recipe_html, edit_oob_div, review_oob_div)
 
 
 @rt("/recipes/save")
@@ -1155,14 +1152,14 @@ async def post_save_recipe(request: Request):
         recipe_obj = RecipeBase(**parsed_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
-        return fh.Span(
+        return Span(
             "Invalid recipe data. Please check the fields.",
             cls=CSS_ERROR_CLASS,
             id="save-button-container",
         )
     except Exception as e:
         logger.error("Error parsing form data during save: %s", e, exc_info=True)
-        return fh.Span(
+        return Span(
             "Error processing form data.",
             cls=CSS_ERROR_CLASS,
             id="save-button-container",
@@ -1213,15 +1210,15 @@ async def post_save_recipe(request: Request):
         user_final_message = "An unexpected error occurred while saving the recipe."
 
     if message_is_error:
-        return fh.Span(
+        return Span(
             user_final_message,
             cls=CSS_ERROR_CLASS,
             id="save-button-container",
         )
     else:
-        return fh.Span(
+        return Span(
             user_final_message,
-            cls=mu.TextT.success,
+            cls=TextT.success,
             id="save-button-container",
         )
 
@@ -1243,7 +1240,7 @@ async def post_modify_recipe(request: Request):
     form_data = await request.form()
     modification_prompt = str(form_data.get("modification_prompt", ""))
 
-    error_message_for_ui: fh.FT | None = None
+    error_message_for_ui: FT | None = None
     current_data_for_form_render: dict
     original_recipe_for_form_render: RecipeBase
 
@@ -1257,7 +1254,7 @@ async def post_modify_recipe(request: Request):
 
         if not modification_prompt:
             logger.info("Modification requested with empty prompt.")
-            error_message_for_ui = fh.Div(
+            error_message_for_ui = Div(
                 "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
             )
 
@@ -1272,20 +1269,20 @@ async def post_modify_recipe(request: Request):
                     modification_prompt_value=modification_prompt,
                     error_message_content=None,
                 )
-                oob_review = fh.Div(
+                oob_review = Div(
                     review_section_card, hx_swap_oob="innerHTML:#review-section-target"
                 )
-                return fh.Div(
+                return Div(
                     edit_form_card, oob_review, id="edit-form-target", cls="mt-6"
                 )
 
             except RecipeModificationError as llm_e:
                 logger.error("LLM modification error: %s", llm_e, exc_info=True)
-                error_message_for_ui = fh.Div(str(llm_e), cls=f"{CSS_ERROR_CLASS} mt-2")
+                error_message_for_ui = Div(str(llm_e), cls=f"{CSS_ERROR_CLASS} mt-2")
 
     except ModifyFormError as form_e:
         logger.warning("Form validation/parsing error: %s", form_e, exc_info=False)
-        error_message_for_ui = fh.Div(str(form_e), cls=f"{CSS_ERROR_CLASS} mt-2")
+        error_message_for_ui = Div(str(form_e), cls=f"{CSS_ERROR_CLASS} mt-2")
         try:
             original_data_raw = _parse_recipe_form_data(form_data, prefix="original_")
             original_recipe_for_form_render = RecipeBase(**original_data_raw)
@@ -1297,7 +1294,7 @@ async def post_modify_recipe(request: Request):
                 parse_orig_e,
                 exc_info=True,
             )
-            critical_error_msg = fh.Div(
+            critical_error_msg = Div(
                 "Critical Error: Could not recover the recipe form state. Please "
                 "refresh and try again.",
                 cls=CSS_ERROR_CLASS,
@@ -1309,7 +1306,7 @@ async def post_modify_recipe(request: Request):
         logger.error(
             "Unexpected error in recipe modification flow: %s", e, exc_info=True
         )
-        critical_error_msg = fh.Div(
+        critical_error_msg = Div(
             "Critical Error: An unexpected error occurred. Please refresh and try "
             "again.",
             cls=CSS_ERROR_CLASS,
@@ -1334,10 +1331,10 @@ async def post_modify_recipe(request: Request):
         modification_prompt_value=modification_prompt,
         error_message_content=error_message_for_ui,
     )
-    oob_review = fh.Div(
+    oob_review = Div(
         review_section_card, hx_swap_oob="innerHTML:#review-section-target"
     )
-    return fh.Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
+    return Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
 
 
 def _parse_and_validate_modify_form(
@@ -1434,7 +1431,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
         new_ingredient_item_components = _render_ingredient_list_items(
             new_current_recipe.ingredients
         )
-        ingredients_list_component = fh.Div(
+        ingredients_list_component = Div(
             *new_ingredient_item_components,
             id="ingredients-list",
             cls="mb-4",
@@ -1443,7 +1440,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
         before_notstr, after_notstr = _build_diff_content_children(
             original_recipe, new_current_recipe.markdown
         )
-        oob_diff_component = fh.Div(
+        oob_diff_component = Div(
             before_notstr,
             after_notstr,
             hx_swap_oob="innerHTML:#diff-content-wrapper",
@@ -1460,8 +1457,8 @@ async def post_delete_ingredient_row(request: Request, index: int):
         ingredients_for_error_render = data_for_error_render.get("ingredients", [])
 
         error_items_list = _render_ingredient_list_items(ingredients_for_error_render)
-        ingredients_list_component = fh.Div(
-            fh.P(
+        ingredients_list_component = Div(
+            P(
                 "Error updating list after delete. Validation failed.",
                 cls=CSS_ERROR_CLASS,
             ),
@@ -1473,7 +1470,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
 
     except Exception as e:
         logger.error(f"Error deleting ingredient at index {index}: {e}", exc_info=True)
-        return fh.Div(
+        return Div(
             "Error processing delete request.",
             cls=CSS_ERROR_CLASS,
             id="ingredients-list",
@@ -1501,14 +1498,14 @@ async def post_delete_instruction_row(request: Request, index: int):
         new_instruction_item_components = _render_instruction_list_items(
             new_current_recipe.instructions
         )
-        instructions_list_component = fh.Div(
+        instructions_list_component = Div(
             *new_instruction_item_components, id="instructions-list", cls="mb-4"
         )
 
         before_notstr, after_notstr = _build_diff_content_children(
             original_recipe, new_current_recipe.markdown
         )
-        oob_diff_component = fh.Div(
+        oob_diff_component = Div(
             before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
         )
 
@@ -1523,8 +1520,8 @@ async def post_delete_instruction_row(request: Request, index: int):
         instructions_for_error_render = data_for_error_render.get("instructions", [])
 
         error_items_list = _render_instruction_list_items(instructions_for_error_render)
-        instructions_list_component = fh.Div(
-            fh.P(
+        instructions_list_component = Div(
+            P(
                 "Error updating list after delete. Validation failed.",
                 cls=CSS_ERROR_CLASS,
             ),
@@ -1536,7 +1533,7 @@ async def post_delete_instruction_row(request: Request, index: int):
 
     except Exception as e:
         logger.error(f"Error deleting instruction at index {index}: {e}", exc_info=True)
-        return fh.Div(
+        return Div(
             "Error processing delete request.",
             cls=CSS_ERROR_CLASS,
             id="instructions-list",
@@ -1560,7 +1557,7 @@ async def post_add_ingredient_row(request: Request):
         new_ingredient_item_components = _render_ingredient_list_items(
             new_current_recipe.ingredients
         )
-        ingredients_list_component = fh.Div(
+        ingredients_list_component = Div(
             *new_ingredient_item_components,
             id="ingredients-list",
             cls="mb-4",
@@ -1569,7 +1566,7 @@ async def post_add_ingredient_row(request: Request):
         before_notstr, after_notstr = _build_diff_content_children(
             original_recipe, new_current_recipe.markdown
         )
-        oob_diff_component = fh.Div(
+        oob_diff_component = Div(
             before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
         )
 
@@ -1583,15 +1580,15 @@ async def post_add_ingredient_row(request: Request):
             "ingredients", []
         )
         error_items = _render_ingredient_list_items(current_ingredients_before_error)
-        return fh.Div(
-            fh.P("Error updating list after add.", cls=CSS_ERROR_CLASS),
+        return Div(
+            P("Error updating list after add.", cls=CSS_ERROR_CLASS),
             *error_items,
             id="ingredients-list",
             cls="mb-4",
         )
     except Exception as e:
         logger.error(f"Error adding ingredient: {e}", exc_info=True)
-        return fh.Div(
+        return Div(
             "Error processing add request.", cls=CSS_ERROR_CLASS, id="ingredients-list"
         )
 
@@ -1613,14 +1610,14 @@ async def post_add_instruction_row(request: Request):
         new_instruction_item_components = _render_instruction_list_items(
             new_current_recipe.instructions
         )
-        instructions_list_component = fh.Div(
+        instructions_list_component = Div(
             *new_instruction_item_components, id="instructions-list", cls="mb-4"
         )
 
         before_notstr, after_notstr = _build_diff_content_children(
             original_recipe, new_current_recipe.markdown
         )
-        oob_diff_component = fh.Div(
+        oob_diff_component = Div(
             before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
         )
 
@@ -1634,21 +1631,21 @@ async def post_add_instruction_row(request: Request):
             "instructions", []
         )
         error_items = _render_instruction_list_items(current_instructions_before_error)
-        return fh.Div(
-            fh.P("Error updating list after add.", cls=CSS_ERROR_CLASS),
+        return Div(
+            P("Error updating list after add.", cls=CSS_ERROR_CLASS),
             *error_items,
             id="instructions-list",
             cls="mb-4",
         )
     except Exception as e:
         logger.error(f"Error adding instruction: {e}", exc_info=True)
-        return fh.Div(
+        return Div(
             "Error processing add request.", cls=CSS_ERROR_CLASS, id="instructions-list"
         )
 
 
 @rt("/recipes/ui/update-diff", methods=["POST"])
-async def update_diff(request: Request) -> fh.FT:
+async def update_diff(request: Request) -> FT:
     """Updates the diff view based on current form data."""
     form_data = await request.form()
     try:
@@ -1660,7 +1657,7 @@ async def update_diff(request: Request) -> fh.FT:
         before_component, after_component = _build_diff_content_children(
             original_recipe, current_recipe.markdown
         )
-        return fh.Div(
+        return Div(
             before_component,
             after_component,
             cls="flex space-x-4 mt-4",
@@ -1669,7 +1666,7 @@ async def update_diff(request: Request) -> fh.FT:
     except ValidationError as e:
         logger.warning("Validation error during diff update: %s", e, exc_info=False)
         error_message = "Recipe state invalid for diff. Please check all fields."
-        return fh.Div(error_message, cls=CSS_ERROR_CLASS)
+        return Div(error_message, cls=CSS_ERROR_CLASS)
     except Exception as e:
         logger.error("Error updating diff: %s", e, exc_info=True)
-        return fh.Div("Error updating diff view.", cls=CSS_ERROR_CLASS)
+        return Div("Error updating diff view.", cls=CSS_ERROR_CLASS)

@@ -46,6 +46,8 @@ packages = ["meal_planner"]
 
 [tool.ruff]
 lint.select = ["E", "F", "W", "I", "B", "C4", "SIM", "S"]
+# allow star imports, undefined names from star for fasthtml and monsterui
+lint.ignore = ["F403", "F405"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"] # allow `assert` in tests
