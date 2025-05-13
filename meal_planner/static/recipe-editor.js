@@ -36,10 +36,12 @@ function initializeUikitSortables() {
 
     lists.forEach(listElement => {
         if (listElement && listElement.hasAttribute('uk-sortable')) {
+            // Re-apply/refresh UIkit sortable to ensure it picks up new children
+            UIkit.sortable(listElement, {handle: '.drag-handle'}); 
+
             if (!listElement._uikitSortableStopListenerAttached) {
                 UIkit.util.on(listElement, 'stop', function (event) {
                     console.log('[recipe-editor.js] UIkit sortable \'stop\' event fired for target:', event.target);
-                    // event.target is the sortable list element
                     triggerDiffUpdate(event.target);
                 });
                 listElement._uikitSortableStopListenerAttached = true;
@@ -68,21 +70,4 @@ document.addEventListener('DOMContentLoaded', function() {
 // Re-initialize sortables after HTMX content swaps
 document.body.addEventListener('htmx:afterSettle', function(event) {
     initializeUikitSortables();
-});
-
-// Handle item deletion for ingredients and instructions
-document.body.addEventListener('click', function(event) {
-    const deleteButton = event.target.closest('.delete-item-button');
-    if (deleteButton) {
-        const itemToRemove = deleteButton.closest('div[id^="ingredient-"], div[id^="instruction-"]');
-        
-        if (itemToRemove && itemToRemove.parentElement &&
-            (itemToRemove.parentElement.id === 'ingredients-list' || 
-             itemToRemove.parentElement.id === 'instructions-list')) {
-            
-            itemToRemove.remove();
-            console.log('[recipe-editor.js] Item removed by click, triggering diff update for element:', deleteButton);
-            triggerDiffUpdate(deleteButton);
-        }
-    }
 }); 
