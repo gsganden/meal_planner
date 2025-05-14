@@ -24,6 +24,7 @@ image = (
     .add_local_file("alembic.ini", remote_path=str(ALEMBIC_INI_PATH_IN_CONTAINER))
     .add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER))
     .add_local_python_source("meal_planner")
+    .add_local_dir("meal_planner/static", remote_path="/app/meal_planner/static")
     .add_local_dir("prompt_templates", remote_path="/root/prompt_templates")
 )
 

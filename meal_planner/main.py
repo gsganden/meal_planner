@@ -18,6 +18,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 from starlette import status
 from starlette.datastructures import FormData
+from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
@@ -45,6 +46,7 @@ openai_client = AsyncOpenAI(
 aclient = instructor.from_openai(openai_client)
 
 app = FastHTMLWithLiveReload(hdrs=(Theme.blue.headers()))
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 rt = app.route
 
 api_app = FastAPI()
