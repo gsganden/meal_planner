@@ -26,7 +26,6 @@ from meal_planner.services.recipe_processing import postprocess_recipe
 
 MODEL_NAME = "gemini-2.0-flash"
 
-# PROMPT_DIR is removed
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 logging.basicConfig(
@@ -48,13 +47,12 @@ app.mount("/api", api_app)
 
 internal_client = httpx.AsyncClient(
     transport=ASGITransport(app=app),
-    base_url="http://internal",  # arbitrary
+    base_url="http://internal",
 )
 
-# One client would suffice, but separating them makes mocking easier
 internal_api_client = httpx.AsyncClient(
     transport=ASGITransport(app=api_app),
-    base_url="http://internal-api",  # arbitrary
+    base_url="http://internal-api",
 )
 
 
@@ -1279,11 +1277,9 @@ async def _request_recipe_modification(
         modification_prompt,
     )
     try:
-        # Updated to call the new service function
         modified_recipe: RecipeBase = await llm_generate_modified_recipe(
             current_recipe=current_recipe, modification_request=modification_prompt
         )
-        # Post-processing remains in main.py
         processed_recipe = postprocess_recipe(modified_recipe)
         logger.info(
             "Modification (via llm_service) and postprocessing successful. "
@@ -1293,14 +1289,12 @@ async def _request_recipe_modification(
         logger.debug("Modified Recipe Object: %r", processed_recipe)
         return processed_recipe
     except Exception as e:
-        # Error logging is primarily in llm_service, log call site error here.
         logger.error(
             "Error calling llm_generate_modified_recipe from "
             "_request_recipe_modification: %s",
             e,
             exc_info=True,
         )
-        # Convert to RecipeModificationError for consistency.
         user_message = (
             "Recipe modification failed. "
             "An unexpected error occurred during service call."

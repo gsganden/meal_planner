@@ -9,21 +9,14 @@ from pydantic import BaseModel
 
 from meal_planner.models import RecipeBase
 
-# Constants from main.py - these might need a more centralized home eventually
 MODEL_NAME = "gemini-2.0-flash"
-# Prompt-related constants moved from main.py
 PROMPT_DIR = Path(__file__).resolve().parent.parent.parent / "prompt_templates"
 ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"
 ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
 
-# Logger setup similar to main.py
 logger = logging.getLogger(__name__)
 
 
-# OpenAI client setup similar to main.py
-# This assumes GOOGLE_API_KEY is set in the environment where this service is run.
-# If this service is part of a larger app (e.g., Modal), the secret handling
-# might need to be harmonized with the main app's approach.
 openai_client = AsyncOpenAI(
     api_key=os.environ.get("GOOGLE_API_KEY"),  # Use .get for a bit more safety
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
