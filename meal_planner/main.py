@@ -1,8 +1,6 @@
 import difflib
-import html
 import logging
 import os
-import re
 from pathlib import Path
 from typing import TypeVar
 
