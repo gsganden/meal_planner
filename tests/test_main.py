@@ -22,7 +22,6 @@ from meal_planner.main import (
     fetch_and_clean_text_from_url,
     fetch_page_text,
     get_structured_llm_response,
-    postprocess_recipe,
 )
 from meal_planner.models import RecipeBase
 
@@ -475,6 +474,8 @@ class TestFetchAndCleanTextFromUrl:
                 excinfo.value
             )
 
+        mock_fetch_page_text.assert_called_once_with(self.TEST_URL)
+
     @patch("meal_planner.main.logger.error")
     async def test_fetch_and_clean_html_cleaner_error(
         self,
@@ -528,29 +529,6 @@ async def test_get_structured_llm_response_api_error(mock_logger_error, mock_cre
         api_exception,
         exc_info=True,
     )
-
-
-class TestPostprocessRecipeName:
-    DUMMY_INGREDIENTS = ["dummy ingredient"]
-    DUMMY_INSTRUCTIONS = ["dummy instruction"]
-
-    @pytest.mark.parametrize(
-        "input_name, expected_name",
-        [
-            ("  my awesome cake  ", "My Awesome Cake"),
-            ("Another Example recipe ", "Another Example"),
-            ("Another Example Recipe ", "Another Example"),
-            ("Recipe (unclosed", "Recipe (Unclosed)"),
-        ],
-    )
-    def test_postprocess_recipe_name(self, input_name: str, expected_name: str):
-        input_recipe = RecipeBase(
-            name=input_name,
-            ingredients=self.DUMMY_INGREDIENTS,
-            instructions=self.DUMMY_INSTRUCTIONS,
-        )
-        processed_recipe = postprocess_recipe(input_recipe)
-        assert processed_recipe.name == expected_name
 
 
 @pytest.fixture
@@ -1212,54 +1190,6 @@ class TestParseRecipeFormData:
         assert parsed_data == {"name": "", "ingredients": [], "instructions": []}
         with pytest.raises(ValidationError):
             RecipeBase(**parsed_data)
-
-
-class TestPostprocessRecipe:
-    def test_postprocess_ingredients(self):
-        recipe = RecipeBase(
-            name="Test Name",
-            ingredients=[
-                "  Ingredient 1 ",
-                "Ingredient 2 (with parens)",
-                " Ingredient 3, needs trim",
-                "  ",
-                "Multiple   spaces",
-                " Ends with comma ,",
-            ],
-            instructions=["Step 1"],
-        )
-        processed = postprocess_recipe(recipe)
-        assert processed.ingredients == [
-            "Ingredient 1",
-            "Ingredient 2 (with parens)",
-            "Ingredient 3, needs trim",
-            "Multiple spaces",
-            "Ends with comma,",
-        ]
-
-    def test_postprocess_instructions(self):
-        recipe = RecipeBase(
-            name="Test Name",
-            ingredients=["Ing 1"],
-            instructions=[
-                " Step 1: Basic step. ",
-                "2. Step with number.",
-                "  Step 3 Another step.",
-                "No number.",
-                "  ",
-                " Ends with semicolon ;",
-                " Has comma , in middle",
-            ],
-        )
-        processed = postprocess_recipe(recipe)
-        assert processed.instructions == [
-            "Basic step.",
-            "Step with number.",
-            "Another step.",
-            "No number.",
-            "Ends with semicolon;",
-            "Has comma, in middle",
-        ]
 
 
 @pytest.mark.anyio

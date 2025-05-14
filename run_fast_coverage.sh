@@ -7,6 +7,7 @@ test_specs=(
   tests/test_main.py
   tests/test_api.py
   tests/test_database.py
+  tests/services/test_recipe_processing.py
   # These tests are slow and cover the same codepaths with different inputs
   # to test LLM behavior. Here we run just one of them as a quick check that
   # the codepath is not broken and has full test coverage.
