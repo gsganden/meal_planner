@@ -1,0 +1,11 @@
+{
+ "python.analysis.diagnosticSeverityOverrides": {
+      "reportGeneralTypeIssues": "none",
+      "reportOptionalMemberAccess": "none",
+      "reportWildcardImportFromLibrary": "none",
+      "reportRedeclaration": "none",
+      "reportAttributeAccessIssue": "none",
+      "reportInvalidTypeForm": "none",
+      "reportAssignmentType": "none",
+  }
+}
