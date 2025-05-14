@@ -1,32 +1,32 @@
 import difflib
 import logging
-import os
 from pathlib import Path
-from typing import TypeVar
 
 import html2text
 import httpx
-import instructor
 from bs4.element import Tag
 from fastapi import FastAPI, Request, status
 from fasthtml.common import *
 from httpx import ASGITransport
 from monsterui.all import *
-from openai import AsyncOpenAI
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
+from meal_planner.services.llm_service import (
+    generate_modified_recipe as llm_generate_modified_recipe,
+)
+from meal_planner.services.llm_service import (
+    generate_recipe_from_text as llm_generate_recipe_from_text,
+)
 from meal_planner.services.recipe_processing import postprocess_recipe
 
 MODEL_NAME = "gemini-2.0-flash"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"
-ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
 
-PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
+# PROMPT_DIR is removed
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 logging.basicConfig(
@@ -36,13 +36,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-openai_client = AsyncOpenAI(
-    api_key=os.environ["GOOGLE_API_KEY"],
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-)
-
-aclient = instructor.from_openai(openai_client)
 
 app = FastHTMLWithLiveReload(hdrs=(Theme.blue.headers()))
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -413,60 +406,35 @@ def _build_recipe_display(recipe_data: dict):
 
 
 async def fetch_page_text(recipe_url: str):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
-        "image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-    }
-    async with httpx.AsyncClient(
-        follow_redirects=True, timeout=15.0, headers=headers
-    ) as client:
-        response = await client.get(recipe_url)
-    response.raise_for_status()
-    return response.text
-
-
-T = TypeVar("T", bound=BaseModel)
-
-
-async def get_structured_llm_response(prompt: str, response_model: type[T]) -> T:
-    logger.info(
-        "LLM Call Start: model=%s, response_model=%s",
-        MODEL_NAME,
-        response_model.__name__,
-    )
-    logger.debug("LLM Prompt:\n%s", prompt)
+    """Fetches the raw text content of a webpage."""
     try:
-        response = await aclient.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "user", "content": prompt},
-            ],
-            response_model=response_model,
-        )
-        logger.info(
-            "LLM Call Success: model=%s, response_model=%s",
-            MODEL_NAME,
-            response_model.__name__,
-        )
-        logger.debug("LLM Parsed Object: %r", response)
-        return response
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
+                "image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+        }
+        async with httpx.AsyncClient(
+            follow_redirects=True, timeout=15.0, headers=headers
+        ) as client:
+            response = await client.get(recipe_url)
+        response.raise_for_status()
+        return response.text
     except Exception as e:
         logger.error(
-            "LLM Call Error: model=%s, response_model=%s, error=%s",
-            MODEL_NAME,
-            response_model.__name__,
-            e,
-            exc_info=True,
+            "Error fetching page text from %s: %s", recipe_url, e, exc_info=True
         )
-        raise
+        return ""
 
 
 async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
-    """Fetches and cleans text content from a URL."""
+    """Fetches and cleans HTML from a URL, returning plain text."""
     logger.info("Fetching text from: %s", recipe_url)
     try:
         raw_text = await fetch_page_text(recipe_url)
@@ -506,35 +474,29 @@ async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
     """Extracts and post-processes a recipe from text."""
-    logger.info("Starting recipe extraction from text:\\n%s", page_text)
+    logger.info(
+        "Starting recipe extraction from text (via llm_service). Text:\n%s", page_text
+    )
     try:
-        prompt_file_path = _get_prompt_path(
-            "recipe_extraction", ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
-        )
-        logger.info("Using extraction prompt file: %s", prompt_file_path.name)
-        prompt_text = prompt_file_path.read_text().format(page_text=page_text)
-
-        extracted_recipe: RecipeBase = await get_structured_llm_response(
-            prompt=prompt_text,
-            response_model=RecipeBase,
+        extracted_recipe: RecipeBase = await llm_generate_recipe_from_text(
+            text=page_text
         )
     except Exception as e:
         logger.error(
-            "Error during recipe extraction call: %s", MODEL_NAME, e, exc_info=True
+            "Error calling llm_generate_recipe_from_text from "
+            "extract_recipe_from_text: %s",
+            e,
+            exc_info=True,
         )
         raise
+
     processed_recipe = postprocess_recipe(extracted_recipe)
     logger.info(
-        "Extraction and postprocessing successful. Recipe Name: %s",
+        "Extraction (via llm_service) and postprocessing successful. Recipe Name: %s",
         processed_recipe.name,
     )
     logger.debug("Processed Recipe Object: %r", processed_recipe)
     return processed_recipe
-
-
-def _get_prompt_path(category: str, filename: str) -> Path:
-    """Constructs the full path to a prompt file."""
-    return PROMPT_DIR / category / filename
 
 
 async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
@@ -1060,13 +1022,6 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             cls=CSS_ERROR_CLASS,
         )
 
-    if not processed_recipe.ingredients:
-        logger.warning(
-            "Extraction resulted in empty ingredients. Filling placeholder. Name: %s",
-            processed_recipe.name,
-        )
-        processed_recipe.ingredients = ["No ingredients found"]
-
     reference_heading = H2("Extracted Recipe (Reference)")
     rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
 
@@ -1317,45 +1272,39 @@ def _parse_and_validate_modify_form(
 async def _request_recipe_modification(
     current_recipe: RecipeBase, modification_prompt: str
 ) -> RecipeBase:
-    """Requests recipe modification from LLM.
-
-    Returns:
-        The modified Recipe object.
-
-    Raises:
-        RecipeModificationError: If the LLM call or postprocessing fails.
-    """
-    logger.info("Starting recipe modification. Prompt: %s", modification_prompt)
+    """Requests recipe modification from LLM service and handles postprocessing."""
+    logger.info(
+        "Requesting recipe modification from llm_service. Current: %s, Prompt: %s",
+        current_recipe.name,
+        modification_prompt,
+    )
     try:
-        prompt_file_path = _get_prompt_path(
-            "recipe_modification", ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE
+        # Updated to call the new service function
+        modified_recipe: RecipeBase = await llm_generate_modified_recipe(
+            current_recipe=current_recipe, modification_request=modification_prompt
         )
-        logger.info("Using modification prompt file: %s", prompt_file_path.name)
-        modification_template = prompt_file_path.read_text()
-        modification_full_prompt = modification_template.format(
-            current_recipe_markdown=current_recipe.markdown,
-            modification_prompt=modification_prompt,
-        )
-        modified_recipe: RecipeBase = await get_structured_llm_response(
-            prompt=modification_full_prompt,
-            response_model=RecipeBase,
-        )
+        # Post-processing remains in main.py
         processed_recipe = postprocess_recipe(modified_recipe)
         logger.info(
-            "Modification and postprocessing successful. Recipe Name: %s",
+            "Modification (via llm_service) and postprocessing successful. "
+            "Recipe Name: %s",
             processed_recipe.name,
         )
         logger.debug("Modified Recipe Object: %r", processed_recipe)
         return processed_recipe
-
     except Exception as e:
+        # Error logging is primarily in llm_service, log call site error here.
         logger.error(
-            "Error during recipe modification for prompt '%s': %s",
-            modification_prompt,
+            "Error calling llm_generate_modified_recipe from "
+            "_request_recipe_modification: %s",
             e,
             exc_info=True,
         )
-        user_message = "Recipe modification failed. An unexpected error occurred."
+        # Convert to RecipeModificationError for consistency.
+        user_message = (
+            "Recipe modification failed. "
+            "An unexpected error occurred during service call."
+        )
         raise RecipeModificationError(user_message) from e
 
 

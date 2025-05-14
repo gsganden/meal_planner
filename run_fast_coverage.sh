@@ -8,6 +8,7 @@ test_specs=(
   tests/test_api.py
   tests/test_database.py
   tests/services/test_recipe_processing.py
+  tests/services/test_llm_service.py
   # These tests are slow and cover the same codepaths with different inputs
   # to test LLM behavior. Here we run just one of them as a quick check that
   # the codepath is not broken and has full test coverage.
@@ -41,7 +42,7 @@ if [ $test_status -eq 0 ]; then
   uv run coverage report --fail-under=$threshold
   cov_status=$?            # 0 → met threshold, 2 → below
 else
-  cov_status=0             # we already know we’ll exit with test failure
+  cov_status=0             # we already know we'll exit with test failure
 fi
 
 #######################################################################################

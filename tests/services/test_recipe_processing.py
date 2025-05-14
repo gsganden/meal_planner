@@ -50,6 +50,19 @@ class TestPostprocessRecipe:
             "Ends with comma,",
         ]
 
+    def test_postprocess_ingredients_empty_result(self):
+        recipe = RecipeBase(
+            name="Test Name For Empty Ingredients",
+            ingredients=[
+                "  ",  # Just whitespace
+                "\t",  # Just a tab
+                "",  # Empty string
+            ],
+            instructions=["Step 1"],
+        )
+        processed = postprocess_recipe(recipe)
+        assert processed.ingredients == ["No ingredients found"]
+
     def test_postprocess_instructions(self):
         recipe = RecipeBase(
             name="Test Name",
