@@ -1037,11 +1037,11 @@ class TestGenerateDiffHtml:
         for item in items:
             if isinstance(item, str):
                 result.append(("str", item))
-            elif isinstance(item, FT):
-                result.append(
-                    (item.tag, str(item.children[0]) if item.children else "")
-                )
-            elif hasattr(item, "tag") and hasattr(item, "children"):
+            elif (
+                isinstance(item, FT)
+                or hasattr(item, "tag")
+                and hasattr(item, "children")
+            ):
                 result.append(
                     (item.tag, str(item.children[0]) if item.children else "")
                 )
