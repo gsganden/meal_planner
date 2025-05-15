@@ -904,12 +904,12 @@ async def post_fetch_text(input_url: str | None = None):
             )
         )
     except httpx.RequestError as e:
-        logger.warning("Network error fetching URL %s: %s", input_url, e, exc_info=True)
+        logger.error("Network error fetching URL %s: %s", input_url, e, exc_info=True)
         return _prepare_error_response(
             "Error fetching URL. Please check the URL and your connection."
         )
     except httpx.HTTPStatusError as e:
-        logger.warning(
+        logger.error(
             "HTTP error fetching URL %s: %s. Response: %s",
             input_url,
             e,
