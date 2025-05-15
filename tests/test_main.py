@@ -224,7 +224,7 @@ class TestRecipeSortableListPersistence:
             "textarea", attrs={"name": FIELD_INSTRUCTIONS}
         )
         assert len(textareas) == 1, f"Expected 1 instruction, got {len(textareas)}"
-        assert textareas[0].get_text(strip=True) == "Second instruction details"
+        assert textareas[0].get_text(strip=True) == "Second instruction details."
 
     @patch("meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock)
     async def test_sortable_after_ingredient_add(
@@ -321,8 +321,8 @@ class TestRecipeSortableListPersistence:
             "textarea", attrs={"name": FIELD_INSTRUCTIONS}
         )
         assert len(textareas) == 3, f"Expected 3 instructions, got {len(textareas)}"
-        assert textareas[0].get_text(strip=True) == "First instruction details"
-        assert textareas[1].get_text(strip=True) == "Second instruction details"
+        assert textareas[0].get_text(strip=True) == "First instruction details."
+        assert textareas[1].get_text(strip=True) == "Second instruction details."
         assert textareas[2].get_text(strip=True) == ""
 
 
@@ -504,8 +504,8 @@ class TestRecipeExtractRunEndpoint:
             "ingB,",
         ]
         assert _extract_form_list_values(html_content, FIELD_INSTRUCTIONS) == [
-            "Actual step A",
-            "Actual step B",
+            "Actual step A.",
+            "Actual step B.",
         ]
 
     @patch("meal_planner.main.logger.error")
