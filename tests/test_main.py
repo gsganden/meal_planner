@@ -17,8 +17,6 @@ from meal_planner.main import (
     ModifyFormError,
     _parse_recipe_form_data,
     app,
-    fetch_and_clean_text_from_url,
-    fetch_page_text,
 )
 from meal_planner.models import RecipeBase
 
@@ -35,7 +33,7 @@ RECIPES_MODIFY_URL = "/recipes/modify"
 RECIPES_SAVE_URL = "/recipes/save"
 
 # Form Field Names
-FIELD_RECIPE_URL = "recipe_url"
+FIELD_RECIPE_URL = "input_url"
 FIELD_RECIPE_TEXT = "recipe_text"
 FIELD_NAME = "name"
 FIELD_INGREDIENTS = "ingredients"
@@ -343,9 +341,11 @@ class TestSmokeEndpoints:
     async def test_extract_recipe_page_loads(self, client: AsyncClient):
         response = await client.get(RECIPES_EXTRACT_URL)
         assert response.status_code == 200
-        assert 'id="recipe_url"' in response.text
+        assert 'id="input_url"' in response.text
+        assert 'name="input_url"' in response.text
         assert 'placeholder="https://example.com/recipe"' in response.text
         assert f'hx-post="{RECIPES_FETCH_TEXT_URL}"' in response.text
+        assert f"hx-include=\"[name='input_url']\"" in response.text
         assert "Fetch Text from URL" in response.text
         assert 'id="recipe_text"' in response.text
         assert (
@@ -362,26 +362,32 @@ class TestRecipeFetchTextEndpoint:
     TEST_URL = "http://example.com/fetch-success"
 
     @pytest.fixture
-    def mock_fetch_clean(self):
-        with patch(
-            "meal_planner.main.fetch_and_clean_text_from_url", new_callable=AsyncMock
-        ) as mock_fetch:
-            yield mock_fetch
+    def mock_fetch_clean(self, monkeypatch):
+        """Fixture to mock fetch_and_clean_text_from_url for error tests."""
+        mock_service = AsyncMock()
+        monkeypatch.setattr(
+            "meal_planner.main.fetch_and_clean_text_from_url", mock_service
+        )
+        return mock_service
 
-    async def test_success(self, client: AsyncClient, mock_fetch_clean):
+    async def test_success(self, client: AsyncClient, monkeypatch):
         mock_text = "Fetched and cleaned recipe text."
-        mock_fetch_clean.return_value = mock_text
+
+        local_mock_fetch_clean = AsyncMock(return_value=mock_text)
+        monkeypatch.setattr(
+            "meal_planner.main.fetch_and_clean_text_from_url", local_mock_fetch_clean
+        )
 
         response = await client.post(
             RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
         )
 
         assert response.status_code == 200
-        mock_fetch_clean.assert_called_once_with(self.TEST_URL)
+        local_mock_fetch_clean.assert_called_once_with(self.TEST_URL)
         assert "<textarea" in response.text
         assert f'id="{FIELD_RECIPE_TEXT}"' in response.text
         assert f'name="{FIELD_RECIPE_TEXT}"' in response.text
-        assert ">Fetched and cleaned recipe text.</textarea>" in response.text
+        assert f">{mock_text}</textarea>" in response.text
 
     async def test_missing_url(self, client: AsyncClient):
         response = await client.post(RECIPES_FETCH_TEXT_URL, data={})
@@ -428,22 +434,59 @@ class TestRecipeFetchTextEndpoint:
         exception_args,
         expected_message,
     ):
+        """Test that various exceptions from the service are handled correctly."""
         if exception_type == httpx.HTTPStatusError:
-            error_instance = exception_type(exception_args[0], **exception_args[1])
-        elif exception_type == httpx.RequestError:
-            error_instance = exception_type(exception_args[0], request=None)
+            # HTTPStatusError(message, *, request, response)
+            mock_fetch_clean.side_effect = exception_type(
+                exception_args[0],  # message
+                request=exception_args[1]["request"],
+                response=exception_args[1]["response"],
+            )
         else:
-            error_instance = exception_type(*exception_args)
-
-        mock_fetch_clean.side_effect = error_instance
+            mock_fetch_clean.side_effect = exception_type(*exception_args)
 
         response = await client.post(
             RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
         )
-
         assert response.status_code == 200
-        assert expected_message in response.text
-        assert f'class="{CSS_ERROR_CLASS}"' in response.text
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Check that the main content area is the empty text area
+        text_area_container = soup.find("div", id="recipe_text_container")
+        assert text_area_container is not None
+        text_area = text_area_container.find("textarea", id="recipe_text")
+        assert text_area is not None
+        assert text_area.get_text(strip=True) == ""
+
+        # Check for the OOB error message
+        error_div = soup.find("div", id="fetch-url-error-display")
+        assert error_div is not None
+        error_p = error_div.find("p")  # Find the P tag within the div
+        assert error_p is not None, (
+            "P tag with error message not found within error_div"
+        )
+        assert error_p.text.strip() == expected_message
+
+        expected_classes = set(CSS_ERROR_CLASS.split())
+        actual_classes = set(error_p.get("class", []))  # Check classes of the P tag
+        assert expected_classes.issubset(actual_classes)
+
+        # Check that hx-swap-oob was likely part of the response that placed the error
+        # The error_div itself should have hx-swap-oob="innerHTML"
+        assert error_div.get("hx-swap-oob") == "innerHTML", (
+            f"hx-swap-oob attribute incorrect or missing on error_div. Got: {error_div.get('hx-swap-oob')}"
+        )
+
+        # Also check that the recipe_text_container was part of the OOB swap
+        text_area_oob_div = soup.find("div", id="recipe_text_container")
+        assert text_area_oob_div is not None, (
+            "recipe_text_container div not found for OOB check"
+        )
+        assert (
+            text_area_oob_div.get("hx-swap-oob") == "innerHTML:#recipe_text_container"
+        ), (
+            f"hx-swap-oob incorrect on recipe_text_container. Got: {text_area_oob_div.get('hx-swap-oob')}"
+        )
 
 
 @pytest.mark.anyio
@@ -575,180 +618,6 @@ class TestRecipeExtractRunEndpoint:
             "No ingredients found"
         ]
         assert _extract_form_list_values(html_content, FIELD_INSTRUCTIONS) == ["step1"]
-
-
-@pytest.mark.anyio
-class TestFetchPageText:
-    TEST_URL = "http://test-recipe.com"
-
-    @pytest.fixture
-    def mock_httpx_client_cm(self):
-        mock_response_obj = AsyncMock(spec=httpx.Response)
-        mock_client_instance_returned_by_aenter = AsyncMock(spec=httpx.AsyncClient)
-        mock_client_instance_returned_by_aenter.get.return_value = mock_response_obj
-
-        mock_context_manager = AsyncMock()
-        mock_context_manager.__aenter__.return_value = (
-            mock_client_instance_returned_by_aenter
-        )
-        mock_context_manager.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("meal_planner.main.httpx.AsyncClient") as MockActualAsyncClientClass:
-            MockActualAsyncClientClass.return_value = mock_context_manager
-            yield mock_client_instance_returned_by_aenter, mock_response_obj
-
-    async def test_fetch_page_text_success(self, mock_httpx_client_cm):
-        mock_client, mock_response = mock_httpx_client_cm
-        mock_response.text = "<html><body>Recipe!</body></html>"
-        mock_response.raise_for_status = MagicMock()
-
-        result = await fetch_page_text(self.TEST_URL)
-
-        assert result == "<html><body>Recipe!</body></html>"
-        mock_client.get.assert_called_once_with(self.TEST_URL)
-        mock_response.raise_for_status.assert_called_once()
-
-    async def test_fetch_page_text_http_error(self, mock_httpx_client_cm):
-        mock_client, mock_response = mock_httpx_client_cm
-        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "Not Found",
-            request=Request("GET", self.TEST_URL),
-            response=Response(404, request=Request("GET", self.TEST_URL)),
-        )
-
-        with pytest.raises(httpx.HTTPStatusError, match="Not Found"):
-            await fetch_page_text(self.TEST_URL)
-
-        mock_client.get.assert_called_once_with(self.TEST_URL)
-        mock_response.raise_for_status.assert_called_once()
-
-    async def test_fetch_page_text_request_error(self, mock_httpx_client_cm):
-        mock_client, _ = mock_httpx_client_cm
-        mock_client.get.side_effect = httpx.RequestError(
-            "Network error", request=Request("GET", self.TEST_URL)
-        )
-
-        with pytest.raises(httpx.RequestError, match="Network error"):
-            await fetch_page_text(self.TEST_URL)
-
-        mock_client.get.assert_called_once_with(self.TEST_URL)
-
-
-@pytest.mark.anyio
-class TestFetchAndCleanTextFromUrl:
-    TEST_URL = "http://example.com/error-test"
-
-    @pytest.fixture
-    def mock_fetch_page_text(self):
-        with patch("meal_planner.main.fetch_page_text", new_callable=AsyncMock) as m:
-            yield m
-
-    @pytest.fixture
-    def mock_html_cleaner(self):
-        with patch("meal_planner.main.HTML_CLEANER.handle") as m:
-            yield m
-
-    @pytest.mark.parametrize(
-        "raised_exception, expected_caught_exception, expected_log_fragment",
-        [
-            pytest.param(
-                httpx.RequestError("ReqErr", request=httpx.Request("GET", TEST_URL)),
-                httpx.RequestError,
-                "HTTP Request Error",
-                id="request_error",
-            ),
-            pytest.param(
-                httpx.HTTPStatusError(
-                    "Not Found",
-                    request=httpx.Request("GET", TEST_URL),
-                    response=httpx.Response(
-                        404, request=httpx.Request("GET", TEST_URL)
-                    ),
-                ),
-                httpx.HTTPStatusError,
-                "HTTP Status Error",
-                id="status_error",
-            ),
-            pytest.param(
-                Exception("Generic fetch error"),
-                RuntimeError,
-                "Error fetching page text",
-                id="generic_fetch_exception",
-            ),
-        ],
-    )
-    @patch("meal_planner.main.logger.error")
-    async def test_fetch_and_clean_errors(
-        self,
-        mock_logger_error,
-        mock_fetch_page_text,
-        mock_html_cleaner,
-        raised_exception,
-        expected_caught_exception,
-        expected_log_fragment,
-    ):
-        mock_fetch_page_text.side_effect = raised_exception
-
-        with pytest.raises(expected_caught_exception) as excinfo:
-            await fetch_and_clean_text_from_url(self.TEST_URL)
-
-        mock_logger_error.assert_called_once()
-        args, kwargs = mock_logger_error.call_args
-        log_message = args[0]
-        log_args = args[1:]
-        assert expected_log_fragment in log_message
-        assert log_args[0] == self.TEST_URL
-        assert raised_exception == log_args[1]
-        assert kwargs.get("exc_info") is True
-
-        if not isinstance(
-            raised_exception, (httpx.RequestError, httpx.HTTPStatusError)
-        ):
-            mock_html_cleaner.assert_not_called()
-        if expected_log_fragment == "Error fetching page text":
-            assert f"Failed to fetch or process URL: {self.TEST_URL}" in str(
-                excinfo.value
-            )
-
-        mock_fetch_page_text.assert_called_once_with(self.TEST_URL)
-
-    @patch("meal_planner.main.logger.error")
-    async def test_fetch_and_clean_html_cleaner_error(
-        self,
-        mock_logger_error,
-        mock_fetch_page_text,
-        mock_html_cleaner,
-    ):
-        """Test that a generic exception during HTML cleaning is caught and raises
-        RuntimeError."""
-        mock_fetch_page_text.return_value = "<html></html>"
-        cleaning_exception = Exception("HTML cleaning failed!")
-        mock_html_cleaner.side_effect = cleaning_exception
-
-        with pytest.raises(RuntimeError) as excinfo:
-            await fetch_and_clean_text_from_url(self.TEST_URL)
-
-        assert excinfo.value.__cause__ is cleaning_exception
-        assert f"Failed to process URL content: {self.TEST_URL}" in str(excinfo.value)
-
-        mock_logger_error.assert_called_once()
-        args, kwargs = mock_logger_error.call_args
-        assert "Error cleaning HTML text" in args[0]
-        assert args[1] == self.TEST_URL
-        assert args[2] is cleaning_exception
-        assert kwargs.get("exc_info") is True
-
-        mock_fetch_page_text.assert_called_once_with(self.TEST_URL)
-        mock_html_cleaner.assert_called_once_with("<html></html>")
-
-
-@pytest.fixture
-def mock_recipe_data_fixture() -> RecipeBase:
-    return RecipeBase(
-        name="Mock Recipe",
-        ingredients=["mock ingredient 1"],
-        instructions=["mock instruction 1"],
-    )
 
 
 @pytest.mark.anyio
@@ -2903,3 +2772,12 @@ def create_mock_api_response(
     else:
         mock_resp.raise_for_status = MagicMock()
     return mock_resp
+
+
+@pytest.fixture
+def mock_recipe_data_fixture() -> RecipeBase:
+    return RecipeBase(
+        name="Original Recipe",
+        ingredients=["orig ing 1"],
+        instructions=["orig inst 1"],
+    )
