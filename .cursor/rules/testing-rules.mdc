@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Use `pre-commit run --hook-stage push` to check for issues after completing a set of changes.
+Use `./run_fast_coverage.sh` to run tests and check test coverage.
+We will use Modal to deploy the app (`uv run modal deploy deploy.py`) and run it locally (`uv run modal serve deploy.py`). It does not need to run outside Modal.
