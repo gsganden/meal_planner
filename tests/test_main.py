@@ -466,7 +466,8 @@ class TestRecipeFetchTextEndpoint:
         assert (
             parent_of_error_div.get("hx-swap-oob") == "innerHTML:#recipe_text_container"
         ), (
-            f"hx-swap-oob attribute incorrect or missing on parent of error_div. Got: {parent_of_error_div.get('hx-swap-oob')}"
+            f"hx-swap-oob attribute incorrect or missing on parent of error_div. "
+            f"Got: {parent_of_error_div.get('hx-swap-oob')}"
         )
 
 
