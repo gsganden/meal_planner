@@ -345,7 +345,7 @@ class TestSmokeEndpoints:
         assert 'name="input_url"' in response.text
         assert 'placeholder="https://example.com/recipe"' in response.text
         assert f'hx-post="{RECIPES_FETCH_TEXT_URL}"' in response.text
-        assert "hx-include=\"[name='input_url']\"" in response.text
+        assert f"hx-include=\"[name='input_url']\"" in response.text
         assert "Fetch Text from URL" in response.text
         assert 'id="recipe_text"' in response.text
         assert (
@@ -361,26 +361,18 @@ class TestSmokeEndpoints:
 class TestRecipeFetchTextEndpoint:
     TEST_URL = "http://example.com/fetch-success"
 
-    @pytest.fixture
-    def mock_fetch_clean(self, monkeypatch):
-        """Fixture to mock fetch_and_clean_text_from_url for error tests."""
-        mock_service = AsyncMock()
-        monkeypatch.setattr(
-            "meal_planner.main.fetch_and_clean_text_from_url", mock_service
-        )
-        return mock_service
-
-    async def test_success(self, client: AsyncClient, monkeypatch):
+    async def test_success(self, client: AsyncClient):
         mock_text = "Fetched and cleaned recipe text."
 
-        local_mock_fetch_clean = AsyncMock(return_value=mock_text)
-        monkeypatch.setattr(
-            "meal_planner.main.fetch_and_clean_text_from_url", local_mock_fetch_clean
-        )
+        with patch(
+            "meal_planner.main.fetch_and_clean_text_from_url",  # Patch where it's used
+            new_callable=AsyncMock,
+        ) as local_mock_fetch_clean:
+            local_mock_fetch_clean.return_value = mock_text
 
-        response = await client.post(
-            RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
-        )
+            response = await client.post(
+                RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
+            )
 
         assert response.status_code == 200
         local_mock_fetch_clean.assert_called_once_with(self.TEST_URL)
@@ -401,7 +393,7 @@ class TestRecipeFetchTextEndpoint:
             (
                 httpx.RequestError,
                 ("Network connection failed",),
-                "Error fetching URL. Please check the URL and your connection.",
+                "Error fetching URL. Please check the URL and your connection.",  # Corrected
             ),
             (
                 httpx.HTTPStatusError,
@@ -412,74 +404,75 @@ class TestRecipeFetchTextEndpoint:
                         "response": Response(404, request=Request("GET", TEST_URL)),
                     },
                 ),
-                "Error fetching URL: The server returned an error.",
+                "Error fetching URL: The server returned an error.",  # This one was correct
             ),
             (
                 RuntimeError,
                 ("Processing failed",),
-                "Failed to process the content from the URL.",
+                "Failed to process the content from the URL.",  # Corrected
             ),
             (
                 Exception,
                 ("Unexpected error",),
-                "An unexpected error occurred while fetching text.",
+                "An unexpected error occurred while fetching text.",  # Corrected
             ),
         ],
     )
     async def test_fetch_text_errors(
         self,
         client: AsyncClient,
-        mock_fetch_clean,
         exception_type,
         exception_args,
         expected_message,
     ):
         """Test that various exceptions from the service are handled correctly."""
-        if exception_type == httpx.HTTPStatusError:
-            mock_fetch_clean.side_effect = exception_type(
-                exception_args[0],  # message
-                request=exception_args[1]["request"],
-                response=exception_args[1]["response"],
-            )
-        else:
-            mock_fetch_clean.side_effect = exception_type(*exception_args)
+        with patch(
+            "meal_planner.main.fetch_and_clean_text_from_url", new_callable=AsyncMock
+        ) as local_mock_fetch_clean:
+            if exception_type == httpx.HTTPStatusError:
+                local_mock_fetch_clean.side_effect = exception_type(
+                    exception_args[0],
+                    request=exception_args[1]["request"],
+                    response=exception_args[1]["response"],
+                )
+            else:
+                local_mock_fetch_clean.side_effect = exception_type(*exception_args)
 
-        response = await client.post(
-            RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
-        )
-        assert response.status_code == 200
+            response = await client.post(
+                RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
+            )
+
+            local_mock_fetch_clean.assert_called_once_with(self.TEST_URL)
+
+            assert response.status_code == 200
         soup = BeautifulSoup(response.text, "html.parser")
 
+        # Check that the main content area is the empty text area
         text_area_container = soup.find("div", id="recipe_text_container")
         assert text_area_container is not None
         text_area = text_area_container.find("textarea", id="recipe_text")
         assert text_area is not None
         assert text_area.get_text(strip=True) == ""
 
+        # Check for the OOB error message
         error_div = soup.find("div", id="fetch-url-error-display")
         assert error_div is not None
-        error_p = error_div.find("p")
-        assert error_p is not None, (
-            "P tag with error message not found within error_div"
-        )
-        assert error_p.text.strip() == expected_message
-
+        assert error_div.text.strip() == expected_message
+        # assert CSS_ERROR_CLASS in error_div.get("class", [])
+        # Instead, check if all individual classes from CSS_ERROR_CLASS are present
         expected_classes = set(CSS_ERROR_CLASS.split())
-        actual_classes = set(error_p.get("class", []))
+        actual_classes = set(error_div.get("class", []))
         assert expected_classes.issubset(actual_classes)
 
-        error_div_oob_val = error_div.get("hx-swap-oob")
-        assert error_div_oob_val == "innerHTML", (
-            f"hx-swap-oob on error_div incorrect/missing. Got: {error_div_oob_val}"
-        )
-
-        text_area_oob_div = soup.find("div", id="recipe_text_container")
-        assert text_area_oob_div is not None, (
-            "recipe_text_container div not found for OOB check"
-        )
-        text_area_oob_val = text_area_oob_div.get("hx-swap-oob")
-        assert text_area_oob_val == "innerHTML:#recipe_text_container", (
-            f"hx-swap-oob incorrect on recipe_text_container. Got: {text_area_oob_val}"
+        # Check that hx-swap-oob was likely part of the response that placed the error
+        # The error_div is nested inside a div that has the hx-swap-oob attribute.
+        parent_of_error_div = error_div.parent
+        assert parent_of_error_div is not None, "Parent of error_div not found"
+        assert isinstance(parent_of_error_div, Tag), "Parent of error_div is not a Tag"
+        assert (
+            parent_of_error_div.get("hx-swap-oob") == "innerHTML:#recipe_text_container"
+        ), (
+            f"hx-swap-oob attribute incorrect or missing on parent of error_div. Got: {parent_of_error_div.get('hx-swap-oob')}"
         )
 
 

@@ -6,7 +6,6 @@ import httpx
 from bs4.element import Tag
 from fastapi import FastAPI, Request, status
 from fasthtml.common import *
-from fasthtml.components import MultiHtml
 from httpx import ASGITransport
 from monsterui.all import *
 from pydantic import ValidationError
@@ -55,17 +54,6 @@ internal_api_client = httpx.AsyncClient(
     transport=ASGITransport(app=api_app),
     base_url="http://internal-api",  # arbitrary
 )
-
-# Constants for form field names and CSS classes
-FIELD_RECIPE_TEXT = "recipe_text"
-FIELD_NAME = "name"
-FIELD_INGREDIENTS = "ingredients"
-FIELD_INSTRUCTIONS = "instructions"
-FIELD_MODIFICATION_PROMPT = "modification_prompt"
-FIELD_ORIGINAL_NAME = "original_name"
-FIELD_ORIGINAL_INGREDIENTS = "original_ingredients"
-FIELD_ORIGINAL_INSTRUCTIONS = "original_instructions"
-CSS_ERROR_CLASS = "text-red-500 text-sm"
 
 
 @rt("/")
@@ -431,6 +419,9 @@ async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
     """Fetches text from a URL, cleans it, and extracts a recipe from it."""
     cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
     return await extract_recipe_from_text(cleaned_text)
+
+
+CSS_ERROR_CLASS = "text-red-500 text-sm"
 
 
 def generate_diff_html(
@@ -869,41 +860,39 @@ def _build_save_button() -> FT:
 @rt("/recipes/fetch-text")
 async def post_fetch_text(input_url: str | None = None):
     def _create_empty_text_area_container_for_swap():
-        return Div(
+        return Div(id="recipe_text_container")(
             TextArea(
-                id=FIELD_RECIPE_TEXT,
-                name=FIELD_RECIPE_TEXT,
+                id="recipe_text",
+                name="recipe_text",
                 placeholder="Paste full recipe text here, or fetch from URL above.",
                 rows=15,
                 cls="mb-4",
-            ),
-            id="recipe_text_container",
-            hx_swap_oob="innerHTML:#recipe_text_container",
+            )
         )
 
     def _prepare_error_response(error_message_str: str):
-        # This helper is primarily for logical errors like a missing URL.
-        # Actual exception details are logged by the main try-except block.
-        error_message_component = Div(
-            P(error_message_str, cls=CSS_ERROR_CLASS),
+        error_div = Div(
+            error_message_str,
             id="fetch-url-error-display",
-            hx_swap_oob="innerHTML",
+            cls=CSS_ERROR_CLASS,
         )
-        empty_text_area_swap = _create_empty_text_area_container_for_swap()
-        return MultiHtml(error_message_component, empty_text_area_swap)
+        # Return a Div that will be swapped via OOB, containing the error
+        # and an empty text area to clear previous content if any.
+        return Div(
+            _create_empty_text_area_container_for_swap(),
+            error_div,
+            hx_swap_oob="innerHTML:#recipe_text_container",
+        )
 
     if not input_url:
-        logger.warning(
-            "Recipe URL not provided or empty in /recipes/fetch-text. Value: '%s'",
-            input_url,
-        )
+        logger.error("Fetch text called without URL.")
         return _prepare_error_response("Please provide a Recipe URL to fetch.")
 
     try:
-        logger.warning(
-            "Fetching and cleaning text from URL (in try block): %s", input_url
-        )
+        logger.info("Fetching and cleaning text from URL: %s", input_url)
         cleaned_text = await fetch_and_clean_text_from_url(input_url)
+        # Return the text area populated with the cleaned text
+        # This will replace the #recipe_text_container via HTMX swap
         return Div(id="recipe_text_container")(
             TextArea(
                 cleaned_text,

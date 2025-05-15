@@ -33,8 +33,21 @@ class TestFetchPageText:
     async def test_fetch_page_text_success(self, mock_httpx_client_cm):
         mock_cm, mock_response, mock_client = mock_httpx_client_cm
         result = await fetch_page_text(TEST_URL)
+        # Define the exact headers expected by the fetch_page_text function
+        expected_headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
+                "image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+        }
         mock_cm.assert_called_once_with(
-            follow_redirects=True, timeout=15.0, headers=pytest.approx(dict)
+            follow_redirects=True, timeout=15.0, headers=expected_headers
         )
         mock_client.get.assert_called_once_with(TEST_URL)
         mock_response.raise_for_status.assert_called_once()
@@ -78,7 +91,7 @@ class TestFetchAndCleanTextFromUrl:
         # Patch where HTML_CLEANER is defined and used
         with patch(
             "meal_planner.services.text_processing.HTML_CLEANER", mock_cleaner_instance
-        ) as _:
+        ) as mock_cleaner:
             yield mock_cleaner_instance  # yield the instance for assertions if needed
 
     @pytest.mark.parametrize(
@@ -104,8 +117,7 @@ class TestFetchAndCleanTextFromUrl:
             ),
             pytest.param(
                 Exception("Generic fetch error"),
-                # The service wraps generic exceptions from fetch_page_text
-                RuntimeError,
+                RuntimeError,  # The service wraps generic exceptions from fetch_page_text
                 "Generic error fetching page text",
                 id="generic_fetch_exception",
             ),
