@@ -876,8 +876,6 @@ async def post_fetch_text(input_url: str | None = None):
             id="fetch-url-error-display",
             cls=CSS_ERROR_CLASS,
         )
-        # Return a Div that will be swapped via OOB, containing the error
-        # and an empty text area to clear previous content if any.
         return Div(
             _create_empty_text_area_container_for_swap(),
             error_div,
@@ -891,8 +889,6 @@ async def post_fetch_text(input_url: str | None = None):
     try:
         logger.info("Fetching and cleaning text from URL: %s", input_url)
         cleaned_text = await fetch_and_clean_text_from_url(input_url)
-        # Return the text area populated with the cleaned text
-        # This will replace the #recipe_text_container via HTMX swap
         return Div(id="recipe_text_container")(
             TextArea(
                 cleaned_text,

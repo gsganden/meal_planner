@@ -115,14 +115,12 @@ class TestRecipeSortableListPersistence:
     ):
         mock_llm_extract.return_value = self.MOCK_INITIAL_RECIPE
 
-        # 1. Initial recipe extraction
         extract_response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: self.INITIAL_RECIPE_TEXT}
         )
         assert extract_response.status_code == 200
         html_after_extract = extract_response.text
 
-        # 2. Verify initial sortable attributes for ingredients
         soup_after_extract = BeautifulSoup(html_after_extract, "html.parser")
         edit_form_target_oob_div = soup_after_extract.find(
             "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
@@ -139,7 +137,6 @@ class TestRecipeSortableListPersistence:
             ingredients_list_div_extract, "ingredients-list (initial extract)"
         )
 
-        # 3. Extract form data for the delete operation
         form_data_for_delete = _extract_full_edit_form_data(html_after_extract)
 
         assert form_data_for_delete[FIELD_NAME] == self.MOCK_INITIAL_RECIPE.name
@@ -148,7 +145,6 @@ class TestRecipeSortableListPersistence:
             == self.MOCK_INITIAL_RECIPE.ingredients
         )
 
-        # 4. Delete the second ingredient (index 1)
         index_to_delete = 1
         delete_url = (
             f"{TestRecipeUIFragments.DELETE_INGREDIENT_BASE_URL}/{index_to_delete}"
@@ -157,7 +153,6 @@ class TestRecipeSortableListPersistence:
         assert delete_response.status_code == 200
         html_after_delete = delete_response.text
 
-        # 5. Verify sortable attributes on the swapped ingredients list
         soup_after_delete = BeautifulSoup(html_after_delete, "html.parser")
         ingredients_list_div_after_delete = soup_after_delete.find(
             "div", id="ingredients-list"
@@ -279,7 +274,7 @@ class TestRecipeSortableListPersistence:
         assert inputs[0].get("value") == "Ing1"
         assert inputs[1].get("value") == "Ing2"
         assert inputs[2].get("value") == "Ing3"
-        assert inputs[3].get("value", "") == ""  # New ingredient is empty
+        assert inputs[3].get("value", "") == ""
 
     @patch("meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock)
     async def test_sortable_after_instruction_add(
@@ -409,12 +404,12 @@ class TestRecipeFetchTextEndpoint:
             (
                 RuntimeError,
                 ("Processing failed",),
-                "Failed to process the content from the URL.",  # Corrected
+                "Failed to process the content from the URL.",
             ),
             (
                 Exception,
                 ("Unexpected error",),
-                "An unexpected error occurred while fetching text.",  # Corrected
+                "An unexpected error occurred while fetching text.",
             ),
         ],
     )
