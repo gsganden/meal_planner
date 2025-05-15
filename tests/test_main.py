@@ -157,7 +157,7 @@ class TestRecipeFetchTextEndpoint:
             (
                 Exception,
                 ("Unexpected error",),
-                "Unexpected error fetching text.",
+                "An unexpected error occurred while fetching text.",
             ),
         ],
     )
@@ -324,51 +324,66 @@ class TestRecipeExtractRunEndpoint:
 
 @pytest.mark.anyio
 class TestFetchPageText:
-    TEST_URL = "http://example.com/page-text-test"
+    TEST_URL = "http://test-recipe.com"
 
     @pytest.fixture
-    def mock_httpx_client(self):
-        with patch("httpx.AsyncClient") as mock_client_class:
-            mock_instance = AsyncMock()
-            mock_client_class.return_value.__aenter__.return_value = mock_instance
-            yield mock_instance
+    def mock_httpx_client_cm(self):
+        mock_response_obj = AsyncMock(spec=httpx.Response)
+        mock_client_instance_returned_by_aenter = AsyncMock(spec=httpx.AsyncClient)
+        mock_client_instance_returned_by_aenter.get.return_value = mock_response_obj
 
-    async def test_fetch_page_text_success(self, mock_httpx_client):
-        expected_text = "<html><body>Recipe Content</body></html>"
-        mock_response = AsyncMock(spec=Response)
-        mock_response.text = expected_text
+        # This is the object that httpx.AsyncClient() in main.py will return.
+        # It needs to be an async context manager, so its __aenter__ and __aexit__
+        # need to be async methods (coroutines).
+        mock_context_manager = (
+            AsyncMock()
+        )  # Corrected: Use AsyncMock for async context manager methods
+        mock_context_manager.__aenter__.return_value = (
+            mock_client_instance_returned_by_aenter
+        )
+        mock_context_manager.__aexit__ = AsyncMock(
+            return_value=None
+        )  # Ensure __aexit__ is an awaitable mock
+
+        with patch("meal_planner.main.httpx.AsyncClient") as MockActualAsyncClientClass:
+            MockActualAsyncClientClass.return_value = mock_context_manager
+            yield mock_client_instance_returned_by_aenter, mock_response_obj
+
+    async def test_fetch_page_text_success(self, mock_httpx_client_cm):
+        mock_client, mock_response = mock_httpx_client_cm
+        mock_response.text = "<html><body>Recipe!</body></html>"
         mock_response.raise_for_status = MagicMock()
-        mock_httpx_client.get.return_value = mock_response
 
         result = await fetch_page_text(self.TEST_URL)
 
-        assert result == expected_text
-        mock_httpx_client.get.assert_called_once_with(self.TEST_URL)
+        assert result == "<html><body>Recipe!</body></html>"
+        mock_client.get.assert_called_once_with(self.TEST_URL)
         mock_response.raise_for_status.assert_called_once()
 
-    async def test_fetch_page_text_http_error(self, mock_httpx_client):
-        mock_response = AsyncMock(spec=Response)
+    async def test_fetch_page_text_http_error(self, mock_httpx_client_cm):
+        mock_client, mock_response = mock_httpx_client_cm
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "Error", request=Request("GET", self.TEST_URL), response=Response(404)
-        )
-        mock_httpx_client.get.return_value = mock_response
-
-        with patch("meal_planner.main.logger.error") as mock_logger:
-            result = await fetch_page_text(self.TEST_URL)
-
-        assert result == ""
-        mock_logger.assert_called_once()
-
-    async def test_fetch_page_text_request_error(self, mock_httpx_client):
-        mock_httpx_client.get.side_effect = httpx.RequestError(
-            "Connection failed", request=Request("GET", self.TEST_URL)
+            "Not Found",
+            request=Request("GET", self.TEST_URL),
+            response=Response(404, request=Request("GET", self.TEST_URL)),
         )
 
-        with patch("meal_planner.main.logger.error") as mock_logger:
-            result = await fetch_page_text(self.TEST_URL)
+        with pytest.raises(httpx.HTTPStatusError, match="Not Found"):
+            await fetch_page_text(self.TEST_URL)
 
-        assert result == ""
-        mock_logger.assert_called_once()
+        mock_client.get.assert_called_once_with(self.TEST_URL)
+        mock_response.raise_for_status.assert_called_once()
+
+    async def test_fetch_page_text_request_error(self, mock_httpx_client_cm):
+        mock_client, _ = mock_httpx_client_cm
+        mock_client.get.side_effect = httpx.RequestError(
+            "Network error", request=Request("GET", self.TEST_URL)
+        )
+
+        with pytest.raises(httpx.RequestError, match="Network error"):
+            await fetch_page_text(self.TEST_URL)
+
+        mock_client.get.assert_called_once_with(self.TEST_URL)
 
 
 @pytest.mark.anyio
@@ -2545,6 +2560,12 @@ def create_mock_api_response(
         mock_resp.json = MagicMock(return_value=json_data)
     else:
         mock_resp.json = MagicMock(return_value={})
+
+    if error_to_raise:
+        mock_resp.raise_for_status = MagicMock(side_effect=error_to_raise)
+    else:
+        mock_resp.raise_for_status = MagicMock()
+    return mock_resp
 
     if error_to_raise:
         mock_resp.raise_for_status = MagicMock(side_effect=error_to_raise)
