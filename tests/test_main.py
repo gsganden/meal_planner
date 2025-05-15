@@ -292,15 +292,11 @@ class TestRecipeExtractRunEndpoint:
         self, mock_llm_generate_recipe, mock_postprocess, client: AsyncClient
     ):
         test_text = "Recipe without ingredients"
-        # mock_llm_generate_recipe (service output) returns ingredients=[""]
-        # This is a valid RecipeBase as list has min_length=1.
         mock_recipe_input_to_postprocess = RecipeBase(
             name="Test Recipe Name", ingredients=[""], instructions=["step1"]
         )
         mock_llm_generate_recipe.return_value = mock_recipe_input_to_postprocess
 
-        # mock_postprocess takes the above and its (new) logic would convert [""]
-        # to ["No ingredients found"]. So, its mock should return that.
         mock_postprocess.return_value = RecipeBase(
             name="Test Recipe Name",
             ingredients=["No ingredients found"],
@@ -332,18 +328,11 @@ class TestFetchPageText:
         mock_client_instance_returned_by_aenter = AsyncMock(spec=httpx.AsyncClient)
         mock_client_instance_returned_by_aenter.get.return_value = mock_response_obj
 
-        # This is the object that httpx.AsyncClient() in main.py will return.
-        # It needs to be an async context manager, so its __aenter__ and __aexit__
-        # need to be async methods (coroutines).
-        mock_context_manager = (
-            AsyncMock()
-        )  # Corrected: Use AsyncMock for async context manager methods
+        mock_context_manager = AsyncMock()
         mock_context_manager.__aenter__.return_value = (
             mock_client_instance_returned_by_aenter
         )
-        mock_context_manager.__aexit__ = AsyncMock(
-            return_value=None
-        )  # Ensure __aexit__ is an awaitable mock
+        mock_context_manager.__aexit__ = AsyncMock(return_value=None)
 
         with patch("meal_planner.main.httpx.AsyncClient") as MockActualAsyncClientClass:
             MockActualAsyncClientClass.return_value = mock_context_manager
@@ -782,7 +771,7 @@ class TestRecipeModifyEndpoint:
         assert response.status_code == 200
         assert (
             "Recipe modification failed. An unexpected error occurred during service "
-            "call." in response.text  # Updated error message
+            "call." in response.text
         )
         assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
         assert 'id="name"' in response.text
@@ -2560,12 +2549,6 @@ def create_mock_api_response(
         mock_resp.json = MagicMock(return_value=json_data)
     else:
         mock_resp.json = MagicMock(return_value={})
-
-    if error_to_raise:
-        mock_resp.raise_for_status = MagicMock(side_effect=error_to_raise)
-    else:
-        mock_resp.raise_for_status = MagicMock()
-    return mock_resp
 
     if error_to_raise:
         mock_resp.raise_for_status = MagicMock(side_effect=error_to_raise)
