@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 openai_client = AsyncOpenAI(
-    api_key=os.environ.get("GOOGLE_API_KEY"),  # Use .get for a bit more safety
+    api_key=os.environ["GOOGLE_API_KEY"],
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 
