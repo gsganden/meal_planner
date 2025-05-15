@@ -220,6 +220,7 @@ def get():
         H3("URL"),
         url_input_component,
         H3("Text"),
+        Div(id="fetch-url-error-display"),
         text_area_container,
         extract_button_group,
         disclaimer,
@@ -428,7 +429,7 @@ async def fetch_page_text(recipe_url: str):
         logger.error(
             "Error fetching page text from %s: %s", recipe_url, e, exc_info=True
         )
-        return ""
+        raise
 
 
 async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
@@ -942,55 +943,93 @@ def _build_save_button() -> FT:
 
 @rt("/recipes/fetch-text")
 async def post_fetch_text(recipe_url: str | None = None):
+    def _create_empty_text_area_container_for_swap():
+        """Helper to create the standard text area container, ensuring consistent ID for swapping."""
+        return Div(
+            TextArea(
+                id="recipe_text",
+                name="recipe_text",
+                placeholder="Paste full recipe text here, or fetch from URL above.",
+                rows=15,
+                cls="mb-4",
+            ),
+            id="recipe_text_container",
+        )
+
+    def _prepare_error_response(error_message_str: str):
+        """Helper to create a grouped response for error cases using outerHTML swap for error display."""
+        # This is the actual error message div that will replace the placeholder.
+        # It carries the necessary ID and styling.
+        error_div_content = Div(
+            error_message_str, cls=CSS_ERROR_CLASS, id="fetch-url-error-display"
+        )
+
+        # This container tells HTMX to take its content (error_div_content)
+        # and use it to replace the outerHTML of the target #fetch-url-error-display.
+        error_oob_swap_instruction = Div(
+            error_div_content, hx_swap_oob="outerHTML:#fetch-url-error-display"
+        )
+        main_content_replacement = _create_empty_text_area_container_for_swap()
+        return Group(main_content_replacement, error_oob_swap_instruction)
+
     if not recipe_url:
         logger.error("Fetch text called without URL.")
-        return Div("Please provide a Recipe URL to fetch.", cls=CSS_ERROR_CLASS)
+        return _prepare_error_response("Please provide a Recipe URL to fetch.")
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", recipe_url)
         cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
         logger.info("Successfully processed URL for text: %s", recipe_url)
+
+        main_content_replacement = Div(
+            TextArea(
+                cleaned_text,
+                id="recipe_text",
+                name="recipe_text",
+                rows=15,
+                placeholder="Paste recipe text here, or fetch from URL above.",
+                cls="mb-4",
+            ),
+            id="recipe_text_container",
+        )
+
+        # On success, replace #fetch-url-error-display with an empty div (placeholder)
+        empty_error_placeholder = Div(id="fetch-url-error-display")
+        clear_error_oob_swap_instruction = Div(
+            empty_error_placeholder, hx_swap_oob="outerHTML:#fetch-url-error-display"
+        )
+        return Group(main_content_replacement, clear_error_oob_swap_instruction)
+
     except httpx.RequestError as e:
         logger.error(
             "HTTP Request Error fetching text from %s: %s",
             recipe_url,
             e,
-            exc_info=False,
+            exc_info=False,  # Log less verbosely for common network errors
         )
-        return Div(
-            "Error fetching URL. Please check the URL and your connection.",
-            cls=CSS_ERROR_CLASS,
+        return _prepare_error_response(
+            "Error fetching URL. Please check the URL and your connection."
         )
     except httpx.HTTPStatusError as e:
         logger.error(
             "HTTP Status Error fetching text from %s: %s", recipe_url, e, exc_info=False
         )
-        return Div(
-            "Error fetching URL: The server returned an error.",
-            cls=CSS_ERROR_CLASS,
+        return _prepare_error_response(
+            "Error fetching URL: The server returned an error."
         )
     except RuntimeError as e:
+        # This is our custom wrapped error from fetch_and_clean_text_from_url
         logger.error(
             "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return Div("Failed to process the content from the URL.", cls=CSS_ERROR_CLASS)
+        return _prepare_error_response("Failed to process the content from the URL.")
     except Exception as e:
         logger.error(
             "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return Div("Unexpected error fetching text.", cls=CSS_ERROR_CLASS)
-
-    return Div(
-        TextArea(
-            cleaned_text,
-            id="recipe_text",
-            name="recipe_text",
-            rows=15,
-            placeholder="Paste recipe text here, or fetch from URL above.",
-            cls="mb-4",
-        ),
-        id="recipe_text_container",
-    )
+        return _prepare_error_response(
+            "An unexpected error occurred while fetching text."
+        )
 
 
 @rt("/recipes/extract/run")
