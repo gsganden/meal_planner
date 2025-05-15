@@ -1,7 +1,10 @@
 import pytest
 
 from meal_planner.models import RecipeBase
-from meal_planner.services.recipe_processing import postprocess_recipe
+from meal_planner.services.recipe_processing import (
+    _ensure_ending_punctuation,
+    postprocess_recipe,
+)
 
 
 class TestPostprocessRecipeName:
@@ -74,7 +77,7 @@ class TestPostprocessRecipe:
             instructions=[
                 " Step 1: Basic step. ",
                 "2. Step with number.",
-                "  Step 3 Another step.",
+                "  Step 3 Another step",  # No ending punctuation
                 "No number.",
                 "  ",
                 " Ends with semicolon ;",
@@ -85,8 +88,57 @@ class TestPostprocessRecipe:
         assert processed.instructions == [
             "Basic step.",
             "Step with number.",
-            "Another step.",
+            "Another step.",  # Should have period added
             "No number.",
             "Ends with semicolon;",
-            "Has comma, in middle",
+            "Has comma, in middle.",  # Should have period added
         ]
+
+
+class TestEnsureEndingPunctuation:
+    @pytest.mark.parametrize(
+        "input_text",
+        [
+            # Basic cases
+            "This needs a period",
+            "This already has a period.",
+            "Does this need a period?",
+            "Exclamation point!",
+            "With colon:",
+            "With semicolon;",
+            "",  # Empty string case
+            "   ",  # Just whitespace
+            # Text ending with parentheses
+            "Ending with parenthesis)",
+            "Already has punctuation.)",
+            "Question mark?)",
+            # Text with embedded parentheses
+            "Nested (parenthetical statement)",
+            "Multiple nested (statements (here))",
+            # Already has period inside parenthesis
+            "Already has period inside.)",
+        ],
+    )
+    def test_ensure_ending_punctuation(self, input_text):
+        result = _ensure_ending_punctuation(input_text)
+
+        if not result:
+            # Empty string case
+            return
+
+        # Test that the result ends with punctuation
+        ending_punctuation = [".", "!", "?", ":", ";", ")"]
+
+        # For text ending with ), check that there's punctuation before it
+        if result.endswith(")"):
+            assert result[-2] in ending_punctuation, (
+                f"No punctuation before closing parenthesis in: '{result}'"
+            )
+        else:
+            assert result[-1] in ending_punctuation, (
+                f"No ending punctuation in: '{result}'"
+            )
+
+        # For text with parentheses, make sure we maintain proper structure
+        if "(" in result:
+            assert ")" in result, f"Unbalanced parentheses in: '{result}'"
