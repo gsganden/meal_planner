@@ -133,7 +133,6 @@ async def generate_modified_recipe(
         logger.info(
             "LLM successfully generated modified recipe: %s", modified_recipe.name
         )
-        # Note: postprocessing of this modified_recipe will happen in main.py
         return modified_recipe
     except FileNotFoundError as e:
         logger.error("Prompt file not found: %s", e, exc_info=True)
