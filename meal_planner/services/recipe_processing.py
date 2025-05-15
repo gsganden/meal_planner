@@ -21,7 +21,7 @@ def postprocess_recipe(recipe: RecipeBase) -> RecipeBase:
         )
 
     recipe.instructions = [
-        _postprocess_instruction(i)
+        processed_inst
         for i in recipe.instructions
         if (processed_inst := _postprocess_instruction(i))
     ]
