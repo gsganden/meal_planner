@@ -1,7 +1,5 @@
 import difflib
 import logging
-import webbrowser
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -67,7 +65,7 @@ FIELD_MODIFICATION_PROMPT = "modification_prompt"
 FIELD_ORIGINAL_NAME = "original_name"
 FIELD_ORIGINAL_INGREDIENTS = "original_ingredients"
 FIELD_ORIGINAL_INSTRUCTIONS = "original_instructions"
-CSS_ERROR_CLASS = "text-red-500 text-sm"  # Example, adjust if different
+CSS_ERROR_CLASS = "text-red-500 text-sm"
 
 
 @rt("/")
@@ -871,8 +869,6 @@ def _build_save_button() -> FT:
 @rt("/recipes/fetch-text")
 async def post_fetch_text(input_url: str | None = None):
     def _create_empty_text_area_container_for_swap():
-        # Helper to provide the swap target with an empty textarea
-        # if there's an error before we even try to fetch.
         return Div(
             TextArea(
                 id=FIELD_RECIPE_TEXT,
@@ -882,26 +878,21 @@ async def post_fetch_text(input_url: str | None = None):
                 cls="mb-4",
             ),
             id="recipe_text_container",
-            hx_swap_oob="innerHTML:#recipe_text_container",  # For initial load/error
+            hx_swap_oob="innerHTML:#recipe_text_container",
         )
 
     def _prepare_error_response(error_message_str: str):
-        # Log the detailed error for server-side records
-        # The specific exception details are logged by the main try-except block.
-        # This helper is more for logical errors like missing URL.
-
-        # Create the visual error message for the user
+        # This helper is primarily for logical errors like a missing URL.
+        # Actual exception details are logged by the main try-except block.
         error_message_component = Div(
             P(error_message_str, cls=CSS_ERROR_CLASS),
-            id="fetch-url-error-display",  # Target for OOB swap
-            hx_swap_oob="innerHTML",  # Swap this div's content
+            id="fetch-url-error-display",
+            hx_swap_oob="innerHTML",
         )
-        # Also return the empty text area container to ensure the page structure is maintained
         empty_text_area_swap = _create_empty_text_area_container_for_swap()
         return MultiHtml(error_message_component, empty_text_area_swap)
 
     if not input_url:
-        # This is the critical check. If input_url is None or empty, we return early.
         logger.warning(
             "Recipe URL not provided or empty in /recipes/fetch-text. Value: '%s'",
             input_url,
@@ -913,8 +904,6 @@ async def post_fetch_text(input_url: str | None = None):
             "Fetching and cleaning text from URL (in try block): %s", input_url
         )
         cleaned_text = await fetch_and_clean_text_from_url(input_url)
-        # Return the text area populated with the cleaned text
-        # This will replace the #recipe_text_container via HTMX swap
         return Div(id="recipe_text_container")(
             TextArea(
                 cleaned_text,

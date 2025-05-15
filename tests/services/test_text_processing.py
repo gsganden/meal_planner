@@ -78,7 +78,7 @@ class TestFetchAndCleanTextFromUrl:
         # Patch where HTML_CLEANER is defined and used
         with patch(
             "meal_planner.services.text_processing.HTML_CLEANER", mock_cleaner_instance
-        ) as mock_cleaner:
+        ) as _:
             yield mock_cleaner_instance  # yield the instance for assertions if needed
 
     @pytest.mark.parametrize(
@@ -104,7 +104,8 @@ class TestFetchAndCleanTextFromUrl:
             ),
             pytest.param(
                 Exception("Generic fetch error"),
-                RuntimeError,  # The service wraps generic exceptions from fetch_page_text
+                # The service wraps generic exceptions from fetch_page_text
+                RuntimeError,
                 "Generic error fetching page text",
                 id="generic_fetch_exception",
             ),

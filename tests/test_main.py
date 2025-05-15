@@ -345,7 +345,7 @@ class TestSmokeEndpoints:
         assert 'name="input_url"' in response.text
         assert 'placeholder="https://example.com/recipe"' in response.text
         assert f'hx-post="{RECIPES_FETCH_TEXT_URL}"' in response.text
-        assert f"hx-include=\"[name='input_url']\"" in response.text
+        assert "hx-include=\"[name='input_url']\"" in response.text
         assert "Fetch Text from URL" in response.text
         assert 'id="recipe_text"' in response.text
         assert (
@@ -436,7 +436,6 @@ class TestRecipeFetchTextEndpoint:
     ):
         """Test that various exceptions from the service are handled correctly."""
         if exception_type == httpx.HTTPStatusError:
-            # HTTPStatusError(message, *, request, response)
             mock_fetch_clean.side_effect = exception_type(
                 exception_args[0],  # message
                 request=exception_args[1]["request"],
@@ -451,41 +450,36 @@ class TestRecipeFetchTextEndpoint:
         assert response.status_code == 200
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Check that the main content area is the empty text area
         text_area_container = soup.find("div", id="recipe_text_container")
         assert text_area_container is not None
         text_area = text_area_container.find("textarea", id="recipe_text")
         assert text_area is not None
         assert text_area.get_text(strip=True) == ""
 
-        # Check for the OOB error message
         error_div = soup.find("div", id="fetch-url-error-display")
         assert error_div is not None
-        error_p = error_div.find("p")  # Find the P tag within the div
+        error_p = error_div.find("p")
         assert error_p is not None, (
             "P tag with error message not found within error_div"
         )
         assert error_p.text.strip() == expected_message
 
         expected_classes = set(CSS_ERROR_CLASS.split())
-        actual_classes = set(error_p.get("class", []))  # Check classes of the P tag
+        actual_classes = set(error_p.get("class", []))
         assert expected_classes.issubset(actual_classes)
 
-        # Check that hx-swap-oob was likely part of the response that placed the error
-        # The error_div itself should have hx-swap-oob="innerHTML"
-        assert error_div.get("hx-swap-oob") == "innerHTML", (
-            f"hx-swap-oob attribute incorrect or missing on error_div. Got: {error_div.get('hx-swap-oob')}"
+        error_div_oob_val = error_div.get("hx-swap-oob")
+        assert error_div_oob_val == "innerHTML", (
+            f"hx-swap-oob on error_div incorrect/missing. Got: {error_div_oob_val}"
         )
 
-        # Also check that the recipe_text_container was part of the OOB swap
         text_area_oob_div = soup.find("div", id="recipe_text_container")
         assert text_area_oob_div is not None, (
             "recipe_text_container div not found for OOB check"
         )
-        assert (
-            text_area_oob_div.get("hx-swap-oob") == "innerHTML:#recipe_text_container"
-        ), (
-            f"hx-swap-oob incorrect on recipe_text_container. Got: {text_area_oob_div.get('hx-swap-oob')}"
+        text_area_oob_val = text_area_oob_div.get("hx-swap-oob")
+        assert text_area_oob_val == "innerHTML:#recipe_text_container", (
+            f"hx-swap-oob incorrect on recipe_text_container. Got: {text_area_oob_val}"
         )
 
 
