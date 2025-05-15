@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from meal_planner.services.text_processing import (
-    HTML_CLEANER,  # Assuming HTML_CLEANER might be needed for some tests, or its mock
+    HTML_CLEANER,
     fetch_and_clean_text_from_url,
     fetch_page_text,
 )
@@ -87,11 +87,10 @@ class TestFetchAndCleanTextFromUrl:
     def mock_html_cleaner(self):
         mock_cleaner_instance = MagicMock(spec=HTML_CLEANER)
         mock_cleaner_instance.handle.return_value = "Link Bar"
-        # Patch where HTML_CLEANER is defined and used
         with patch(
             "meal_planner.services.text_processing.HTML_CLEANER", mock_cleaner_instance
         ) as _:
-            yield mock_cleaner_instance  # yield the instance for assertions if needed
+            yield mock_cleaner_instance
 
     @pytest.mark.parametrize(
         "raised_exception, expected_caught_exception, expected_log_fragment",
@@ -116,7 +115,7 @@ class TestFetchAndCleanTextFromUrl:
             ),
             pytest.param(
                 Exception("Generic fetch error"),
-                RuntimeError,  # Service wraps generic fetch exceptions
+                RuntimeError,
                 "Generic error fetching page text",
                 id="generic_fetch_exception",
             ),
