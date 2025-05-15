@@ -345,7 +345,7 @@ class TestSmokeEndpoints:
         assert 'name="input_url"' in response.text
         assert 'placeholder="https://example.com/recipe"' in response.text
         assert f'hx-post="{RECIPES_FETCH_TEXT_URL}"' in response.text
-        assert f"hx-include=\"[name='input_url']\"" in response.text
+        assert "hx-include=\"[name='input_url']\"" in response.text
         assert "Fetch Text from URL" in response.text
         assert 'id="recipe_text"' in response.text
         assert (
@@ -365,7 +365,7 @@ class TestRecipeFetchTextEndpoint:
         mock_text = "Fetched and cleaned recipe text."
 
         with patch(
-            "meal_planner.main.fetch_and_clean_text_from_url",  # Patch where it's used
+            "meal_planner.main.fetch_and_clean_text_from_url",
             new_callable=AsyncMock,
         ) as local_mock_fetch_clean:
             local_mock_fetch_clean.return_value = mock_text
@@ -393,7 +393,7 @@ class TestRecipeFetchTextEndpoint:
             (
                 httpx.RequestError,
                 ("Network connection failed",),
-                "Error fetching URL. Please check the URL and your connection.",  # Corrected
+                "Error fetching URL. Please check the URL and your connection.",
             ),
             (
                 httpx.HTTPStatusError,
@@ -404,7 +404,7 @@ class TestRecipeFetchTextEndpoint:
                         "response": Response(404, request=Request("GET", TEST_URL)),
                     },
                 ),
-                "Error fetching URL: The server returned an error.",  # This one was correct
+                "Error fetching URL: The server returned an error.",
             ),
             (
                 RuntimeError,
@@ -447,25 +447,19 @@ class TestRecipeFetchTextEndpoint:
             assert response.status_code == 200
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Check that the main content area is the empty text area
         text_area_container = soup.find("div", id="recipe_text_container")
         assert text_area_container is not None
         text_area = text_area_container.find("textarea", id="recipe_text")
         assert text_area is not None
         assert text_area.get_text(strip=True) == ""
 
-        # Check for the OOB error message
         error_div = soup.find("div", id="fetch-url-error-display")
         assert error_div is not None
         assert error_div.text.strip() == expected_message
-        # assert CSS_ERROR_CLASS in error_div.get("class", [])
-        # Instead, check if all individual classes from CSS_ERROR_CLASS are present
         expected_classes = set(CSS_ERROR_CLASS.split())
         actual_classes = set(error_div.get("class", []))
         assert expected_classes.issubset(actual_classes)
 
-        # Check that hx-swap-oob was likely part of the response that placed the error
-        # The error_div is nested inside a div that has the hx-swap-oob attribute.
         parent_of_error_div = error_div.parent
         assert parent_of_error_div is not None, "Parent of error_div not found"
         assert isinstance(parent_of_error_div, Tag), "Parent of error_div is not a Tag"

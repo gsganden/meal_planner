@@ -9,7 +9,7 @@ from meal_planner.services.text_processing import (
     fetch_page_text,
 )
 
-TEST_URL = "http://test-recipe.com"  # Define if not imported from elsewhere
+TEST_URL = "http://test-recipe.com"
 
 
 @pytest.mark.anyio
@@ -33,7 +33,6 @@ class TestFetchPageText:
     async def test_fetch_page_text_success(self, mock_httpx_client_cm):
         mock_cm, mock_response, mock_client = mock_httpx_client_cm
         result = await fetch_page_text(TEST_URL)
-        # Define the exact headers expected by the fetch_page_text function
         expected_headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -128,7 +127,7 @@ class TestFetchAndCleanTextFromUrl:
         self,
         mock_logger_error,
         mock_fetch_page_text,
-        mock_html_cleaner,  # This will be the instance from the fixture
+        mock_html_cleaner,
         raised_exception,
         expected_caught_exception,
         expected_log_fragment,
@@ -141,7 +140,6 @@ class TestFetchAndCleanTextFromUrl:
         mock_fetch_page_text.assert_called_once_with(TEST_URL)
         assert not mock_html_cleaner.handle.called
         mock_logger_error.assert_called_once()
-        # Check that the log message contains the expected fragment
         args, _ = mock_logger_error.call_args
         assert expected_log_fragment in args[0], (
             f"Log message '{args[0]}' did not contain '{expected_log_fragment}'"
@@ -151,8 +149,8 @@ class TestFetchAndCleanTextFromUrl:
     async def test_fetch_and_clean_html_cleaner_error(
         self,
         mock_logger_error,
-        mock_fetch_page_text,  # Patched fetch_page_text
-        mock_html_cleaner,  # Patched HTML_CLEANER instance
+        mock_fetch_page_text,
+        mock_html_cleaner,
     ):
         mock_html_cleaner.handle.side_effect = Exception("Cleaning failed")
 
