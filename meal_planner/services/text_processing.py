@@ -47,40 +47,34 @@ async def fetch_page_text(recipe_url: str) -> str:
         raise
 
 
-async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
+async def fetch_and_clean_text_from_url(url: str) -> str:
     """Fetches and cleans HTML from a URL, returning plain text."""
-    logger.info(f"Fetching text from: {recipe_url}")
+    logger.info(f"Fetching text from: {url}")
     try:
-        raw_text = await fetch_page_text(recipe_url)
-        logger.info(f"Successfully fetched text from: {recipe_url}")
-    except httpx.RequestError as e:  # More specific exception
+        raw_text = await fetch_page_text(url)
+        logger.info(f"Successfully fetched text from: {url}")
+    except httpx.RequestError as e:
         logger.error(
-            f"HTTP Request Error fetching page text from {recipe_url}: {e!r}",
+            f"HTTP Request Error fetching page text from {url}: {e!r}",
             exc_info=True,
         )
-        raise  # Re-raise to be caught by endpoint or specific handler
-    except httpx.HTTPStatusError as e:  # More specific exception
+        raise
+    except httpx.HTTPStatusError as e:
         logger.error(
-            f"HTTP Status Error fetching page text from {recipe_url}: {e!r}",
+            f"HTTP Status Error fetching page text from {url}: {e!r}",
             exc_info=True,
         )
-        raise  # Re-raise
-    except Exception as e:  # Catch-all for other errors during fetch_page_text
+        raise
+    except Exception as e:
         logger.error(
-            f"Generic error fetching page text from {recipe_url}: {e!r}", exc_info=True
+            f"Generic error fetching page text from {url}: {e!r}", exc_info=True
         )
-        # It's often better to raise a custom, more specific error or re-raise `e`
-        # depending on how you want to handle this upstream.
-        # For now, re-raising to make it clear an error occurred.
-        raise RuntimeError(f"Failed to fetch or process URL: {recipe_url}") from e
+        raise RuntimeError(f"Failed to fetch or process URL: {url}") from e
 
     try:
         page_text = HTML_CLEANER.handle(raw_text)
-        logger.info(f"Cleaned HTML text from: {recipe_url}")
+        logger.info(f"Cleaned HTML text from: {url}")
         return page_text
     except Exception as e:
-        logger.error(
-            f"Error cleaning HTML text from {recipe_url}: {e!r}", exc_info=True
-        )
-        # Similar to above, consider a more specific error or re-raise.
-        raise RuntimeError(f"Failed to process URL content: {recipe_url}") from e
+        logger.error(f"Error cleaning HTML text from {url}: {e!r}", exc_info=True)
+        raise RuntimeError(f"Failed to process URL content: {url}") from e
