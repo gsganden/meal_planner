@@ -944,7 +944,8 @@ def _build_save_button() -> FT:
 @rt("/recipes/fetch-text")
 async def post_fetch_text(recipe_url: str | None = None):
     def _create_empty_text_area_container_for_swap():
-        """Helper to create the standard text area container, ensuring consistent ID for swapping."""
+        """Helper to create the standard text area container, ensuring consistent ID
+        for swapping."""
         return Div(
             TextArea(
                 id="recipe_text",
@@ -957,15 +958,12 @@ async def post_fetch_text(recipe_url: str | None = None):
         )
 
     def _prepare_error_response(error_message_str: str):
-        """Helper to create a grouped response for error cases using outerHTML swap for error display."""
-        # This is the actual error message div that will replace the placeholder.
-        # It carries the necessary ID and styling.
+        """Helper to create a grouped response for error cases using outerHTML swap for
+        error display."""
         error_div_content = Div(
             error_message_str, cls=CSS_ERROR_CLASS, id="fetch-url-error-display"
         )
 
-        # This container tells HTMX to take its content (error_div_content)
-        # and use it to replace the outerHTML of the target #fetch-url-error-display.
         error_oob_swap_instruction = Div(
             error_div_content, hx_swap_oob="outerHTML:#fetch-url-error-display"
         )
@@ -993,7 +991,6 @@ async def post_fetch_text(recipe_url: str | None = None):
             id="recipe_text_container",
         )
 
-        # On success, replace #fetch-url-error-display with an empty div (placeholder)
         empty_error_placeholder = Div(id="fetch-url-error-display")
         clear_error_oob_swap_instruction = Div(
             empty_error_placeholder, hx_swap_oob="outerHTML:#fetch-url-error-display"
@@ -1005,7 +1002,7 @@ async def post_fetch_text(recipe_url: str | None = None):
             "HTTP Request Error fetching text from %s: %s",
             recipe_url,
             e,
-            exc_info=False,  # Log less verbosely for common network errors
+            exc_info=False,
         )
         return _prepare_error_response(
             "Error fetching URL. Please check the URL and your connection."
@@ -1018,7 +1015,6 @@ async def post_fetch_text(recipe_url: str | None = None):
             "Error fetching URL: The server returned an error."
         )
     except RuntimeError as e:
-        # This is our custom wrapped error from fetch_and_clean_text_from_url
         logger.error(
             "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
@@ -1059,12 +1055,9 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             cls=CSS_ERROR_CLASS,
         )
 
-    reference_heading = H2("Extracted Recipe (Reference)")
-    rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
-
     rendered_recipe_html = Div(
-        reference_heading,
-        rendered_content_div,
+        H2("Extracted Recipe (Reference)"),
+        _build_recipe_display(processed_recipe.model_dump()),
         cls="mb-6",
     )
 
