@@ -9,29 +9,22 @@ def postprocess_recipe(recipe: RecipeBase) -> RecipeBase:
     if recipe.name:
         recipe.name = _postprocess_recipe_name(recipe.name)
 
-    processed_ingredients = []
-    # Process ingredients only if the list exists and is not empty initially
-    # Note: recipe.ingredients could be None if not provided by Pydantic model,
-    # though default_factory=list should prevent None.
-    # If it's an empty list, this block is skipped.
-    if recipe.ingredients:
-        for i in recipe.ingredients:
-            processed_ing = _postprocess_ingredient(i)
-            if processed_ing:  # Only add if not empty after processing
-                processed_ingredients.append(processed_ing)
+    recipe.ingredients = [
+        processed_ing
+        for ing_str in recipe.ingredients
+        if (processed_ing := _postprocess_ingredient(ing_str))
+    ]
 
-    # If, after processing, the list is empty (it might have been initially empty,
-    # or contained only strippable items like [" "])
-    # then populate with placeholder to satisfy min_length=1.
-    if not processed_ingredients:
-        recipe.ingredients = ["No ingredients found"]
-    else:
-        recipe.ingredients = processed_ingredients
+    if not recipe.ingredients:
+        raise ValueError(
+            "Recipe must have at least one valid ingredient after processing."
+        )
 
-    if recipe.instructions:
-        recipe.instructions = [
-            _postprocess_instruction(i) for i in recipe.instructions if i.strip()
-        ]
+    recipe.instructions = [
+        _postprocess_instruction(i)
+        for i in recipe.instructions
+        if (processed_inst := _postprocess_instruction(i))
+    ]
 
     return recipe
 

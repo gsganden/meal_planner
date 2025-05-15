@@ -60,8 +60,12 @@ class TestPostprocessRecipe:
             ],
             instructions=["Step 1"],
         )
-        processed = postprocess_recipe(recipe)
-        assert processed.ingredients == ["No ingredients found"]
+        with pytest.raises(ValueError) as excinfo:
+            postprocess_recipe(recipe)
+        assert (
+            "Recipe must have at least one valid ingredient after processing."
+            in str(excinfo.value)
+        )
 
     def test_postprocess_instructions(self):
         recipe = RecipeBase(
