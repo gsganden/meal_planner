@@ -76,7 +76,11 @@ def _build_ui_fragment_form_data(
 
 @pytest.mark.anyio
 class TestRecipeSortableListPersistence:
-    INITIAL_RECIPE_TEXT = "Sortable Test Recipe\\\\nIngredients: Ing1, Ing2, Ing3\\\\nInstructions: Step1, Step2"
+    INITIAL_RECIPE_TEXT = (
+        "Sortable Test Recipe\\\\n"
+        "Ingredients: Ing1, Ing2, Ing3\\\\n"
+        "Instructions: Step1, Step2"
+    )
     MOCK_INITIAL_RECIPE = RecipeBase(
         name="Sortable Test Recipe",
         ingredients=["Ing1", "Ing2", "Ing3"],
