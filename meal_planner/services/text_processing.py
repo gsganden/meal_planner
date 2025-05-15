@@ -36,14 +36,12 @@ async def fetch_page_text(recipe_url: str) -> str:
             follow_redirects=True, timeout=15.0, headers=headers
         ) as client:
             response = await client.get(recipe_url)
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response.raise_for_status()
         return response.text
     except Exception as e:
         logger.error(
             f"Error fetching page text from {recipe_url}: {e!r}", exc_info=True
         )
-        # Re-raise the original exception to be handled by the caller
-        # or a higher-level error handler.
         raise
 
 
