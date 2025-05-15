@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 
@@ -85,7 +85,9 @@ async def test_generate_recipe_from_text_success(
 ):
     """Test successful recipe generation from text."""
     test_text = "Some recipe text"
-    mock_prompt_file = AsyncMock(spec=Path)
+    from unittest.mock import MagicMock
+
+    mock_prompt_file = MagicMock(spec=Path)
     mock_prompt_file.read_text.return_value = "Prompt template: {page_text}"
     mock_prompt_file.name = "test_prompt.txt"
     mock_get_prompt_path.return_value = mock_prompt_file
@@ -153,7 +155,7 @@ async def test_generate_recipe_from_text_generic_exception(
 ):
     """Test generic Exception during recipe generation from text."""
     test_text = "Some recipe text"
-    mock_prompt_file = AsyncMock(spec=Path)
+    mock_prompt_file = MagicMock(spec=Path)
     mock_prompt_file.read_text.return_value = "Prompt: {page_text}"
     mock_prompt_file.name = "test_prompt.txt"
     mock_get_prompt_path.return_value = mock_prompt_file
@@ -190,7 +192,7 @@ async def test_generate_modified_recipe_success(
     )
     modification_request = "Make it vegan"
 
-    mock_prompt_file = AsyncMock(spec=Path)
+    mock_prompt_file = MagicMock(spec=Path)
     mock_prompt_file.read_text.return_value = (
         "Mod Prompt: {current_recipe_markdown} {modification_prompt}"
     )
@@ -275,7 +277,7 @@ async def test_generate_modified_recipe_generic_exception(
     )
     modification_request = "Another mod request"
 
-    mock_prompt_file = AsyncMock(spec=Path)
+    mock_prompt_file = MagicMock(spec=Path)
     mock_prompt_file.read_text.return_value = "Mod Prompt: ..."
     mock_prompt_file.name = "mod_prompt.txt"
     mock_get_prompt_path.return_value = mock_prompt_file
