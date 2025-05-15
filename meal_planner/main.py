@@ -1355,22 +1355,12 @@ async def post_delete_ingredient_row(request: Request, index: int):
         new_ingredient_item_components = _render_ingredient_list_items(
             new_current_recipe.ingredients
         )
-        ingredients_list_component = Div(
-            *new_ingredient_item_components,
-            id="ingredients-list",
-            cls="mb-4",
+        return _build_sortable_list_with_oob_diff(
+            list_id="ingredients-list",
+            rendered_list_items=new_ingredient_item_components,
+            original_recipe=original_recipe,
+            current_recipe=new_current_recipe,
         )
-
-        before_notstr, after_notstr = _build_diff_content_children(
-            original_recipe, new_current_recipe.markdown
-        )
-        oob_diff_component = Div(
-            before_notstr,
-            after_notstr,
-            hx_swap_oob="innerHTML:#diff-content-wrapper",
-        )
-
-        return ingredients_list_component, oob_diff_component
 
     except ValidationError as e:
         logger.error(
@@ -1422,18 +1412,12 @@ async def post_delete_instruction_row(request: Request, index: int):
         new_instruction_item_components = _render_instruction_list_items(
             new_current_recipe.instructions
         )
-        instructions_list_component = Div(
-            *new_instruction_item_components, id="instructions-list", cls="mb-4"
+        return _build_sortable_list_with_oob_diff(
+            list_id="instructions-list",
+            rendered_list_items=new_instruction_item_components,
+            original_recipe=original_recipe,
+            current_recipe=new_current_recipe,
         )
-
-        before_notstr, after_notstr = _build_diff_content_children(
-            original_recipe, new_current_recipe.markdown
-        )
-        oob_diff_component = Div(
-            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
-        )
-
-        return instructions_list_component, oob_diff_component
 
     except ValidationError as e:
         logger.error(
@@ -1481,20 +1465,12 @@ async def post_add_ingredient_row(request: Request):
         new_ingredient_item_components = _render_ingredient_list_items(
             new_current_recipe.ingredients
         )
-        ingredients_list_component = Div(
-            *new_ingredient_item_components,
-            id="ingredients-list",
-            cls="mb-4",
+        return _build_sortable_list_with_oob_diff(
+            list_id="ingredients-list",
+            rendered_list_items=new_ingredient_item_components,
+            original_recipe=original_recipe,
+            current_recipe=new_current_recipe,
         )
-
-        before_notstr, after_notstr = _build_diff_content_children(
-            original_recipe, new_current_recipe.markdown
-        )
-        oob_diff_component = Div(
-            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
-        )
-
-        return ingredients_list_component, oob_diff_component
 
     except ValidationError as e:
         logger.error(
@@ -1534,18 +1510,12 @@ async def post_add_instruction_row(request: Request):
         new_instruction_item_components = _render_instruction_list_items(
             new_current_recipe.instructions
         )
-        instructions_list_component = Div(
-            *new_instruction_item_components, id="instructions-list", cls="mb-4"
+        return _build_sortable_list_with_oob_diff(
+            list_id="instructions-list",
+            rendered_list_items=new_instruction_item_components,
+            original_recipe=original_recipe,
+            current_recipe=new_current_recipe,
         )
-
-        before_notstr, after_notstr = _build_diff_content_children(
-            original_recipe, new_current_recipe.markdown
-        )
-        oob_diff_component = Div(
-            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
-        )
-
-        return instructions_list_component, oob_diff_component
 
     except ValidationError as e:
         logger.error(
@@ -1594,3 +1564,44 @@ async def update_diff(request: Request) -> FT:
     except Exception as e:
         logger.error("Error updating diff: %s", e, exc_info=True)
         return Div("Error updating diff view.", cls=CSS_ERROR_CLASS)
+
+
+def _build_sortable_list_with_oob_diff(
+    list_id: str,
+    rendered_list_items: list[Tag],
+    original_recipe: RecipeBase,
+    current_recipe: RecipeBase,
+) -> tuple[Div, Div]:
+    """
+    Builds a sortable list component and an OOB diff component.
+
+    Args:
+        list_id: The HTML ID for the list container (e.g., "ingredients-list").
+        rendered_list_items: A list of fasthtml.Tag components representing the items.
+        original_recipe: The baseline recipe for the diff.
+        current_recipe: The current state of the recipe for the diff.
+
+    Returns:
+        A tuple containing the list component Div and the OOB diff component Div.
+    """
+    list_component = Div(
+        *rendered_list_items,
+        id=list_id,
+        cls="mb-4",
+        uk_sortable="handle: .drag-handle",
+        hx_trigger="moved",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_include="closest form",
+    )
+
+    before_notstr, after_notstr = _build_diff_content_children(
+        original_recipe, current_recipe.markdown
+    )
+    oob_diff_component = Div(
+        before_notstr,
+        after_notstr,
+        hx_swap_oob="innerHTML:#diff-content-wrapper",
+    )
+    return list_component, oob_diff_component
