@@ -47,12 +47,12 @@ app.mount("/api", api_app)
 
 internal_client = httpx.AsyncClient(
     transport=ASGITransport(app=app),
-    base_url="http://internal",
+    base_url="http://internal",  # arbitrary
 )
 
 internal_api_client = httpx.AsyncClient(
     transport=ASGITransport(app=api_app),
-    base_url="http://internal-api",
+    base_url="http://internal-api",  # arbitrary
 )
 
 
