@@ -1058,7 +1058,7 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
     rendered_recipe_html = Div(
         H2("Extracted Recipe (Reference)"),
         _build_recipe_display(processed_recipe.model_dump()),
-        cls="mb-6",
+        cls="mb-6 space-y-4",
     )
 
     edit_form_card, review_section_card = _build_edit_review_form(
