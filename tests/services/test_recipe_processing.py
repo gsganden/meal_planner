@@ -50,6 +50,23 @@ class TestPostprocessRecipe:
             "Ends with comma,",
         ]
 
+    def test_postprocess_ingredients_empty_result(self):
+        recipe = RecipeBase(
+            name="Test Name For Empty Ingredients",
+            ingredients=[
+                "  ",  # Just whitespace
+                "\t",  # Just a tab
+                "",  # Empty string
+            ],
+            instructions=["Step 1"],
+        )
+        with pytest.raises(ValueError) as excinfo:
+            postprocess_recipe(recipe)
+        assert (
+            "Recipe must have at least one valid ingredient after processing."
+            in str(excinfo.value)
+        )
+
     def test_postprocess_instructions(self):
         recipe = RecipeBase(
             name="Test Name",

@@ -1,32 +1,31 @@
 import difflib
 import logging
-import os
 from pathlib import Path
-from typing import TypeVar
 
 import html2text
 import httpx
-import instructor
 from bs4.element import Tag
 from fastapi import FastAPI, Request, status
 from fasthtml.common import *
 from httpx import ASGITransport
 from monsterui.all import *
-from openai import AsyncOpenAI
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
+from meal_planner.services.llm_service import (
+    generate_modified_recipe as llm_generate_modified_recipe,
+)
+from meal_planner.services.llm_service import (
+    generate_recipe_from_text as llm_generate_recipe_from_text,
+)
 from meal_planner.services.recipe_processing import postprocess_recipe
 
 MODEL_NAME = "gemini-2.0-flash"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"
-ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
 
-PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompt_templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 logging.basicConfig(
@@ -36,13 +35,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-openai_client = AsyncOpenAI(
-    api_key=os.environ["GOOGLE_API_KEY"],
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-)
-
-aclient = instructor.from_openai(openai_client)
 
 app = FastHTMLWithLiveReload(hdrs=(Theme.blue.headers()))
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -58,7 +50,6 @@ internal_client = httpx.AsyncClient(
     base_url="http://internal",  # arbitrary
 )
 
-# One client would suffice, but separating them makes mocking easier
 internal_api_client = httpx.AsyncClient(
     transport=ASGITransport(app=api_app),
     base_url="http://internal-api",  # arbitrary
@@ -229,6 +220,7 @@ def get():
         H3("URL"),
         url_input_component,
         H3("Text"),
+        Div(id="fetch-url-error-display"),
         text_area_container,
         extract_button_group,
         disclaimer,
@@ -413,60 +405,35 @@ def _build_recipe_display(recipe_data: dict):
 
 
 async def fetch_page_text(recipe_url: str):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
-        "image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-    }
-    async with httpx.AsyncClient(
-        follow_redirects=True, timeout=15.0, headers=headers
-    ) as client:
-        response = await client.get(recipe_url)
-    response.raise_for_status()
-    return response.text
-
-
-T = TypeVar("T", bound=BaseModel)
-
-
-async def get_structured_llm_response(prompt: str, response_model: type[T]) -> T:
-    logger.info(
-        "LLM Call Start: model=%s, response_model=%s",
-        MODEL_NAME,
-        response_model.__name__,
-    )
-    logger.debug("LLM Prompt:\n%s", prompt)
+    """Fetches the raw text content of a webpage."""
     try:
-        response = await aclient.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "user", "content": prompt},
-            ],
-            response_model=response_model,
-        )
-        logger.info(
-            "LLM Call Success: model=%s, response_model=%s",
-            MODEL_NAME,
-            response_model.__name__,
-        )
-        logger.debug("LLM Parsed Object: %r", response)
-        return response
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
+                "image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+        }
+        async with httpx.AsyncClient(
+            follow_redirects=True, timeout=15.0, headers=headers
+        ) as client:
+            response = await client.get(recipe_url)
+        response.raise_for_status()
+        return response.text
     except Exception as e:
         logger.error(
-            "LLM Call Error: model=%s, response_model=%s, error=%s",
-            MODEL_NAME,
-            response_model.__name__,
-            e,
-            exc_info=True,
+            "Error fetching page text from %s: %s", recipe_url, e, exc_info=True
         )
         raise
 
 
 async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
-    """Fetches and cleans text content from a URL."""
+    """Fetches and cleans HTML from a URL, returning plain text."""
     logger.info("Fetching text from: %s", recipe_url)
     try:
         raw_text = await fetch_page_text(recipe_url)
@@ -506,35 +473,29 @@ async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
     """Extracts and post-processes a recipe from text."""
-    logger.info("Starting recipe extraction from text:\\n%s", page_text)
+    logger.info(
+        "Starting recipe extraction from text (via llm_service). Text:\n%s", page_text
+    )
     try:
-        prompt_file_path = _get_prompt_path(
-            "recipe_extraction", ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
-        )
-        logger.info("Using extraction prompt file: %s", prompt_file_path.name)
-        prompt_text = prompt_file_path.read_text().format(page_text=page_text)
-
-        extracted_recipe: RecipeBase = await get_structured_llm_response(
-            prompt=prompt_text,
-            response_model=RecipeBase,
+        extracted_recipe: RecipeBase = await llm_generate_recipe_from_text(
+            text=page_text
         )
     except Exception as e:
         logger.error(
-            "Error during recipe extraction call: %s", MODEL_NAME, e, exc_info=True
+            "Error calling llm_generate_recipe_from_text from "
+            "extract_recipe_from_text: %s",
+            e,
+            exc_info=True,
         )
         raise
+
     processed_recipe = postprocess_recipe(extracted_recipe)
     logger.info(
-        "Extraction and postprocessing successful. Recipe Name: %s",
+        "Extraction (via llm_service) and postprocessing successful. Recipe Name: %s",
         processed_recipe.name,
     )
     logger.debug("Processed Recipe Object: %r", processed_recipe)
     return processed_recipe
-
-
-def _get_prompt_path(category: str, filename: str) -> Path:
-    """Constructs the full path to a prompt file."""
-    return PROMPT_DIR / category / filename
 
 
 async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
@@ -982,14 +943,60 @@ def _build_save_button() -> FT:
 
 @rt("/recipes/fetch-text")
 async def post_fetch_text(recipe_url: str | None = None):
+    def _create_empty_text_area_container_for_swap():
+        """Helper to create the standard text area container, ensuring consistent ID
+        for swapping."""
+        return Div(
+            TextArea(
+                id="recipe_text",
+                name="recipe_text",
+                placeholder="Paste full recipe text here, or fetch from URL above.",
+                rows=15,
+                cls="mb-4",
+            ),
+            id="recipe_text_container",
+        )
+
+    def _prepare_error_response(error_message_str: str):
+        """Helper to create a grouped response for error cases using outerHTML swap for
+        error display."""
+        error_div_content = Div(
+            error_message_str, cls=CSS_ERROR_CLASS, id="fetch-url-error-display"
+        )
+
+        error_oob_swap_instruction = Div(
+            error_div_content, hx_swap_oob="outerHTML:#fetch-url-error-display"
+        )
+        main_content_replacement = _create_empty_text_area_container_for_swap()
+        return Group(main_content_replacement, error_oob_swap_instruction)
+
     if not recipe_url:
         logger.error("Fetch text called without URL.")
-        return Div("Please provide a Recipe URL to fetch.", cls=CSS_ERROR_CLASS)
+        return _prepare_error_response("Please provide a Recipe URL to fetch.")
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", recipe_url)
         cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
         logger.info("Successfully processed URL for text: %s", recipe_url)
+
+        main_content_replacement = Div(
+            TextArea(
+                cleaned_text,
+                id="recipe_text",
+                name="recipe_text",
+                rows=15,
+                placeholder="Paste recipe text here, or fetch from URL above.",
+                cls="mb-4",
+            ),
+            id="recipe_text_container",
+        )
+
+        empty_error_placeholder = Div(id="fetch-url-error-display")
+        clear_error_oob_swap_instruction = Div(
+            empty_error_placeholder, hx_swap_oob="outerHTML:#fetch-url-error-display"
+        )
+        return Group(main_content_replacement, clear_error_oob_swap_instruction)
+
     except httpx.RequestError as e:
         logger.error(
             "HTTP Request Error fetching text from %s: %s",
@@ -997,40 +1004,28 @@ async def post_fetch_text(recipe_url: str | None = None):
             e,
             exc_info=False,
         )
-        return Div(
-            "Error fetching URL. Please check the URL and your connection.",
-            cls=CSS_ERROR_CLASS,
+        return _prepare_error_response(
+            "Error fetching URL. Please check the URL and your connection."
         )
     except httpx.HTTPStatusError as e:
         logger.error(
             "HTTP Status Error fetching text from %s: %s", recipe_url, e, exc_info=False
         )
-        return Div(
-            "Error fetching URL: The server returned an error.",
-            cls=CSS_ERROR_CLASS,
+        return _prepare_error_response(
+            "Error fetching URL: The server returned an error."
         )
     except RuntimeError as e:
         logger.error(
             "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return Div("Failed to process the content from the URL.", cls=CSS_ERROR_CLASS)
+        return _prepare_error_response("Failed to process the content from the URL.")
     except Exception as e:
         logger.error(
             "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
         )
-        return Div("Unexpected error fetching text.", cls=CSS_ERROR_CLASS)
-
-    return Div(
-        TextArea(
-            cleaned_text,
-            id="recipe_text",
-            name="recipe_text",
-            rows=15,
-            placeholder="Paste recipe text here, or fetch from URL above.",
-            cls="mb-4",
-        ),
-        id="recipe_text_container",
-    )
+        return _prepare_error_response(
+            "An unexpected error occurred while fetching text."
+        )
 
 
 @rt("/recipes/extract/run")
@@ -1060,20 +1055,10 @@ async def post(recipe_url: str | None = None, recipe_text: str | None = None):
             cls=CSS_ERROR_CLASS,
         )
 
-    if not processed_recipe.ingredients:
-        logger.warning(
-            "Extraction resulted in empty ingredients. Filling placeholder. Name: %s",
-            processed_recipe.name,
-        )
-        processed_recipe.ingredients = ["No ingredients found"]
-
-    reference_heading = H2("Extracted Recipe (Reference)")
-    rendered_content_div = _build_recipe_display(processed_recipe.model_dump())
-
     rendered_recipe_html = Div(
-        reference_heading,
-        rendered_content_div,
-        cls="mb-6",
+        H2("Extracted Recipe (Reference)"),
+        _build_recipe_display(processed_recipe.model_dump()),
+        cls="mb-6 space-y-4",
     )
 
     edit_form_card, review_section_card = _build_edit_review_form(
@@ -1317,45 +1302,35 @@ def _parse_and_validate_modify_form(
 async def _request_recipe_modification(
     current_recipe: RecipeBase, modification_prompt: str
 ) -> RecipeBase:
-    """Requests recipe modification from LLM.
-
-    Returns:
-        The modified Recipe object.
-
-    Raises:
-        RecipeModificationError: If the LLM call or postprocessing fails.
-    """
-    logger.info("Starting recipe modification. Prompt: %s", modification_prompt)
+    """Requests recipe modification from LLM service and handles postprocessing."""
+    logger.info(
+        "Requesting recipe modification from llm_service. Current: %s, Prompt: %s",
+        current_recipe.name,
+        modification_prompt,
+    )
     try:
-        prompt_file_path = _get_prompt_path(
-            "recipe_modification", ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE
-        )
-        logger.info("Using modification prompt file: %s", prompt_file_path.name)
-        modification_template = prompt_file_path.read_text()
-        modification_full_prompt = modification_template.format(
-            current_recipe_markdown=current_recipe.markdown,
-            modification_prompt=modification_prompt,
-        )
-        modified_recipe: RecipeBase = await get_structured_llm_response(
-            prompt=modification_full_prompt,
-            response_model=RecipeBase,
+        modified_recipe: RecipeBase = await llm_generate_modified_recipe(
+            current_recipe=current_recipe, modification_request=modification_prompt
         )
         processed_recipe = postprocess_recipe(modified_recipe)
         logger.info(
-            "Modification and postprocessing successful. Recipe Name: %s",
+            "Modification (via llm_service) and postprocessing successful. "
+            "Recipe Name: %s",
             processed_recipe.name,
         )
         logger.debug("Modified Recipe Object: %r", processed_recipe)
         return processed_recipe
-
     except Exception as e:
         logger.error(
-            "Error during recipe modification for prompt '%s': %s",
-            modification_prompt,
+            "Error calling llm_generate_modified_recipe from "
+            "_request_recipe_modification: %s",
             e,
             exc_info=True,
         )
-        user_message = "Recipe modification failed. An unexpected error occurred."
+        user_message = (
+            "Recipe modification failed. "
+            "An unexpected error occurred during service call."
+        )
         raise RecipeModificationError(user_message) from e
 
 
@@ -1380,22 +1355,12 @@ async def post_delete_ingredient_row(request: Request, index: int):
         new_ingredient_item_components = _render_ingredient_list_items(
             new_current_recipe.ingredients
         )
-        ingredients_list_component = Div(
-            *new_ingredient_item_components,
-            id="ingredients-list",
-            cls="mb-4",
+        return _build_sortable_list_with_oob_diff(
+            list_id="ingredients-list",
+            rendered_list_items=new_ingredient_item_components,
+            original_recipe=original_recipe,
+            current_recipe=new_current_recipe,
         )
-
-        before_notstr, after_notstr = _build_diff_content_children(
-            original_recipe, new_current_recipe.markdown
-        )
-        oob_diff_component = Div(
-            before_notstr,
-            after_notstr,
-            hx_swap_oob="innerHTML:#diff-content-wrapper",
-        )
-
-        return ingredients_list_component, oob_diff_component
 
     except ValidationError as e:
         logger.error(
@@ -1447,18 +1412,12 @@ async def post_delete_instruction_row(request: Request, index: int):
         new_instruction_item_components = _render_instruction_list_items(
             new_current_recipe.instructions
         )
-        instructions_list_component = Div(
-            *new_instruction_item_components, id="instructions-list", cls="mb-4"
+        return _build_sortable_list_with_oob_diff(
+            list_id="instructions-list",
+            rendered_list_items=new_instruction_item_components,
+            original_recipe=original_recipe,
+            current_recipe=new_current_recipe,
         )
-
-        before_notstr, after_notstr = _build_diff_content_children(
-            original_recipe, new_current_recipe.markdown
-        )
-        oob_diff_component = Div(
-            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
-        )
-
-        return instructions_list_component, oob_diff_component
 
     except ValidationError as e:
         logger.error(
@@ -1506,20 +1465,12 @@ async def post_add_ingredient_row(request: Request):
         new_ingredient_item_components = _render_ingredient_list_items(
             new_current_recipe.ingredients
         )
-        ingredients_list_component = Div(
-            *new_ingredient_item_components,
-            id="ingredients-list",
-            cls="mb-4",
+        return _build_sortable_list_with_oob_diff(
+            list_id="ingredients-list",
+            rendered_list_items=new_ingredient_item_components,
+            original_recipe=original_recipe,
+            current_recipe=new_current_recipe,
         )
-
-        before_notstr, after_notstr = _build_diff_content_children(
-            original_recipe, new_current_recipe.markdown
-        )
-        oob_diff_component = Div(
-            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
-        )
-
-        return ingredients_list_component, oob_diff_component
 
     except ValidationError as e:
         logger.error(
@@ -1559,18 +1510,12 @@ async def post_add_instruction_row(request: Request):
         new_instruction_item_components = _render_instruction_list_items(
             new_current_recipe.instructions
         )
-        instructions_list_component = Div(
-            *new_instruction_item_components, id="instructions-list", cls="mb-4"
+        return _build_sortable_list_with_oob_diff(
+            list_id="instructions-list",
+            rendered_list_items=new_instruction_item_components,
+            original_recipe=original_recipe,
+            current_recipe=new_current_recipe,
         )
-
-        before_notstr, after_notstr = _build_diff_content_children(
-            original_recipe, new_current_recipe.markdown
-        )
-        oob_diff_component = Div(
-            before_notstr, after_notstr, hx_swap_oob="innerHTML:#diff-content-wrapper"
-        )
-
-        return instructions_list_component, oob_diff_component
 
     except ValidationError as e:
         logger.error(
@@ -1619,3 +1564,44 @@ async def update_diff(request: Request) -> FT:
     except Exception as e:
         logger.error("Error updating diff: %s", e, exc_info=True)
         return Div("Error updating diff view.", cls=CSS_ERROR_CLASS)
+
+
+def _build_sortable_list_with_oob_diff(
+    list_id: str,
+    rendered_list_items: list[Tag],
+    original_recipe: RecipeBase,
+    current_recipe: RecipeBase,
+) -> tuple[Div, Div]:
+    """
+    Builds a sortable list component and an OOB diff component.
+
+    Args:
+        list_id: The HTML ID for the list container (e.g., "ingredients-list").
+        rendered_list_items: A list of fasthtml.Tag components representing the items.
+        original_recipe: The baseline recipe for the diff.
+        current_recipe: The current state of the recipe for the diff.
+
+    Returns:
+        A tuple containing the list component Div and the OOB diff component Div.
+    """
+    list_component = Div(
+        *rendered_list_items,
+        id=list_id,
+        cls="mb-4",
+        uk_sortable="handle: .drag-handle",
+        hx_trigger="moved",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_include="closest form",
+    )
+
+    before_notstr, after_notstr = _build_diff_content_children(
+        original_recipe, current_recipe.markdown
+    )
+    oob_diff_component = Div(
+        before_notstr,
+        after_notstr,
+        hx_swap_oob="innerHTML:#diff-content-wrapper",
+    )
+    return list_component, oob_diff_component

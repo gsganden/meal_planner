@@ -8,14 +8,23 @@ def postprocess_recipe(recipe: RecipeBase) -> RecipeBase:
     """Post-processes the extracted recipe data."""
     if recipe.name:
         recipe.name = _postprocess_recipe_name(recipe.name)
-    if recipe.ingredients:
-        recipe.ingredients = [
-            _postprocess_ingredient(i) for i in recipe.ingredients if i.strip()
-        ]
-    if recipe.instructions:
-        recipe.instructions = [
-            _postprocess_instruction(i) for i in recipe.instructions if i.strip()
-        ]
+
+    recipe.ingredients = [
+        processed_ing
+        for ing_str in recipe.ingredients
+        if (processed_ing := _postprocess_ingredient(ing_str))
+    ]
+
+    if not recipe.ingredients:
+        raise ValueError(
+            "Recipe must have at least one valid ingredient after processing."
+        )
+
+    recipe.instructions = [
+        processed_inst
+        for i in recipe.instructions
+        if (processed_inst := _postprocess_instruction(i))
+    ]
 
     return recipe
 
