@@ -17,18 +17,16 @@ graph LR
 
     subgraph "Meal Planner Application"
         direction LR
-        subgraph "UI & Presentation Layer (main.py)" %% Clarified main.py's role here
-            UI_Layer["FastHTML, MonsterUI, HTMX<br/>Serves HTML, UI Logic<br/>Orchestrates Service & API calls<br/>Handles Web Routes"]
-        end
+        UI_Layer["UI & orchestration<br/>(main.py)<br/>FastHTML, MonsterUI, HTMX"]
 
-        subgraph "Business Logic / Services"
+        subgraph "Business Logic (services/)"
             direction TB
-            Recipe_Processing_Service["Recipe Processing Service<br/>(recipe_processing.py)"]
-            LLM_Service["LLM Service<br/>(llm_service.py)"]
+            Recipe_Processing_Service["Recipe processing<br/>(recipe_processing.py)"]
+            LLM_Service["LLM calls<br/>(llm_service.py)<br/> OpenAI client, Instructor"]
         end
 
-        subgraph "Backend API Layer"
-            API_Layer["FastAPI<br/>RESTful Endpoints<br/>DB Interaction"]
+        subgraph "Backend API Layer (api/)"
+            API_Layer["Recipe CRUD operations<br/>(recipes.py)<br/>FastAPI"]
         end
 
         UI_Layer -- "Uses" --> Recipe_Processing_Service
@@ -36,10 +34,10 @@ graph LR
         UI_Layer -- "Internal API Call" --> API_Layer
     end
 
-    subgraph "External Data & AI"
+    subgraph "External Resources"
         direction TB
         Database[("Database (SQLite)")]
-        Gemini_AI["Google Gemini AI Service<br/>openai client, instructor"]
+        Gemini_AI["Google Gemini"]
     end
 
     User --> Modal
