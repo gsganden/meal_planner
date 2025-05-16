@@ -11,8 +11,8 @@ from monsterui.all import *
 from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
-from starlette.staticfiles import StaticFiles
 from starlette.responses import HTMLResponse
+from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
@@ -936,7 +936,10 @@ async def post_save_recipe(request: Request):
     else:
         user_final_message = "Current Recipe Saved!"
         css_class = str(TextT.success)
-        html_content = f'<span id="save-button-container" class="{css_class}">{user_final_message}</span>'
+        html_content = (
+            f'<span id="save-button-container" class="{css_class}">{user_final_message}'
+            "</span>"
+        )
         return HTMLResponse(content=html_content, headers=headers)
 
 
