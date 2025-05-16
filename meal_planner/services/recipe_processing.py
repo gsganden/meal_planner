@@ -43,7 +43,7 @@ def _postprocess_ingredient(ingredient: str) -> str:
 
 def _postprocess_instruction(instruction: str) -> str:
     """Cleans and standardizes a single instruction string."""
-    return (
+    return _ensure_ending_punctuation(
         _remove_leading_step_numbers(html.unescape(instruction))
         .replace(" ,", ",")
         .replace(" ;", ";")
@@ -64,3 +64,25 @@ def _close_parenthesis(text: str) -> str:
     if "(" in text and ")" not in text:
         return text + ")"
     return text
+
+
+def _ensure_ending_punctuation(text: str) -> str:
+    """Adds a period at the end of text if it doesn't end with punctuation.
+
+    For text ending with a closing parenthesis, ensures there's a period
+    before the closing parenthesis if needed.
+    """
+    if not text:
+        return text
+
+    ending_punctuation = [".", "!", "?", ":", ";"]
+
+    if text[-1] in ending_punctuation:
+        return text
+
+    if text.endswith(")"):
+        if len(text) > 1 and text[-2] not in ending_punctuation:
+            return text[:-1] + "." + text[-1]
+        return text
+
+    return text + "."

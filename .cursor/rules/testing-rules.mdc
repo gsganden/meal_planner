@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Use `pre-commit run --hook-stage push` to check for issues after completing a set of changes.
+To run tests and check coverage, it is usually best to run `./run_fast_coverage.sh`. That script skips most of the slow tests that check LLM outputs. If we have made changes that might affect LLM outputs, use `source .env && uv run pytest --runslow` first.
+We will use Modal to deploy the app (`uv run modal deploy deploy.py`) and run it locally (`uv run modal serve deploy.py`). It does not need to run outside Modal.

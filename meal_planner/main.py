@@ -2,7 +2,6 @@ import difflib
 import logging
 from pathlib import Path
 
-import html2text
 import httpx
 from bs4.element import Tag
 from fastapi import FastAPI, Request, status
@@ -23,6 +22,9 @@ from meal_planner.services.llm_service import (
     generate_recipe_from_text as llm_generate_recipe_from_text,
 )
 from meal_planner.services.recipe_processing import postprocess_recipe
+from meal_planner.services.webpage_text_extractor import (
+    fetch_and_clean_text_from_url,
+)
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -55,16 +57,7 @@ internal_api_client = httpx.AsyncClient(
     base_url="http://internal-api",  # arbitrary
 )
 
-
-def create_html_cleaner() -> html2text.HTML2Text:
-    h = html2text.HTML2Text()
-    h.ignore_links = True
-    h.ignore_images = True
-    h.body_width = 0
-    return h
-
-
-HTML_CLEANER = create_html_cleaner()
+CSS_ERROR_CLASS = str(TextT.error)
 
 
 @rt("/")
@@ -158,8 +151,8 @@ def get():
     url_input_component = Div(
         Div(
             Input(
-                id="recipe_url",
-                name="recipe_url",
+                id="input_url",
+                name="input_url",
                 type="url",
                 placeholder="https://example.com/recipe",
                 cls="flex-grow mr-2",
@@ -170,7 +163,7 @@ def get():
                     hx_post="/recipes/fetch-text",
                     hx_target="#recipe_text_container",
                     hx_swap="outerHTML",
-                    hx_include="[name='recipe_url']",
+                    hx_include="[name='input_url']",
                     hx_indicator="#fetch-indicator",
                     cls=ButtonT.primary,
                 ),
@@ -219,8 +212,8 @@ def get():
         H2("Extract Recipe"),
         H3("URL"),
         url_input_component,
+        Div(id="fetch-url-error-display", cls="mt-2 mb-2"),
         H3("Text"),
-        Div(id="fetch-url-error-display"),
         text_area_container,
         extract_button_group,
         disclaimer,
@@ -295,7 +288,7 @@ async def get_recipes_htmx(request: Request):
                         cls="mr-2",
                     ),
                     Button(
-                        UkIcon("minus-circle", cls=TextT.error),
+                        UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
                         title="Delete",
                         hx_delete=f"/api/v0/recipes/{recipe['id']}",
                         hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
@@ -404,88 +397,16 @@ def _build_recipe_display(recipe_data: dict):
     )
 
 
-async def fetch_page_text(recipe_url: str):
-    """Fetches the raw text content of a webpage."""
-    try:
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            ),
-            "Accept": (
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
-                "image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
-            ),
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-        }
-        async with httpx.AsyncClient(
-            follow_redirects=True, timeout=15.0, headers=headers
-        ) as client:
-            response = await client.get(recipe_url)
-        response.raise_for_status()
-        return response.text
-    except Exception as e:
-        logger.error(
-            "Error fetching page text from %s: %s", recipe_url, e, exc_info=True
-        )
-        raise
-
-
-async def fetch_and_clean_text_from_url(recipe_url: str) -> str:
-    """Fetches and cleans HTML from a URL, returning plain text."""
-    logger.info("Fetching text from: %s", recipe_url)
-    try:
-        raw_text = await fetch_page_text(recipe_url)
-        logger.info("Successfully fetched text from: %s", recipe_url)
-    except httpx.RequestError as e:
-        logger.error(
-            "HTTP Request Error fetching page text from %s: %s",
-            recipe_url,
-            e,
-            exc_info=True,
-        )
-        raise
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "HTTP Status Error fetching page text from %s: %s",
-            recipe_url,
-            e,
-            exc_info=True,
-        )
-        raise
-    except Exception as e:
-        logger.error(
-            "Error fetching page text from %s: %s", recipe_url, e, exc_info=True
-        )
-        raise RuntimeError(f"Failed to fetch or process URL: {recipe_url}") from e
-
-    try:
-        page_text = HTML_CLEANER.handle(raw_text)
-        logger.info("Cleaned HTML text from: %s", recipe_url)
-        return page_text
-    except Exception as e:
-        logger.error(
-            "Error cleaning HTML text from %s: %s", recipe_url, e, exc_info=True
-        )
-        raise RuntimeError(f"Failed to process URL content: {recipe_url}") from e
-
-
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
-    """Extracts and post-processes a recipe from text."""
-    logger.info(
-        "Starting recipe extraction from text (via llm_service). Text:\n%s", page_text
-    )
+    """Extracts a recipe from the given text using an LLM and postprocesses it."""
+    logger.info("Attempting to extract recipe from provided text.")
     try:
         extracted_recipe: RecipeBase = await llm_generate_recipe_from_text(
             text=page_text
         )
     except Exception as e:
         logger.error(
-            "Error calling llm_generate_recipe_from_text from "
-            "extract_recipe_from_text: %s",
-            e,
-            exc_info=True,
+            f"LLM service failed to generate recipe from text: {e!r}", exc_info=True
         )
         raise
 
@@ -499,13 +420,9 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
 
 
 async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
-    """Fetches text from a URL and extracts a recipe from it."""
-    return await extract_recipe_from_text(
-        await fetch_and_clean_text_from_url(recipe_url)
-    )
-
-
-CSS_ERROR_CLASS = f"{TextT.error} mb-4"
+    """Fetches text from a URL, cleans it, and extracts a recipe from it."""
+    cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
+    return await extract_recipe_from_text(cleaned_text)
 
 
 def generate_diff_html(
@@ -780,7 +697,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
         )
 
         button_component = Button(
-            UkIcon("minus-circle", cls=TextT.error),
+            UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
             type="button",
             hx_post=f"/recipes/ui/delete-ingredient/{i}",
             hx_target="#ingredients-list",
@@ -852,7 +769,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
         )
 
         button_component = Button(
-            UkIcon("minus-circle", cls=TextT.error),
+            UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
             type="button",
             hx_post=f"/recipes/ui/delete-instruction/{i}",
             hx_target="#instructions-list",
@@ -942,11 +859,13 @@ def _build_save_button() -> FT:
 
 
 @rt("/recipes/fetch-text")
-async def post_fetch_text(recipe_url: str | None = None):
-    def _create_empty_text_area_container_for_swap():
-        """Helper to create the standard text area container, ensuring consistent ID
-        for swapping."""
-        return Div(
+async def post_fetch_text(input_url: str | None = None):
+    def _prepare_error_response(error_message_str: str):
+        error_div = Div(
+            error_message_str, cls=CSS_ERROR_CLASS, id="fetch-url-error-display"
+        )
+        error_oob = Div(error_div, hx_swap_oob="outerHTML:#fetch-url-error-display")
+        text_area = Div(
             TextArea(
                 id="recipe_text",
                 name="recipe_text",
@@ -956,72 +875,58 @@ async def post_fetch_text(recipe_url: str | None = None):
             ),
             id="recipe_text_container",
         )
+        return Group(text_area, error_oob)
 
-    def _prepare_error_response(error_message_str: str):
-        """Helper to create a grouped response for error cases using outerHTML swap for
-        error display."""
-        error_div_content = Div(
-            error_message_str, cls=CSS_ERROR_CLASS, id="fetch-url-error-display"
-        )
-
-        error_oob_swap_instruction = Div(
-            error_div_content, hx_swap_oob="outerHTML:#fetch-url-error-display"
-        )
-        main_content_replacement = _create_empty_text_area_container_for_swap()
-        return Group(main_content_replacement, error_oob_swap_instruction)
-
-    if not recipe_url:
+    if not input_url:
         logger.error("Fetch text called without URL.")
         return _prepare_error_response("Please provide a Recipe URL to fetch.")
 
     try:
-        logger.info("Fetching and cleaning text from URL: %s", recipe_url)
-        cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
-        logger.info("Successfully processed URL for text: %s", recipe_url)
-
-        main_content_replacement = Div(
+        logger.info("Fetching and cleaning text from URL: %s", input_url)
+        cleaned_text = await fetch_and_clean_text_from_url(input_url)
+        text_area = Div(
             TextArea(
                 cleaned_text,
                 id="recipe_text",
                 name="recipe_text",
+                placeholder="Paste full recipe text here, or fetch from URL above.",
                 rows=15,
-                placeholder="Paste recipe text here, or fetch from URL above.",
                 cls="mb-4",
             ),
             id="recipe_text_container",
         )
-
-        empty_error_placeholder = Div(id="fetch-url-error-display")
-        clear_error_oob_swap_instruction = Div(
-            empty_error_placeholder, hx_swap_oob="outerHTML:#fetch-url-error-display"
+        clear_error_oob = Div(
+            Div(id="fetch-url-error-display"),
+            hx_swap_oob="outerHTML:#fetch-url-error-display",
         )
-        return Group(main_content_replacement, clear_error_oob_swap_instruction)
-
+        return Group(text_area, clear_error_oob)
     except httpx.RequestError as e:
-        logger.error(
-            "HTTP Request Error fetching text from %s: %s",
-            recipe_url,
-            e,
-            exc_info=False,
-        )
+        logger.error("Network error fetching URL %s: %s", input_url, e, exc_info=True)
         return _prepare_error_response(
             "Error fetching URL. Please check the URL and your connection."
         )
     except httpx.HTTPStatusError as e:
         logger.error(
-            "HTTP Status Error fetching text from %s: %s", recipe_url, e, exc_info=False
+            "HTTP error fetching URL %s: %s. Response: %s",
+            input_url,
+            e,
+            e.response.text,
+            exc_info=True,
         )
         return _prepare_error_response(
             "Error fetching URL: The server returned an error."
         )
     except RuntimeError as e:
         logger.error(
-            "Runtime error fetching text from %s: %s", recipe_url, e, exc_info=True
+            "RuntimeError processing URL content from %s: %s",
+            input_url,
+            e,
+            exc_info=True,
         )
         return _prepare_error_response("Failed to process the content from the URL.")
     except Exception as e:
         logger.error(
-            "Unexpected error fetching text from %s: %s", recipe_url, e, exc_info=True
+            "Unexpected error fetching text from %s: %s", input_url, e, exc_info=True
         )
         return _prepare_error_response(
             "An unexpected error occurred while fetching text."

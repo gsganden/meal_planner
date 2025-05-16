@@ -296,3 +296,42 @@ async def test_generate_modified_recipe_generic_exception(
         generic_exception,
         exc_info=True,
     )
+
+
+@pytest.mark.anyio
+@patch(
+    "meal_planner.services.llm_service.aclient.chat.completions.create",
+    new_callable=AsyncMock,
+)
+@patch.object(llm_service_logger, "debug")
+@patch.object(llm_service_logger, "info")
+async def test_get_structured_llm_response_success(
+    mock_logger_info, mock_logger_debug, mock_create_completion
+):
+    """Test get_structured_llm_response successful path including debug logging."""
+    test_prompt = "Successful prompt"
+
+    class TestResponseModel(RecipeBase):
+        pass
+
+    expected_response_instance = TestResponseModel(
+        name="Test Recipe", ingredients=["Test ing"], instructions=["Test inst"]
+    )
+    mock_create_completion.return_value = expected_response_instance
+
+    result = await get_structured_llm_response(
+        prompt=test_prompt, response_model=TestResponseModel
+    )
+
+    assert result == expected_response_instance
+    mock_create_completion.assert_called_once_with(
+        model=MODEL_NAME,
+        response_model=TestResponseModel,
+        messages=[{"role": "user", "content": test_prompt}],
+    )
+    mock_logger_debug.assert_called_once_with(
+        "LLM Response: %s", expected_response_instance
+    )
+    mock_logger_info.assert_called_once_with(
+        "LLM Call: model=%s, response_model=%s", MODEL_NAME, TestResponseModel.__name__
+    )

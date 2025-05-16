@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Implement interactivity with HTMX via FastHTML rather than using Javascript whenever possible.

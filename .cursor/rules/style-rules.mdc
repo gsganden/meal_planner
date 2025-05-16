@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+In the UI, use MonsterUI components with default styling as much as possible.

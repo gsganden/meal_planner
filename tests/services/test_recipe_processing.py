@@ -1,7 +1,10 @@
 import pytest
 
 from meal_planner.models import RecipeBase
-from meal_planner.services.recipe_processing import postprocess_recipe
+from meal_planner.services.recipe_processing import (
+    _ensure_ending_punctuation,
+    postprocess_recipe,
+)
 
 
 class TestPostprocessRecipeName:
@@ -74,7 +77,7 @@ class TestPostprocessRecipe:
             instructions=[
                 " Step 1: Basic step. ",
                 "2. Step with number.",
-                "  Step 3 Another step.",
+                "  Step 3 Another step",  # No ending punctuation
                 "No number.",
                 "  ",
                 " Ends with semicolon ;",
@@ -88,5 +91,46 @@ class TestPostprocessRecipe:
             "Another step.",
             "No number.",
             "Ends with semicolon;",
-            "Has comma, in middle",
+            "Has comma, in middle.",
         ]
+
+
+class TestEnsureEndingPunctuation:
+    @pytest.mark.parametrize(
+        "input_text",
+        [
+            "This needs a period",
+            "This already has a period.",
+            "Does this need a period?",
+            "Exclamation point!",
+            "With colon:",
+            "With semicolon;",
+            "",
+            "   ",
+            "Ending with parenthesis)",
+            "Already has punctuation.)",
+            "Question mark?)",
+            "Nested (parenthetical statement)",
+            "Multiple nested (statements (here))",
+            "Already has period inside.)",
+        ],
+    )
+    def test_ensure_ending_punctuation(self, input_text):
+        result = _ensure_ending_punctuation(input_text)
+
+        if not result:
+            return
+
+        ending_punctuation = [".", "!", "?", ":", ";", ")"]
+
+        if result.endswith(")"):
+            assert result[-2] in ending_punctuation, (
+                f"No punctuation before closing parenthesis in: '{result}'"
+            )
+        else:
+            assert result[-1] in ending_punctuation, (
+                f"No ending punctuation in: '{result}'"
+            )
+
+        if "(" in result:
+            assert ")" in result, f"Unbalanced parentheses in: '{result}'"
