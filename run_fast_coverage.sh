@@ -3,11 +3,18 @@ set -uo pipefail
 
 source .env
 
-TEST_DIR="tests/"
-
-SPECIFIC_EVAL_TEST_NODE_NAME_PATTERN="test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
-
-PYTEST_K_EXPRESSION="${SPECIFIC_EVAL_TEST_NODE_NAME_PATTERN} or not test_main_evals"
+test_specs=(
+  tests/test_main.py
+  tests/test_api.py
+  tests/test_database.py
+  tests/services/test_recipe_processing.py
+  tests/services/test_llm_service.py
+  tests/services/test_webpage_text_extractor.py
+  # These tests are slow and cover the same codepaths with different inputs
+  # to test LLM behavior. Here we run just one of them as a quick check that
+  # the codepath is not broken and has full test coverage.
+  "tests/test_main_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
+)
 
 #######################################################################################
 # 1. Run the tests with coverage and capture exit status
@@ -15,8 +22,7 @@ PYTEST_K_EXPRESSION="${SPECIFIC_EVAL_TEST_NODE_NAME_PATTERN} or not test_main_ev
 uv run pytest \
   --cov=meal_planner \
   --cov-report=annotate \
-  "$TEST_DIR" \
-  -k "${PYTEST_K_EXPRESSION}" \
+  "${test_specs[@]}" \
   --runslow
 test_status=$?
 
