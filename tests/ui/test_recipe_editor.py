@@ -4,14 +4,12 @@ from typing import Any
 
 import pytest
 from bs4 import BeautifulSoup
-from httpx import AsyncClient
-
 from fasthtml.common import *
+from httpx import AsyncClient
 
 from meal_planner.models import RecipeBase
 from meal_planner.ui.recipe_editor import (
     generate_diff_html,
-    _build_diff_content_children,
 )
 from tests.constants import (
     FIELD_INGREDIENTS,
