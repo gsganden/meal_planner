@@ -1,4 +1,3 @@
-import difflib
 import logging
 from pathlib import Path
 
@@ -35,8 +34,8 @@ from meal_planner.ui.common import (
     create_loading_indicator,
 )
 from meal_planner.ui.layout import with_layout
-from meal_planner.ui.recipe_form import create_extraction_form_parts
 from meal_planner.ui.recipe_editor import generate_diff_html
+from meal_planner.ui.recipe_form import create_extraction_form_parts
 
 MODEL_NAME = "gemini-2.0-flash"
 

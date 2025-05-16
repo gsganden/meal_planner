@@ -3,10 +3,10 @@
 from typing import Any
 
 from fasthtml.common import *  # Use import * as per original style and rules
+
 # Del and Ins are not directly used in _to_comparable by isinstance,
 # but are expected types produced by generate_diff_html.
 # Their structure (tag, children) will be checked by hasattr.
-
 from meal_planner.ui.recipe_editor import generate_diff_html
 
 

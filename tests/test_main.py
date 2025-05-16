@@ -6,7 +6,6 @@ import monsterui.all as mu
 import pytest
 from bs4 import BeautifulSoup
 from bs4.element import Tag
-from fastcore.xml import FT
 from httpx import ASGITransport, AsyncClient, Request, Response
 from pydantic import ValidationError
 from starlette.datastructures import FormData
