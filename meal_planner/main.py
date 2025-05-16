@@ -22,7 +22,9 @@ from meal_planner.services.llm_service import (
     generate_recipe_from_text as llm_generate_recipe_from_text,
 )
 from meal_planner.services.recipe_processing import postprocess_recipe
-from meal_planner.services.text_processing import fetch_and_clean_text_from_url
+from meal_planner.services.webpage_text_extractor import (
+    fetch_and_clean_text_from_url,
+)
 
 MODEL_NAME = "gemini-2.0-flash"
 

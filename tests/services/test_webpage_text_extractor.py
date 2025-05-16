@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from meal_planner.services.text_processing import (
+from meal_planner.services.webpage_text_extractor import (
     HTML_CLEANER,
     fetch_and_clean_text_from_url,
     fetch_page_text,
@@ -75,7 +75,7 @@ class TestFetchAndCleanTextFromUrl:
     @pytest.fixture
     def mock_fetch_page_text(self):
         with patch(
-            "meal_planner.services.text_processing.fetch_page_text",
+            "meal_planner.services.webpage_text_extractor.fetch_page_text",
             new_callable=AsyncMock,
         ) as mock_fetch:
             mock_fetch.return_value = (
@@ -88,7 +88,8 @@ class TestFetchAndCleanTextFromUrl:
         mock_cleaner_instance = MagicMock(spec=HTML_CLEANER)
         mock_cleaner_instance.handle.return_value = "Link Bar"
         with patch(
-            "meal_planner.services.text_processing.HTML_CLEANER", mock_cleaner_instance
+            "meal_planner.services.webpage_text_extractor.HTML_CLEANER",
+            mock_cleaner_instance,
         ) as _:
             yield mock_cleaner_instance
 
@@ -121,7 +122,7 @@ class TestFetchAndCleanTextFromUrl:
             ),
         ],
     )
-    @patch("meal_planner.services.text_processing.logger.error")
+    @patch("meal_planner.services.webpage_text_extractor.logger.error")
     async def test_fetch_and_clean_errors_during_fetch(
         self,
         mock_logger_error,
@@ -144,7 +145,7 @@ class TestFetchAndCleanTextFromUrl:
             f"Log message '{args[0]}' did not contain '{expected_log_fragment}'"
         )
 
-    @patch("meal_planner.services.text_processing.logger.error")
+    @patch("meal_planner.services.webpage_text_extractor.logger.error")
     async def test_fetch_and_clean_html_cleaner_error(
         self,
         mock_logger_error,

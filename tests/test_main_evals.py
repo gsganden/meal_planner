@@ -24,7 +24,6 @@ def load_all_test_data(data_dir: Path) -> dict:
     return all_data
 
 
-# Load the test data
 recipes_data = load_all_test_data(TEST_DATA_DIR)
 
 
@@ -33,7 +32,7 @@ recipes_data = load_all_test_data(TEST_DATA_DIR)
     ids=[str(p.relative_to(Path(__file__).parent.parent)) for p in recipes_data],
     scope="module",
 )
-@patch("meal_planner.services.text_processing.fetch_page_text")
+@patch("meal_planner.services.webpage_text_extractor.fetch_page_text")
 async def extracted_recipe_fixture(mock_fetch, request, anyio_backend):
     """Fixture to extract recipe data for a given path."""
     html_file_path: Path = request.param
