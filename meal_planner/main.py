@@ -26,7 +26,14 @@ from meal_planner.services.recipe_processing import postprocess_recipe
 from meal_planner.services.webpage_text_extractor import (
     fetch_and_clean_text_from_url,
 )
-from meal_planner.ui.common import CSS_ERROR_CLASS
+from meal_planner.ui.common import (
+    CSS_ERROR_CLASS,
+    CSS_SUCCESS_CLASS,
+    DRAG_HANDLE_ICON,
+    ICON_ADD,
+    ICON_DELETE,
+    create_loading_indicator,
+)
 from meal_planner.ui.layout import with_layout
 from meal_planner.ui.recipe_form import create_extraction_form_parts
 
@@ -158,7 +165,7 @@ async def get_recipes_htmx(request: Request):
                         cls="mr-2",
                     ),
                     Button(
-                        UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
+                        ICON_DELETE,
                         title="Delete",
                         hx_delete=f"/api/v0/recipes/{recipe['id']}",
                         hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
@@ -489,7 +496,7 @@ def _build_modification_controls(
             hx_indicator="#modify-indicator",
             cls=ButtonT.primary,
         ),
-        Loading(id="modify-indicator", cls="htmx-indicator ml-2"),
+        create_loading_indicator("modify-indicator"),
         cls="mb-4",
     )
     edit_disclaimer = P(
@@ -556,10 +563,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
     """Render ingredient input divs as a list of fasthtml.Tag components."""
     items_list = []
     for i, ing_value in enumerate(ingredients):
-        drag_handle_component = UkIcon(
-            "menu",
-            cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600",
-        )
+        drag_handle_component = DRAG_HANDLE_ICON
         input_component = Input(
             type="text",
             name="ingredients",
@@ -574,7 +578,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
         )
 
         button_component = Button(
-            UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
+            ICON_DELETE,
             type="button",
             hx_post=f"/recipes/ui/delete-ingredient/{i}",
             hx_target="#ingredients-list",
@@ -610,7 +614,7 @@ def _build_ingredients_section(ingredients: list[str]):
         hx_include="closest form",
     )
     add_ingredient_button = Button(
-        UkIcon("plus-circle", cls=TextT.primary),
+        ICON_ADD,
         hx_post="/recipes/ui/add-ingredient",
         hx_target="#ingredients-list",
         hx_swap="innerHTML",
@@ -628,10 +632,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
     """Render instruction textarea divs as a list of fasthtml.Tag components."""
     items_list = []
     for i, inst_value in enumerate(instructions):
-        drag_handle_component = UkIcon(
-            "menu",
-            cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600",
-        )
+        drag_handle_component = DRAG_HANDLE_ICON
         textarea_component = Textarea(
             inst_value,
             name="instructions",
@@ -646,7 +647,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
         )
 
         button_component = Button(
-            UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
+            ICON_DELETE,
             type="button",
             hx_post=f"/recipes/ui/delete-instruction/{i}",
             hx_target="#instructions-list",
@@ -682,12 +683,12 @@ def _build_instructions_section(instructions: list[str]):
         hx_include="closest form",
     )
     add_instruction_button = Button(
-        UkIcon("plus-circle", cls=TextT.primary),
+        ICON_ADD,
         hx_post="/recipes/ui/add-instruction",
         hx_target="#instructions-list",
         hx_swap="innerHTML",
         hx_include="closest form",
-        cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
+        cls=ButtonT.primary,
     )
     return Div(
         H3("Instructions"),
@@ -729,7 +730,7 @@ def _build_save_button() -> FT:
             hx_indicator="#save-indicator",
             cls=ButtonT.primary,
         ),
-        Loading(id="save-indicator", cls="htmx-indicator ml-2"),
+        create_loading_indicator("save-indicator"),
         id="save-button-container",
         cls="mt-6",
     )
@@ -935,11 +936,8 @@ async def post_save_recipe(request: Request):
         )
     else:
         user_final_message = "Current Recipe Saved!"
-        css_class = str(TextT.success)
-        html_content = (
-            f'<span id="save-button-container" class="{css_class}">{user_final_message}'
-            "</span>"
-        )
+        css_class = CSS_SUCCESS_CLASS
+        html_content = f'<span id="save-button-container" class="{css_class}">{user_final_message}</span>'
         return HTMLResponse(content=html_content, headers=headers)
 
 

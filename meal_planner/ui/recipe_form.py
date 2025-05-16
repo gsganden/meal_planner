@@ -1,6 +1,8 @@
 from fasthtml.common import *
 from monsterui.all import *
 
+from meal_planner.ui.common import create_loading_indicator
+
 
 def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
     """Creates and returns the UI components for the recipe extraction form."""
@@ -23,7 +25,7 @@ def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
                     hx_indicator="#fetch-indicator",
                     cls=ButtonT.primary,
                 ),
-                Loading(id="fetch-indicator", cls="htmx-indicator ml-2"),
+                create_loading_indicator("fetch-indicator"),
                 cls="flex items-center",
             ),
             cls="flex items-end",
@@ -54,7 +56,7 @@ def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
             hx_indicator="#extract-indicator",
             cls=ButtonT.primary,
         ),
-        Loading(id="extract-indicator", cls="htmx-indicator ml-2"),
+        create_loading_indicator("extract-indicator"),
         cls="mt-4",
     )
 
