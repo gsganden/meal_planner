@@ -303,12 +303,6 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
     return processed_recipe
 
 
-async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
-    """Fetches text from a URL, cleans it, and extracts a recipe from it."""
-    cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
-    return await extract_recipe_from_text(cleaned_text)
-
-
 def generate_diff_html(
     before_text: str, after_text: str
 ) -> tuple[list[str | FT], list[str | FT]]:
@@ -812,7 +806,7 @@ async def post_fetch_text(input_url: str | None = None):
 
 
 @rt("/recipes/extract/run")
-async def post(recipe_url: str | None = None, recipe_text: str | None = None):
+async def post(recipe_text: str | None = None):
     if not recipe_text:
         logging.error("Recipe extraction called without text.")
         return Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)

@@ -3,18 +3,20 @@ set -uo pipefail
 
 source .env
 
-EVALS_FILE_TO_IGNORE="tests/meal_planner/test_main_evals.py"
-SPECIFIC_EVAL_TEST_NODE_NAME_PATTERN="meal_planner/test_main_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
-PYTEST_K_EXPRESSION="${SPECIFIC_EVAL_TEST_NODE_NAME_PATTERN} or not test_main_evals"
+# Define the specific eval test we want to run
+specific_eval_test="tests/test_main_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
 
+# Find all other test files
+test_files=$(find tests -path tests/test_main_evals.py -prune -o -name 'test_*.py' -print | xargs)
 
 #######################################################################################
 # 1. Run the tests with coverage and capture exit status
 #######################################################################################
 uv run pytest \
+  ${test_files} \
+  "${specific_eval_test}" \
   --cov=meal_planner \
   --cov-report=annotate \
-  -k "${PYTEST_K_EXPRESSION}" \
   --runslow
 test_status=$?
 
@@ -22,7 +24,7 @@ test_status=$?
 # 2. Generate temp coverage files and show missing-line details if tests passed
 #######################################################################################
 if [ $test_status -eq 0 ] && [ -f .coverage ]; then
-  echo -e "\nMissing‑line details:"
+  echo -e "\\nMissing‑line details:"
   grep -R --line-number '^!' --include='*.py,cover' . \
   | awk -F: '{sub(/,cover$/,"",$1); gsub(/^!/,"",$3); print $1 ":" $2 ": " $3}'
 fi
