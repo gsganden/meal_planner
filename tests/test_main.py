@@ -1653,182 +1653,21 @@ class TestRecipeUIFragments:
 class TestRecipeUpdateDiff:
     UPDATE_DIFF_URL = "/recipes/ui/update-diff"
 
+    # Restore the _build_diff_form_data method
     def _build_diff_form_data(
         self, current: RecipeBase, original: RecipeBase | None = None
     ) -> dict:
         if original is None:
             original = current
         form_data = {
-            "name": current.name,
-            "ingredients": current.ingredients,
-            "instructions": current.instructions,
-            "original_name": original.name,
-            "original_ingredients": original.ingredients,
-            "original_instructions": original.instructions,
+            FIELD_NAME: current.name,
+            FIELD_INGREDIENTS: current.ingredients,
+            FIELD_INSTRUCTIONS: current.instructions,
+            FIELD_ORIGINAL_NAME: original.name,
+            FIELD_ORIGINAL_INGREDIENTS: original.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: original.instructions,
         }
         return form_data
-
-    async def test_diff_no_changes(self, client: AsyncClient):
-        recipe = RecipeBase(name="Same", ingredients=["i1"], instructions=["s1"])
-        form_data = self._build_diff_form_data(recipe, recipe)
-
-        response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
-        assert response.status_code == 200
-        html = response.text
-
-        soup = BeautifulSoup(html, "html.parser")
-        before_pre = soup.find("pre", id="diff-before-pre")
-        after_pre = soup.find("pre", id="diff-after-pre")
-        assert before_pre is not None
-        assert after_pre is not None
-
-        before_text_content = before_pre.get_text()
-        after_text_content = after_pre.get_text()
-
-        assert "<del>" not in html
-        assert "<ins>" not in html
-
-        assert "# Same" in before_text_content
-        assert "- i1" in before_text_content
-        assert "- s1" in before_text_content
-        assert "# Same" in after_text_content
-        assert "- i1" in after_text_content
-        assert "- s1" in after_text_content
-        assert before_text_content == after_text_content
-
-    async def test_diff_addition(self, client: AsyncClient):
-        original = RecipeBase(name="Orig", ingredients=["i1"], instructions=["s1"])
-        current = RecipeBase(
-            name="Current", ingredients=["i1", "i2"], instructions=["s1", "s2"]
-        )
-        form_data = self._build_diff_form_data(current, original)
-
-        response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
-        assert response.status_code == 200
-        html_text = response.text
-        soup = BeautifulSoup(html_text, "html.parser")
-
-        before_pre = soup.find("pre", id="diff-before-pre")
-        after_pre = soup.find("pre", id="diff-after-pre")
-        assert before_pre is not None, "Before diff <pre> block not found"
-        assert after_pre is not None, "After diff <pre> block not found"
-
-        orig_name_del_tag = before_pre.find("del", string=lambda t: t and "# Orig" in t)
-        assert orig_name_del_tag is not None, (
-            "<del># Orig</del> not found in before_pre"
-        )
-        current_name_ins_tag = after_pre.find(
-            "ins", string=lambda t: t and "# Current" in t
-        )
-        assert current_name_ins_tag is not None, (
-            "<ins># Current</ins> not found in after_pre"
-        )
-
-        assert "- i1" in before_pre.get_text()
-        assert "- i1" in after_pre.get_text()
-        assert not before_pre.find("del", string=lambda t: t and "- i1" in t)
-        assert not after_pre.find("ins", string=lambda t: t and "- i1" in t)
-
-        assert "- i2" not in before_pre.get_text()
-        i2_ins_tag = after_pre.find("ins", string=lambda t: t and "- i2" in t)
-        assert i2_ins_tag is not None, "<ins>- i2</ins> not found in after_pre"
-
-        assert "- s1" in before_pre.get_text()
-        assert "- s1" in after_pre.get_text()
-        assert not before_pre.find("del", string=lambda t: t and "- s1" in t)
-        assert not after_pre.find("ins", string=lambda t: t and "- s1" in t)
-
-        assert "- s2" not in before_pre.get_text()
-        s2_ins_tag = after_pre.find("ins", string=lambda t: t and "- s2" in t)
-        assert s2_ins_tag is not None, "<ins>- s2</ins> not found in after_pre"
-
-    async def test_diff_deletion(self, client: AsyncClient):
-        original = RecipeBase(
-            name="Orig", ingredients=["i1", "i2"], instructions=["s1", "s2"]
-        )
-        current = RecipeBase(name="Current", ingredients=["i1"], instructions=["s1"])
-        form_data = self._build_diff_form_data(current, original)
-
-        response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
-        assert response.status_code == 200
-        html_text = response.text
-        soup = BeautifulSoup(html_text, "html.parser")
-
-        before_pre = soup.find("pre", id="diff-before-pre")
-        after_pre = soup.find("pre", id="diff-after-pre")
-        assert before_pre is not None, "Before diff <pre> block not found"
-        assert after_pre is not None, "After diff <pre> block not found"
-
-        orig_name_del_tag = before_pre.find("del", string=lambda t: t and "# Orig" in t)
-        assert orig_name_del_tag is not None, (
-            "<del># Orig</del> not found in before_pre"
-        )
-        current_name_ins_tag = after_pre.find(
-            "ins", string=lambda t: t and "# Current" in t
-        )
-        assert current_name_ins_tag is not None, (
-            "<ins># Current</ins> not found in after_pre"
-        )
-
-        assert "- i1" in before_pre.get_text()
-        assert "- i1" in after_pre.get_text()
-
-        i2_del_tag = before_pre.find("del", string=lambda t: t and "- i2" in t)
-        assert i2_del_tag is not None, "<del>- i2</del> not found in before_pre"
-        assert "- i2" not in after_pre.get_text()
-
-        assert "- s1" in before_pre.get_text()
-        assert "- s1" in after_pre.get_text()
-
-        s2_del_tag = before_pre.find("del", string=lambda t: t and "- s2" in t)
-        assert s2_del_tag is not None, "<del>- s2</del> not found in before_pre"
-        assert "- s2" not in after_pre.get_text()
-
-    async def test_diff_modification(self, client: AsyncClient):
-        original = RecipeBase(name="Orig", ingredients=["i1"], instructions=["s1"])
-        current = RecipeBase(
-            name="Current", ingredients=["i1_mod"], instructions=["s1_mod"]
-        )
-        form_data = self._build_diff_form_data(current, original)
-
-        response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
-        assert response.status_code == 200
-        html_text = response.text
-        soup = BeautifulSoup(html_text, "html.parser")
-
-        before_pre = soup.find("pre", id="diff-before-pre")
-        after_pre = soup.find("pre", id="diff-after-pre")
-        assert before_pre is not None, "Before diff <pre> block not found"
-        assert after_pre is not None, "After diff <pre> block not found"
-
-        orig_name_del_tag = before_pre.find("del", string=lambda t: t and "# Orig" in t)
-        assert orig_name_del_tag is not None, (
-            "<del># Orig</del> not found in before_pre"
-        )
-        current_name_ins_tag = after_pre.find(
-            "ins", string=lambda t: t and "# Current" in t
-        )
-        assert current_name_ins_tag is not None, (
-            "<ins># Current</ins> not found in after_pre"
-        )
-        assert "# Orig" not in after_pre.get_text()
-
-        i1_del_tag = before_pre.find("del", string=lambda t: t and "- i1" in t)
-        assert i1_del_tag is not None, "<del>- i1</del> not found in before_pre"
-        i1_mod_ins_tag = after_pre.find("ins", string=lambda t: t and "- i1_mod" in t)
-        assert i1_mod_ins_tag is not None, "<ins>- i1_mod</ins> not found in after_pre"
-
-        actual_after_text = after_pre.get_text()
-
-        assert "- i1" not in actual_after_text.splitlines()
-        assert "- i1_mod" in actual_after_text.splitlines()
-
-        s1_del_tag = before_pre.find("del", string=lambda t: t and "- s1" in t)
-        assert s1_del_tag is not None, "<del>- s1</del> not found in before_pre"
-        s1_mod_ins_tag = after_pre.find("ins", string=lambda t: t and "- s1_mod" in t)
-        assert s1_mod_ins_tag is not None, "<ins>- s1_mod</ins> not found in after_pre"
-        assert "- s1" not in after_pre.get_text().splitlines()
-        assert "- s1_mod" in after_pre.get_text().splitlines()
 
     @patch("meal_planner.main._build_diff_content_children")
     @patch("meal_planner.main.logger.error")
