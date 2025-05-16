@@ -57,6 +57,8 @@ internal_api_client = httpx.AsyncClient(
     base_url="http://internal-api",  # arbitrary
 )
 
+CSS_ERROR_CLASS = str(TextT.error)
+
 
 @rt("/")
 def get():
@@ -421,9 +423,6 @@ async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
     """Fetches text from a URL, cleans it, and extracts a recipe from it."""
     cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
     return await extract_recipe_from_text(cleaned_text)
-
-
-CSS_ERROR_CLASS = str(TextT.error)
 
 
 def generate_diff_html(

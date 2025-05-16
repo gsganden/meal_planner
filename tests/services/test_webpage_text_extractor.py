@@ -2,9 +2,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+import html2text
 
 from meal_planner.services.webpage_text_extractor import (
-    HTML_CLEANER,
     fetch_and_clean_text_from_url,
     fetch_page_text,
 )
@@ -85,12 +85,12 @@ class TestFetchAndCleanTextFromUrl:
 
     @pytest.fixture
     def mock_html_cleaner(self):
-        mock_cleaner_instance = MagicMock(spec=HTML_CLEANER)
+        mock_cleaner_instance = MagicMock(spec=html2text.HTML2Text)
         mock_cleaner_instance.handle.return_value = "Link Bar"
         with patch(
-            "meal_planner.services.webpage_text_extractor.HTML_CLEANER",
-            mock_cleaner_instance,
-        ) as _:
+            "meal_planner.services.webpage_text_extractor.create_html_cleaner",
+            return_value=mock_cleaner_instance,
+        ) as mock_create_cleaner_func:
             yield mock_cleaner_instance
 
     @pytest.mark.parametrize(

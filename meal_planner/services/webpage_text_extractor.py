@@ -14,9 +14,6 @@ def create_html_cleaner() -> html2text.HTML2Text:
     return h
 
 
-HTML_CLEANER = create_html_cleaner()
-
-
 async def fetch_page_text(recipe_url: str) -> str:
     """Fetches the raw text content of a webpage."""
     try:
@@ -70,7 +67,8 @@ async def fetch_and_clean_text_from_url(url: str) -> str:
         raise RuntimeError(f"Failed to fetch or process URL: {url}") from e
 
     try:
-        page_text = HTML_CLEANER.handle(raw_text)
+        cleaner = create_html_cleaner()
+        page_text = cleaner.handle(raw_text)
         logger.info(f"Cleaned HTML text from: {url}")
         return page_text
     except Exception as e:
