@@ -21,7 +21,7 @@ graph LR
 
         subgraph "Business Logic (services/)"
             direction TB
-            Text_Processing_Service["Text fetching & cleaning<br/>(text_processing.py)"]
+            Webpage_Text_Extractor_Service["Webpage text extraction<br/>(webpage_text_extractor.py)"]
             Recipe_Processing_Service["Recipe processing<br/>(recipe_processing.py)"]
             LLM_Service["LLM calls<br/>(llm_service.py)<br/> OpenAI client, Instructor"]
         end
@@ -30,7 +30,7 @@ graph LR
             API_Layer["Recipe CRUD operations<br/>(recipes.py)<br/>FastAPI"]
         end
 
-        UI_Layer -- "Uses" --> Text_Processing_Service
+        UI_Layer -- "Uses" --> Webpage_Text_Extractor_Service
         UI_Layer -- "Uses" --> Recipe_Processing_Service
         UI_Layer -- "Uses" --> LLM_Service
         UI_Layer -- "Internal API Call" --> API_Layer
@@ -46,7 +46,7 @@ graph LR
     User --> Modal
     Modal --> UI_Layer
 
-    Text_Processing_Service -- "Fetches content" --> External_Web_Pages
+    Webpage_Text_Extractor_Service -- "Fetches content" --> External_Web_Pages
     LLM_Service -- "AI Tasks" --> Gemini_AI
     API_Layer --> Database
 ```
