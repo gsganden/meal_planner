@@ -34,7 +34,7 @@ from meal_planner.ui.common import (
     create_loading_indicator,
 )
 from meal_planner.ui.layout import with_layout
-from meal_planner.ui.recipe_editor import generate_diff_html
+from meal_planner.ui.recipe_editor import _build_diff_content_children
 from meal_planner.ui.recipe_form import create_extraction_form_parts
 
 MODEL_NAME = "gemini-2.0-flash"
@@ -323,44 +323,6 @@ def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
         "ingredients": ingredients,
         "instructions": instructions,
     }
-
-
-def _build_diff_content_children(
-    original_recipe: RecipeBase, current_markdown: str
-) -> tuple[FT, FT]:
-    """Builds fasthtml.Div components for 'before' and 'after' diff areas."""
-    before_items, after_items = generate_diff_html(
-        original_recipe.markdown, current_markdown
-    )
-
-    pre_style = "white-space: pre-wrap; overflow-wrap: break-word;"
-    base_classes = (
-        "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs"
-    )
-
-    before_div_component = Card(
-        Strong("Initial Extracted Recipe (Reference)"),
-        Pre(
-            *before_items,
-            id="diff-before-pre",
-            cls=base_classes,
-            style=pre_style,
-        ),
-        cls=CardT.secondary,
-    )
-
-    after_div_component = Card(
-        Strong("Current Edited Recipe"),
-        Pre(
-            *after_items,
-            id="diff-after-pre",
-            cls=base_classes,
-            style=pre_style,
-        ),
-        cls=CardT.secondary,
-    )
-
-    return before_div_component, after_div_component
 
 
 def _build_edit_review_form(

@@ -3,6 +3,9 @@
 import difflib
 
 from fasthtml.common import *
+from monsterui.all import *
+
+from meal_planner.models import RecipeBase
 
 
 def generate_diff_html(
@@ -38,3 +41,41 @@ def generate_diff_html(
         after_items.pop()
 
     return before_items, after_items
+
+
+def _build_diff_content_children(
+    original_recipe: RecipeBase, current_markdown: str
+) -> tuple[FT, FT]:
+    """Builds fasthtml.Div components for 'before' and 'after' diff areas."""
+    before_items, after_items = generate_diff_html(
+        original_recipe.markdown, current_markdown
+    )
+
+    pre_style = "white-space: pre-wrap; overflow-wrap: break-word;"
+    base_classes = (
+        "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs"
+    )
+
+    before_div_component = Card(
+        Strong("Initial Extracted Recipe (Reference)"),
+        Pre(
+            *before_items,
+            id="diff-before-pre",
+            cls=base_classes,
+            style=pre_style,
+        ),
+        cls=CardT.secondary,
+    )
+
+    after_div_component = Card(
+        Strong("Current Edited Recipe"),
+        Pre(
+            *after_items,
+            id="diff-after-pre",
+            cls=base_classes,
+            style=pre_style,
+        ),
+        cls=CardT.secondary,
+    )
+
+    return before_div_component, after_div_component
