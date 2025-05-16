@@ -208,8 +208,8 @@ def get():
         H2("Extract Recipe"),
         H3("URL"),
         url_input_component,
+        Div(id="fetch-url-error-display", cls="mt-2 mb-2"),
         H3("Text"),
-        Div(id="fetch-url-error-display"),
         text_area_container,
         extract_button_group,
         disclaimer,
@@ -284,7 +284,7 @@ async def get_recipes_htmx(request: Request):
                         cls="mr-2",
                     ),
                     Button(
-                        UkIcon("minus-circle", cls=TextT.error),
+                        UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
                         title="Delete",
                         hx_delete=f"/api/v0/recipes/{recipe['id']}",
                         hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
@@ -421,7 +421,7 @@ async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
     return await extract_recipe_from_text(cleaned_text)
 
 
-CSS_ERROR_CLASS = "text-red-500 text-sm"
+CSS_ERROR_CLASS = str(TextT.error)
 
 
 def generate_diff_html(
@@ -696,7 +696,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
         )
 
         button_component = Button(
-            UkIcon("minus-circle", cls=TextT.error),
+            UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
             type="button",
             hx_post=f"/recipes/ui/delete-ingredient/{i}",
             hx_target="#ingredients-list",
@@ -768,7 +768,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
         )
 
         button_component = Button(
-            UkIcon("minus-circle", cls=TextT.error),
+            UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
             type="button",
             hx_post=f"/recipes/ui/delete-instruction/{i}",
             hx_target="#instructions-list",
@@ -859,28 +859,22 @@ def _build_save_button() -> FT:
 
 @rt("/recipes/fetch-text")
 async def post_fetch_text(input_url: str | None = None):
-    def _create_empty_text_area_container_for_swap():
-        return Div(id="recipe_text_container")(
+    def _prepare_error_response(error_message_str: str):
+        error_div = Div(
+            error_message_str, cls=CSS_ERROR_CLASS, id="fetch-url-error-display"
+        )
+        error_oob = Div(error_div, hx_swap_oob="outerHTML:#fetch-url-error-display")
+        text_area = Div(
             TextArea(
                 id="recipe_text",
                 name="recipe_text",
                 placeholder="Paste full recipe text here, or fetch from URL above.",
                 rows=15,
                 cls="mb-4",
-            )
+            ),
+            id="recipe_text_container",
         )
-
-    def _prepare_error_response(error_message_str: str):
-        error_div = Div(
-            error_message_str,
-            id="fetch-url-error-display",
-            cls=CSS_ERROR_CLASS,
-        )
-        return Div(
-            _create_empty_text_area_container_for_swap(),
-            error_div,
-            hx_swap_oob="innerHTML:#recipe_text_container",
-        )
+        return Group(text_area, error_oob)
 
     if not input_url:
         logger.error("Fetch text called without URL.")
@@ -889,7 +883,7 @@ async def post_fetch_text(input_url: str | None = None):
     try:
         logger.info("Fetching and cleaning text from URL: %s", input_url)
         cleaned_text = await fetch_and_clean_text_from_url(input_url)
-        return Div(id="recipe_text_container")(
+        text_area = Div(
             TextArea(
                 cleaned_text,
                 id="recipe_text",
@@ -897,8 +891,14 @@ async def post_fetch_text(input_url: str | None = None):
                 placeholder="Paste full recipe text here, or fetch from URL above.",
                 rows=15,
                 cls="mb-4",
-            )
+            ),
+            id="recipe_text_container",
         )
+        clear_error_oob = Div(
+            Div(id="fetch-url-error-display"),
+            hx_swap_oob="outerHTML:#fetch-url-error-display",
+        )
+        return Group(text_area, clear_error_oob)
     except httpx.RequestError as e:
         logger.error("Network error fetching URL %s: %s", input_url, e, exc_info=True)
         return _prepare_error_response(

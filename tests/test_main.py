@@ -459,7 +459,8 @@ class TestRecipeFetchTextEndpoint:
         assert parent_of_error_div is not None, "Parent of error_div not found"
         assert isinstance(parent_of_error_div, Tag), "Parent of error_div is not a Tag"
         assert (
-            parent_of_error_div.get("hx-swap-oob") == "innerHTML:#recipe_text_container"
+            parent_of_error_div.get("hx-swap-oob")
+            == "outerHTML:#fetch-url-error-display"
         ), (
             f"hx-swap-oob attribute incorrect or missing on parent of error_div. "
             f"Got: {parent_of_error_div.get('hx-swap-oob')}"
