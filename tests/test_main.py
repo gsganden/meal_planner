@@ -631,7 +631,18 @@ async def test_save_recipe_success(client: AsyncClient):
 
     save_response = await client.post(RECIPES_SAVE_URL, data=form_data)
     assert save_response.status_code == 200
-    assert "Current Recipe Saved!" in save_response.text
+
+    soup = BeautifulSoup(save_response.text, "html.parser")
+    span_tag = soup.find("span", id="save-button-container")
+    assert span_tag is not None, "Save success message span not found"
+    assert "Current Recipe Saved!" in span_tag.get_text(strip=True), (
+        "Success message text not found"
+    )
+
+    assert "HX-Trigger" in save_response.headers, "HX-Trigger header missing"
+    assert save_response.headers["HX-Trigger"] == "recipeListChanged", (
+        "HX-Trigger header incorrect"
+    )
 
     get_all_response = await client.get("/api/v0/recipes")
     assert get_all_response.status_code == 200

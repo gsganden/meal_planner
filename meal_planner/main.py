@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
 from starlette.staticfiles import StaticFiles
+from starlette.responses import HTMLResponse
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
@@ -25,9 +26,9 @@ from meal_planner.services.recipe_processing import postprocess_recipe
 from meal_planner.services.webpage_text_extractor import (
     fetch_and_clean_text_from_url,
 )
+from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.layout import with_layout
 from meal_planner.ui.recipe_form import create_extraction_form_parts
-from meal_planner.ui.common import CSS_ERROR_CLASS
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -171,7 +172,14 @@ async def get_recipes_htmx(request: Request):
             id="recipe-list-ul",
         )
 
-    list_component = Titled("All Recipes", content, id="recipe-list-area")
+    list_component = Titled(
+        "All Recipes",
+        content,
+        id="recipe-list-area",
+        hx_trigger="recipeListChanged from:body",
+        hx_get="/recipes",
+        hx_swap="outerHTML",
+    )
 
     if "HX-Request" in request.headers:
         return list_component
@@ -875,6 +883,7 @@ async def post_save_recipe(request: Request):
 
     user_final_message = ""
     message_is_error = False
+    headers = {}
 
     try:
         response = await internal_client.post(
@@ -883,6 +892,7 @@ async def post_save_recipe(request: Request):
         response.raise_for_status()
         logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
         user_final_message = "Current Recipe Saved!"
+        headers["HX-Trigger"] = "recipeListChanged"
 
     except httpx.HTTPStatusError as e:
         message_is_error = True
@@ -924,11 +934,10 @@ async def post_save_recipe(request: Request):
             id="save-button-container",
         )
     else:
-        return Span(
-            user_final_message,
-            cls=TextT.success,
-            id="save-button-container",
-        )
+        user_final_message = "Current Recipe Saved!"
+        css_class = str(TextT.success)
+        html_content = f'<span id="save-button-container" class="{css_class}">{user_final_message}</span>'
+        return HTMLResponse(content=html_content, headers=headers)
 
 
 class ModifyFormError(Exception):
