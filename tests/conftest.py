@@ -94,3 +94,34 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
+
+
+# Copied from tests/test_main.py
+from meal_planner.models import RecipeBase  # Added for RecipeBase type hint
+
+
+@pytest.fixture
+def mock_original_recipe_fixture() -> RecipeBase:
+    return RecipeBase(
+        name="Original Recipe",
+        ingredients=["orig ing 1"],
+        instructions=["orig inst 1"],
+    )
+
+
+@pytest.fixture
+def mock_current_recipe_before_modify_fixture() -> RecipeBase:
+    return RecipeBase(
+        name="Current Recipe",
+        ingredients=["curr ing 1"],
+        instructions=["curr inst 1"],
+    )
+
+
+@pytest.fixture
+def mock_llm_modified_recipe_fixture() -> RecipeBase:
+    return RecipeBase(
+        name="Modified",
+        ingredients=["mod ing 1"],
+        instructions=["mod inst 1"],
+    )
