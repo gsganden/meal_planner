@@ -1,13 +1,7 @@
 from typing import Any
 
-from fasthtml.common import A, Button, Div, Li, Script, Style, Title
-from monsterui.all import (
-    DivFullySpaced,
-    NavContainer,
-    NavParentLi,
-    NavT,
-    UkIcon,
-)
+from fasthtml.common import *
+from monsterui.all import *
 
 
 def sidebar():
