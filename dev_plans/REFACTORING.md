@@ -88,23 +88,23 @@ We plan to break down `meal_planner/main.py` and `tests/test_main.py` into small
 - [x] Updated imports in tests to point to the new module location
 - [x] Fixed regex in `_remove_leading_step_numbers` to properly handle step numbers
 
-## Planned Future Refactorings
-
 ### Phase 3: LLM Service Extraction
 
 **Goal:** Separate LLM interaction logic from `main.py` into a dedicated service module.
 
-**Proposed Changes:**
-- [ ] Create `meal_planner/services/llm_service.py`
-- [ ] Move LLM-related functions from `main.py` to the new module:
-  - [ ] `get_structured_llm_response`
-  - [ ] `extract_recipe_from_text`
-  - [ ] `_request_recipe_modification`
-  - [ ] `_get_prompt_path`
-- [ ] Update imports in `main.py` to use the new service
-- [ ] Create `tests/services/test_llm_service.py` with tests for the moved functions
-- [ ] Move relevant tests from `tests/test_main.py` to the new test file
-- [ ] Update imports in tests to point to the new module location
+**Changes Made:**
+- [x] Created `meal_planner/services/llm_service.py`
+- [x] Moved LLM-related functions from `main.py` to the new module:
+  - [x] `get_structured_llm_response`
+  - [x] `extract_recipe_from_text` (now a thin wrapper in `main.py` that calls the service)
+  - [x] `_get_prompt_path` (as `_get_llm_prompt_path`)
+- [x] Updated imports in `main.py` to use the new service
+- [x] Created `tests/services/test_llm_service.py` with tests for the moved functions
+- [x] Moved relevant tests from `tests/test_main.py` to the new test file
+- [x] Updated imports in tests to point to the new module location
+
+**Note:**
+The function `_request_recipe_modification` remains in `main.py` by design. It orchestrates the LLM service and postprocessing logic, and is not a pure LLM service function. This separation keeps the service module focused and maintains clear boundaries between orchestration and service logic.
 
 ### Phase 4: UI Component Extraction
 
