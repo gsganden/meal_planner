@@ -25,6 +25,9 @@ from meal_planner.services.recipe_processing import postprocess_recipe
 from meal_planner.services.webpage_text_extractor import (
     fetch_and_clean_text_from_url,
 )
+from meal_planner.ui.layout import with_layout
+from meal_planner.ui.recipe_form import create_extraction_form_parts
+from meal_planner.ui.common import CSS_ERROR_CLASS
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -57,162 +60,28 @@ internal_api_client = httpx.AsyncClient(
     base_url="http://internal-api",  # arbitrary
 )
 
-CSS_ERROR_CLASS = str(TextT.error)
-
 
 @rt("/")
 def get():
     return with_layout(Titled("Meal Planner"))
 
 
-def sidebar():
-    nav = NavContainer(
-        Li(
-            A(
-                DivFullySpaced("Meal Planner"),
-                href="/",
-                hx_target="#content",
-                hx_push_url="true",
-            )
-        ),
-        NavParentLi(
-            A(DivFullySpaced("Recipes")),
-            NavContainer(
-                Li(
-                    A(
-                        "Create",
-                        href="/recipes/extract",
-                        hx_target="#content",
-                        hx_push_url="true",
-                    )
-                ),
-                Li(
-                    A(
-                        "View All",
-                        href="/recipes",
-                        hx_target="#content",
-                        hx_push_url="true",
-                    )
-                ),
-                parent=False,
-            ),
-        ),
-        uk_nav=True,
-        cls=NavT.primary,
-        uk_sticky="offset: 20",
-    )
-    return Div(nav, cls="space-y-4 p-4 w-full md:w-full")
-
-
-def with_layout(content):
-    indicator_style = Style("""
-        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
-        .htmx-indicator.htmx-request { opacity: 1; }
-    """)
-
-    hamburger_button = Div(
-        Button(
-            UkIcon("menu"),
-            data_uk_toggle="target: #mobile-sidebar",
-            cls="p-2",
-        ),
-        cls="md:hidden flex justify-end p-2",
-    )
-
-    mobile_sidebar_container = Div(
-        sidebar(),
-        id="mobile-sidebar",
-        hidden=True,
-    )
-
-    return (
-        Title("Meal Planner"),
-        indicator_style,
-        hamburger_button,
-        mobile_sidebar_container,
-        Div(cls="flex flex-col md:flex-row w-full")(
-            Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
-            Div(
-                content,
-                cls="md:w-4/5 w-full p-4",
-                id="content",
-                hx_trigger="recipeListChanged from:body",
-                hx_get="/recipes",
-                hx_target="#recipe-list-area",
-                hx_swap="outerHTML",
-            ),
-        ),
-        Script(src="/static/recipe-editor.js"),
-    )
-
-
 @rt("/recipes/extract")
 def get():
-    url_input_component = Div(
-        Div(
-            Input(
-                id="input_url",
-                name="input_url",
-                type="url",
-                placeholder="https://example.com/recipe",
-                cls="flex-grow mr-2",
-            ),
-            Div(
-                Button(
-                    "Fetch Text from URL",
-                    hx_post="/recipes/fetch-text",
-                    hx_target="#recipe_text_container",
-                    hx_swap="outerHTML",
-                    hx_include="[name='input_url']",
-                    hx_indicator="#fetch-indicator",
-                    cls=ButtonT.primary,
-                ),
-                Loading(id="fetch-indicator", cls="htmx-indicator ml-2"),
-                cls="flex items-center",
-            ),
-            cls="flex items-end",
-        ),
-        cls="mb-4",
-    )
-
-    text_area_container = Div(
-        TextArea(
-            id="recipe_text",
-            name="recipe_text",
-            placeholder="Paste full recipe text here, or fetch from URL above.",
-            rows=15,
-            cls="mb-4",
-        ),
-        id="recipe_text_container",
-    )
-
-    extract_button_group = Div(
-        Button(
-            "Extract Recipe",
-            hx_post="/recipes/extract/run",
-            hx_target="#recipe-results",
-            hx_swap="innerHTML",
-            hx_include="#recipe_text_container",
-            hx_indicator="#extract-indicator",
-            cls=ButtonT.primary,
-        ),
-        Loading(id="extract-indicator", cls="htmx-indicator ml-2"),
-        cls="mt-4",
-    )
-
-    disclaimer = P(
-        "Recipe extraction uses AI and may not be perfectly accurate. Always "
-        "double-check the results.",
-        cls=f"{TextT.muted} text-xs mt-1",
-    )
-
-    results_div = Div(id="recipe-results")
+    (
+        url_input_component,
+        fetch_url_error_display_div,
+        text_area_container,
+        extract_button_group,
+        disclaimer,
+        results_div,
+    ) = create_extraction_form_parts()
 
     input_section = Div(
         H2("Extract Recipe"),
         H3("URL"),
         url_input_component,
-        Div(id="fetch-url-error-display", cls="mt-2 mb-2"),
+        fetch_url_error_display_div,
         H3("Text"),
         text_area_container,
         extract_button_group,

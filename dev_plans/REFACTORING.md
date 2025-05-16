@@ -110,11 +110,12 @@ The function `_request_recipe_modification` remains in `main.py` by design. It o
 
 **Goal:** Extract reusable UI components from `main.py` to reduce its size and improve maintainability.
 
-**Proposed Changes:**
-- [ ] Create a `meal_planner/ui/` directory for UI components
-- [ ] Extract common layout components (sidebar, layout wrapper, etc.)
-- [ ] Extract recipe form components
-- [ ] Extract error handling and display components
+**Changes Made:**
+- [x] Created a `meal_planner/ui/` directory for UI components
+- [x] Extracted common layout components (`sidebar`, `with_layout`) into `meal_planner/ui/layout.py`
+- [x] Extracted recipe form components (`create_extraction_form_parts`) into `meal_planner/ui/recipe_form.py`
+- [x] Extracted error handling and display components (specifically `CSS_ERROR_CLASS` into `meal_planner/ui/common.py`; error display `Div` is part of `recipe_form.py`)
+- [x] Updated `main.py` to import and use components from the new UI modules.
 
 ### Phase 5: Route Handler Organization
 
