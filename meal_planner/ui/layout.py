@@ -77,15 +77,6 @@ def with_layout(content: Any):
                 content,
                 cls="md:w-4/5 w-full p-4",
                 id="content",
-                # Note: The hx_trigger, hx_get, hx_target, hx_swap related to
-                # recipeListChanged were here.
-                # These might need to be on the specific content passed in,
-                # or handled differently if they are global to the content area.
-                # For now, keeping them on the main content div.
-                # If issues arise, this is a place to check.
-                # For the /recipes/extract route, this content div doesn't need
-                # these hx attributes. They are more relevant for the /recipes
-                # listing page.
             ),
         ),
         Script(src="/static/recipe-editor.js"),
