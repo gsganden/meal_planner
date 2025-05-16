@@ -175,3 +175,14 @@ class TestFetchAndCleanTextFromUrl:
         mock_html_cleaner.handle.assert_called_once_with(
             "<html><body><a href='foo'>Link</a> Bar</body></html>"
         )
+
+    async def test_fetch_and_clean_success_with_real_cleaner(
+        self,
+        mock_fetch_page_text,
+    ):
+        """Test successful fetch and clean, ensuring create_html_cleaner is covered."""
+
+        result = await fetch_and_clean_text_from_url(TEST_URL)
+
+        assert result.strip() == "Link Bar"
+        mock_fetch_page_text.assert_called_once_with(TEST_URL)

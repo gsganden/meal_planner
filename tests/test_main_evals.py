@@ -4,11 +4,10 @@ LLM evals for main.py, rather than traditional unit tests.
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from meal_planner.main import extract_recipe_from_url
+from meal_planner.main import extract_recipe_from_text
 from meal_planner.models import RecipeBase
 
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
@@ -32,15 +31,13 @@ recipes_data = load_all_test_data(TEST_DATA_DIR)
     ids=[str(p.relative_to(Path(__file__).parent.parent)) for p in recipes_data],
     scope="module",
 )
-@patch("meal_planner.services.webpage_text_extractor.fetch_page_text")
-async def extracted_recipe_fixture(mock_fetch, request, anyio_backend):
+async def extracted_recipe_fixture(request, anyio_backend):
     """Fixture to extract recipe data for a given path."""
     html_file_path: Path = request.param
     raw_text = html_file_path.read_text()
-    mock_fetch.return_value = raw_text
 
     expected_data = recipes_data[html_file_path]
-    extracted_recipe = await extract_recipe_from_url("http://dummy-url.com")
+    extracted_recipe = await extract_recipe_from_text(raw_text)
     return extracted_recipe, expected_data
 
 

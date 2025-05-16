@@ -1,4 +1,3 @@
-import difflib
 import logging
 from pathlib import Path
 
@@ -11,6 +10,7 @@ from monsterui.all import *
 from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
+from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
@@ -25,6 +25,17 @@ from meal_planner.services.recipe_processing import postprocess_recipe
 from meal_planner.services.webpage_text_extractor import (
     fetch_and_clean_text_from_url,
 )
+from meal_planner.ui.common import (
+    CSS_ERROR_CLASS,
+    CSS_SUCCESS_CLASS,
+    DRAG_HANDLE_ICON,
+    ICON_ADD,
+    ICON_DELETE,
+    create_loading_indicator,
+)
+from meal_planner.ui.layout import with_layout
+from meal_planner.ui.recipe_editor import _build_diff_content_children
+from meal_planner.ui.recipe_form import create_extraction_form_parts
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -57,162 +68,28 @@ internal_api_client = httpx.AsyncClient(
     base_url="http://internal-api",  # arbitrary
 )
 
-CSS_ERROR_CLASS = str(TextT.error)
-
 
 @rt("/")
 def get():
     return with_layout(Titled("Meal Planner"))
 
 
-def sidebar():
-    nav = NavContainer(
-        Li(
-            A(
-                DivFullySpaced("Meal Planner"),
-                href="/",
-                hx_target="#content",
-                hx_push_url="true",
-            )
-        ),
-        NavParentLi(
-            A(DivFullySpaced("Recipes")),
-            NavContainer(
-                Li(
-                    A(
-                        "Create",
-                        href="/recipes/extract",
-                        hx_target="#content",
-                        hx_push_url="true",
-                    )
-                ),
-                Li(
-                    A(
-                        "View All",
-                        href="/recipes",
-                        hx_target="#content",
-                        hx_push_url="true",
-                    )
-                ),
-                parent=False,
-            ),
-        ),
-        uk_nav=True,
-        cls=NavT.primary,
-        uk_sticky="offset: 20",
-    )
-    return Div(nav, cls="space-y-4 p-4 w-full md:w-full")
-
-
-def with_layout(content):
-    indicator_style = Style("""
-        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
-        .htmx-indicator.htmx-request { opacity: 1; }
-    """)
-
-    hamburger_button = Div(
-        Button(
-            UkIcon("menu"),
-            data_uk_toggle="target: #mobile-sidebar",
-            cls="p-2",
-        ),
-        cls="md:hidden flex justify-end p-2",
-    )
-
-    mobile_sidebar_container = Div(
-        sidebar(),
-        id="mobile-sidebar",
-        hidden=True,
-    )
-
-    return (
-        Title("Meal Planner"),
-        indicator_style,
-        hamburger_button,
-        mobile_sidebar_container,
-        Div(cls="flex flex-col md:flex-row w-full")(
-            Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
-            Div(
-                content,
-                cls="md:w-4/5 w-full p-4",
-                id="content",
-                hx_trigger="recipeListChanged from:body",
-                hx_get="/recipes",
-                hx_target="#recipe-list-area",
-                hx_swap="outerHTML",
-            ),
-        ),
-        Script(src="/static/recipe-editor.js"),
-    )
-
-
 @rt("/recipes/extract")
 def get():
-    url_input_component = Div(
-        Div(
-            Input(
-                id="input_url",
-                name="input_url",
-                type="url",
-                placeholder="https://example.com/recipe",
-                cls="flex-grow mr-2",
-            ),
-            Div(
-                Button(
-                    "Fetch Text from URL",
-                    hx_post="/recipes/fetch-text",
-                    hx_target="#recipe_text_container",
-                    hx_swap="outerHTML",
-                    hx_include="[name='input_url']",
-                    hx_indicator="#fetch-indicator",
-                    cls=ButtonT.primary,
-                ),
-                Loading(id="fetch-indicator", cls="htmx-indicator ml-2"),
-                cls="flex items-center",
-            ),
-            cls="flex items-end",
-        ),
-        cls="mb-4",
-    )
-
-    text_area_container = Div(
-        TextArea(
-            id="recipe_text",
-            name="recipe_text",
-            placeholder="Paste full recipe text here, or fetch from URL above.",
-            rows=15,
-            cls="mb-4",
-        ),
-        id="recipe_text_container",
-    )
-
-    extract_button_group = Div(
-        Button(
-            "Extract Recipe",
-            hx_post="/recipes/extract/run",
-            hx_target="#recipe-results",
-            hx_swap="innerHTML",
-            hx_include="#recipe_text_container",
-            hx_indicator="#extract-indicator",
-            cls=ButtonT.primary,
-        ),
-        Loading(id="extract-indicator", cls="htmx-indicator ml-2"),
-        cls="mt-4",
-    )
-
-    disclaimer = P(
-        "Recipe extraction uses AI and may not be perfectly accurate. Always "
-        "double-check the results.",
-        cls=f"{TextT.muted} text-xs mt-1",
-    )
-
-    results_div = Div(id="recipe-results")
+    (
+        url_input_component,
+        fetch_url_error_display_div,
+        text_area_container,
+        extract_button_group,
+        disclaimer,
+        results_div,
+    ) = create_extraction_form_parts()
 
     input_section = Div(
         H2("Extract Recipe"),
         H3("URL"),
         url_input_component,
-        Div(id="fetch-url-error-display", cls="mt-2 mb-2"),
+        fetch_url_error_display_div,
         H3("Text"),
         text_area_container,
         extract_button_group,
@@ -288,7 +165,7 @@ async def get_recipes_htmx(request: Request):
                         cls="mr-2",
                     ),
                     Button(
-                        UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
+                        ICON_DELETE,
                         title="Delete",
                         hx_delete=f"/api/v0/recipes/{recipe['id']}",
                         hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
@@ -302,7 +179,14 @@ async def get_recipes_htmx(request: Request):
             id="recipe-list-ul",
         )
 
-    list_component = Titled("All Recipes", content, id="recipe-list-area")
+    list_component = Titled(
+        "All Recipes",
+        content,
+        id="recipe-list-area",
+        hx_trigger="recipeListChanged from:body",
+        hx_get="/recipes",
+        hx_swap="outerHTML",
+    )
 
     if "HX-Request" in request.headers:
         return list_component
@@ -419,47 +303,6 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
     return processed_recipe
 
 
-async def extract_recipe_from_url(recipe_url: str) -> RecipeBase:
-    """Fetches text from a URL, cleans it, and extracts a recipe from it."""
-    cleaned_text = await fetch_and_clean_text_from_url(recipe_url)
-    return await extract_recipe_from_text(cleaned_text)
-
-
-def generate_diff_html(
-    before_text: str, after_text: str
-) -> tuple[list[str | FT], list[str | FT]]:
-    """Generates two lists of fasthtml components/strings for diff display."""
-    before_lines = before_text.splitlines()
-    after_lines = after_text.splitlines()
-    matcher = difflib.SequenceMatcher(None, before_lines, after_lines)
-    before_items = []
-    after_items = []
-
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            for line in before_lines[i1:i2]:
-                before_items.extend([line, "\n"])
-                after_items.extend([line, "\n"])
-        elif tag == "replace":
-            for line in before_lines[i1:i2]:
-                before_items.extend([Del(line), "\n"])
-            for line in after_lines[j1:j2]:
-                after_items.extend([Ins(line), "\n"])
-        elif tag == "delete":
-            for line in before_lines[i1:i2]:
-                before_items.extend([Del(line), "\n"])
-        elif tag == "insert":
-            for line in after_lines[j1:j2]:
-                after_items.extend([Ins(line), "\n"])
-
-    if before_items and before_items[-1] == "\n":
-        before_items.pop()
-    if after_items and after_items[-1] == "\n":
-        after_items.pop()
-
-    return before_items, after_items
-
-
 def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
     """Parses recipe form data into a dictionary, handling optional prefix."""
     name_value = form_data.get(f"{prefix}name")
@@ -480,44 +323,6 @@ def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
         "ingredients": ingredients,
         "instructions": instructions,
     }
-
-
-def _build_diff_content_children(
-    original_recipe: RecipeBase, current_markdown: str
-) -> tuple[FT, FT]:
-    """Builds fasthtml.Div components for 'before' and 'after' diff areas."""
-    before_items, after_items = generate_diff_html(
-        original_recipe.markdown, current_markdown
-    )
-
-    pre_style = "white-space: pre-wrap; overflow-wrap: break-word;"
-    base_classes = (
-        "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs"
-    )
-
-    before_div_component = Card(
-        Strong("Initial Extracted Recipe (Reference)"),
-        Pre(
-            *before_items,
-            id="diff-before-pre",
-            cls=base_classes,
-            style=pre_style,
-        ),
-        cls=CardT.secondary,
-    )
-
-    after_div_component = Card(
-        Strong("Current Edited Recipe"),
-        Pre(
-            *after_items,
-            id="diff-after-pre",
-            cls=base_classes,
-            style=pre_style,
-        ),
-        cls=CardT.secondary,
-    )
-
-    return before_div_component, after_div_component
 
 
 def _build_edit_review_form(
@@ -612,7 +417,7 @@ def _build_modification_controls(
             hx_indicator="#modify-indicator",
             cls=ButtonT.primary,
         ),
-        Loading(id="modify-indicator", cls="htmx-indicator ml-2"),
+        create_loading_indicator("modify-indicator"),
         cls="mb-4",
     )
     edit_disclaimer = P(
@@ -679,10 +484,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
     """Render ingredient input divs as a list of fasthtml.Tag components."""
     items_list = []
     for i, ing_value in enumerate(ingredients):
-        drag_handle_component = UkIcon(
-            "menu",
-            cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600",
-        )
+        drag_handle_component = DRAG_HANDLE_ICON
         input_component = Input(
             type="text",
             name="ingredients",
@@ -697,7 +499,7 @@ def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
         )
 
         button_component = Button(
-            UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
+            ICON_DELETE,
             type="button",
             hx_post=f"/recipes/ui/delete-ingredient/{i}",
             hx_target="#ingredients-list",
@@ -733,7 +535,7 @@ def _build_ingredients_section(ingredients: list[str]):
         hx_include="closest form",
     )
     add_ingredient_button = Button(
-        UkIcon("plus-circle", cls=TextT.primary),
+        ICON_ADD,
         hx_post="/recipes/ui/add-ingredient",
         hx_target="#ingredients-list",
         hx_swap="innerHTML",
@@ -751,10 +553,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
     """Render instruction textarea divs as a list of fasthtml.Tag components."""
     items_list = []
     for i, inst_value in enumerate(instructions):
-        drag_handle_component = UkIcon(
-            "menu",
-            cls="drag-handle mr-2 cursor-grab text-gray-400 hover:text-gray-600",
-        )
+        drag_handle_component = DRAG_HANDLE_ICON
         textarea_component = Textarea(
             inst_value,
             name="instructions",
@@ -769,7 +568,7 @@ def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
         )
 
         button_component = Button(
-            UkIcon("minus-circle", cls=CSS_ERROR_CLASS),
+            ICON_DELETE,
             type="button",
             hx_post=f"/recipes/ui/delete-instruction/{i}",
             hx_target="#instructions-list",
@@ -805,12 +604,12 @@ def _build_instructions_section(instructions: list[str]):
         hx_include="closest form",
     )
     add_instruction_button = Button(
-        UkIcon("plus-circle", cls=TextT.primary),
+        ICON_ADD,
         hx_post="/recipes/ui/add-instruction",
         hx_target="#instructions-list",
         hx_swap="innerHTML",
         hx_include="closest form",
-        cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
+        cls=ButtonT.primary,
     )
     return Div(
         H3("Instructions"),
@@ -852,7 +651,7 @@ def _build_save_button() -> FT:
             hx_indicator="#save-indicator",
             cls=ButtonT.primary,
         ),
-        Loading(id="save-indicator", cls="htmx-indicator ml-2"),
+        create_loading_indicator("save-indicator"),
         id="save-button-container",
         cls="mt-6",
     )
@@ -934,7 +733,7 @@ async def post_fetch_text(input_url: str | None = None):
 
 
 @rt("/recipes/extract/run")
-async def post(recipe_url: str | None = None, recipe_text: str | None = None):
+async def post(recipe_text: str | None = None):
     if not recipe_text:
         logging.error("Recipe extraction called without text.")
         return Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
@@ -1006,6 +805,7 @@ async def post_save_recipe(request: Request):
 
     user_final_message = ""
     message_is_error = False
+    headers = {}
 
     try:
         response = await internal_client.post(
@@ -1014,6 +814,7 @@ async def post_save_recipe(request: Request):
         response.raise_for_status()
         logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
         user_final_message = "Current Recipe Saved!"
+        headers["HX-Trigger"] = "recipeListChanged"
 
     except httpx.HTTPStatusError as e:
         message_is_error = True
@@ -1055,11 +856,13 @@ async def post_save_recipe(request: Request):
             id="save-button-container",
         )
     else:
-        return Span(
-            user_final_message,
-            cls=TextT.success,
-            id="save-button-container",
+        user_final_message = "Current Recipe Saved!"
+        css_class = CSS_SUCCESS_CLASS
+        html_content = (
+            f'<span id="save-button-container" class="{css_class}">{user_final_message}'
+            "</span>"
         )
+        return HTMLResponse(content=html_content, headers=headers)
 
 
 class ModifyFormError(Exception):

@@ -26,7 +26,7 @@ repos:
         stages: [pre-push]
     -   id: pytest
         name: Check tests and test coverage
-        entry: uv run ./run_fast_coverage.sh
+        entry: ./run_fast_coverage.sh
         language: system
         types: [python]
         pass_filenames: false
