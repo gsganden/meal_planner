@@ -937,7 +937,10 @@ async def post_save_recipe(request: Request):
     else:
         user_final_message = "Current Recipe Saved!"
         css_class = CSS_SUCCESS_CLASS
-        html_content = f'<span id="save-button-container" class="{css_class}">{user_final_message}</span>'
+        html_content = (
+            f'<span id="save-button-container" class="{css_class}">{user_final_message}'
+            "</span>"
+        )
         return HTMLResponse(content=html_content, headers=headers)
 
 
