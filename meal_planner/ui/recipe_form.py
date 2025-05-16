@@ -1,5 +1,5 @@
-from fasthtml.common import Button, Div, Input, P
-from monsterui.all import ButtonT, Loading, TextArea, TextT
+from fasthtml.common import *
+from monsterui.all import *
 
 
 def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
@@ -11,7 +11,7 @@ def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
                 name="input_url",
                 type="url",
                 placeholder="https://example.com/recipe",
-                cls="flex-grow mr-2",
+                cls="uk-input flex-grow mr-2",
             ),
             Div(
                 Button(
@@ -31,7 +31,6 @@ def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
         cls="mb-4",
     )
 
-    # Placeholder for URL fetch errors
     fetch_url_error_display_div = Div(id="fetch-url-error-display", cls="mt-2 mb-2")
 
     text_area_container = Div(
@@ -51,7 +50,6 @@ def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
             hx_post="/recipes/extract/run",
             hx_target="#recipe-results",
             hx_swap="innerHTML",
-            # Should this also include input_url if text is empty?
             hx_include="#recipe_text_container",
             hx_indicator="#extract-indicator",
             cls=ButtonT.primary,

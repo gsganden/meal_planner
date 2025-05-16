@@ -3,4 +3,4 @@ description:
 globs: 
 alwaysApply: true
 ---
-`fasthtml` and `monsterui` are designed to work well with `import *`, so that pattern is OK even though it is not recommended generally.
+`fasthtml` and `monsterui` are designed to work with `import *`, so we want that pattern even though it is not recommended generally.
