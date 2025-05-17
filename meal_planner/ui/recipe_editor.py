@@ -79,3 +79,38 @@ def _build_diff_content_children(
     )
 
     return before_div_component, after_div_component
+
+
+def _build_recipe_display(recipe_data: dict) -> FT:
+    """Builds a Card containing the formatted recipe details.
+
+    Args:
+        recipe_data: A dictionary containing 'name', 'ingredients', 'instructions'.
+
+    Returns:
+        A monsterui.Card component ready for display.
+    """
+    components = [
+        H3(recipe_data["name"]),
+        H4("Ingredients"),
+        Ul(
+            *[Li(ing) for ing in recipe_data.get("ingredients", [])],
+            cls=ListT.bullet,
+        ),
+    ]
+    instructions = recipe_data.get("instructions", [])
+    if instructions:
+        components.extend(
+            [
+                H4("Instructions"),
+                Ul(
+                    *[Li(inst) for inst in instructions],
+                    cls=ListT.bullet,
+                ),
+            ]
+        )
+
+    return Card(
+        *components,
+        cls=CardT.secondary,
+    )

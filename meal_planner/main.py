@@ -15,6 +15,7 @@ from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
+from meal_planner.ui.recipe_editor import _build_recipe_display
 from meal_planner.services.llm_service import (
     generate_modified_recipe as llm_generate_modified_recipe,
 )
@@ -71,11 +72,13 @@ internal_api_client = httpx.AsyncClient(
 
 @rt("/")
 def get():
+    """Get the home page."""
     return with_layout(Titled("Meal Planner"))
 
 
 @rt("/recipes/extract")
 def get():
+    """Get the recipe extraction form."""
     (
         url_input_component,
         fetch_url_error_display_div,
@@ -114,6 +117,7 @@ def get():
 
 @rt("/recipes")
 async def get_recipes_htmx(request: Request):
+    """Get the recipes list page."""
     recipes_data = []
     error_content = None
     try:
@@ -244,41 +248,6 @@ async def get_single_recipe_page(recipe_id: int):
     content = _build_recipe_display(recipe_data)
 
     return with_layout(content)
-
-
-def _build_recipe_display(recipe_data: dict):
-    """Builds a Card containing the formatted recipe details.
-
-    Args:
-        recipe_data: A dictionary containing 'name', 'ingredients', 'instructions'.
-
-    Returns:
-        A monsterui.Card component ready for display.
-    """
-    components = [
-        H3(recipe_data["name"]),
-        H4("Ingredients"),
-        Ul(
-            *[Li(ing) for ing in recipe_data.get("ingredients", [])],
-            cls=ListT.bullet,
-        ),
-    ]
-    instructions = recipe_data.get("instructions", [])
-    if instructions:
-        components.extend(
-            [
-                H4("Instructions"),
-                Ul(
-                    *[Li(inst) for inst in instructions],
-                    cls=ListT.bullet,
-                ),
-            ]
-        )
-
-    return Card(
-        *components,
-        cls=CardT.secondary,
-    )
 
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
