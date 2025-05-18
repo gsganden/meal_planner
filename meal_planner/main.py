@@ -39,6 +39,7 @@ from meal_planner.ui.recipe_editor import (
     _build_recipe_display,
 )
 from meal_planner.ui.recipe_form import create_extraction_form
+from meal_planner.ui.recipe_list import format_recipe_list
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -95,12 +96,9 @@ def get():
 @rt("/recipes")
 async def get_recipes_htmx(request: Request):
     """Get the recipes list page."""
-    recipes_data = []
-    error_content = None
     try:
         response = await internal_api_client.get("/v0/recipes")
         response.raise_for_status()
-        recipes_data = response.json()
     except httpx.HTTPStatusError as e:
         logger.error(
             "API error fetching recipes: %s Response: %s",
@@ -108,65 +106,41 @@ async def get_recipes_htmx(request: Request):
             e.response.text,
             exc_info=True,
         )
-        error_class = getattr(TextT, "error", "uk-text-danger")
-        error_content = Titled(
-            "Error",
-            Div("Error fetching recipes from API.", cls=f"{error_class} mb-4"),
-            id="recipe-list-area",
+        return _wrap_for_full_page_iff_not_htmx(
+            Titled(
+                "Error",
+                Div("Error fetching recipes from API.", cls=f"{TextT.error} mb-4"),
+                id="recipe-list-area",
+            ),
+            request,
         )
     except Exception as e:
         logger.error("Error fetching recipes: %s", e, exc_info=True)
-        error_class = getattr(TextT, "error", "uk-text-danger")
-        error_content = Titled(
-            "Error",
-            Div(
-                "An unexpected error occurred while fetching recipes.",
-                cls=f"{error_class} mb-4",
+        return _wrap_for_full_page_iff_not_htmx(
+            Titled(
+                "Error",
+                Div(
+                    "An unexpected error occurred while fetching recipes.",
+                    cls=f"{TextT.error} mb-4",
+                ),
+                id="recipe-list-area",
             ),
+            request,
+        )
+
+    return _wrap_for_full_page_iff_not_htmx(
+        Titled(
+            "All Recipes",
+            format_recipe_list(response.json())
+            if response.json()
+            else Div("No recipes found."),
             id="recipe-list-area",
-        )
-
-    if error_content:
-        return _wrap_for_full_page_iff_not_htmx(error_content, request)
-
-    if not recipes_data:
-        content = Div("No recipes found.")
-    else:
-        content = Ul(
-            *[
-                Li(
-                    A(
-                        recipe["name"],
-                        href=f"/recipes/{recipe['id']}",
-                        hx_target="#content",
-                        hx_push_url="true",
-                        cls="mr-2",
-                    ),
-                    Button(
-                        ICON_DELETE,
-                        title="Delete",
-                        hx_delete=f"/api/v0/recipes/{recipe['id']}",
-                        hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
-                        cls=f"{ButtonT.sm} p-1",
-                    ),
-                    id=f"recipe-item-{recipe['id']}",
-                    cls="flex items-center justify-start gap-x-2 mb-1",
-                )
-                for recipe in recipes_data
-            ],
-            id="recipe-list-ul",
-        )
-
-    list_component = Titled(
-        "All Recipes",
-        content,
-        id="recipe-list-area",
-        hx_trigger="recipeListChanged from:body",
-        hx_get="/recipes",
-        hx_swap="outerHTML",
+            hx_trigger="recipeListChanged from:body",
+            hx_get="/recipes",
+            hx_swap="outerHTML",
+        ),
+        request,
     )
-
-    return _wrap_for_full_page_iff_not_htmx(list_component, request)
 
 
 @rt("/recipes/{recipe_id:int}")
