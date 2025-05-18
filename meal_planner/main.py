@@ -80,7 +80,7 @@ def get():
 
 
 @rt("/recipes/extract")
-def get():
+def get_recipe_extraction_page():
     return with_layout(
         Titled(
             "Create Recipe",
@@ -94,7 +94,7 @@ def get():
 
 
 @rt("/recipes")
-async def get_recipes_htmx(request: Request):
+async def get_recipe_list_page(request: Request):
     """Get the recipes list page."""
     try:
         response = await internal_api_client.get("/v0/recipes")
@@ -106,7 +106,7 @@ async def get_recipes_htmx(request: Request):
             e.response.text,
             exc_info=True,
         )
-        return _wrap_for_full_page_iff_not_htmx(
+        result = _wrap_for_full_page_iff_not_htmx(
             Titled(
                 "Error",
                 Div("Error fetching recipes from API.", cls=f"{TextT.error} mb-4"),
@@ -116,7 +116,7 @@ async def get_recipes_htmx(request: Request):
         )
     except Exception as e:
         logger.error("Error fetching recipes: %s", e, exc_info=True)
-        return _wrap_for_full_page_iff_not_htmx(
+        result = _wrap_for_full_page_iff_not_htmx(
             Titled(
                 "Error",
                 Div(
@@ -127,20 +127,22 @@ async def get_recipes_htmx(request: Request):
             ),
             request,
         )
+    else:
+        result = _wrap_for_full_page_iff_not_htmx(
+            Titled(
+                "All Recipes",
+                format_recipe_list(response.json())
+                if response.json()
+                else Div("No recipes found."),
+                id="recipe-list-area",
+                hx_trigger="recipeListChanged from:body",
+                hx_get="/recipes",
+                hx_swap="outerHTML",
+            ),
+            request,
+        )
 
-    return _wrap_for_full_page_iff_not_htmx(
-        Titled(
-            "All Recipes",
-            format_recipe_list(response.json())
-            if response.json()
-            else Div("No recipes found."),
-            id="recipe-list-area",
-            hx_trigger="recipeListChanged from:body",
-            hx_get="/recipes",
-            hx_swap="outerHTML",
-        ),
-        request,
-    )
+    return result
 
 
 @rt("/recipes/{recipe_id:int}")
@@ -149,11 +151,10 @@ async def get_single_recipe_page(recipe_id: int):
     try:
         response = await internal_client.get(f"/api/v0/recipes/{recipe_id}")
         response.raise_for_status()
-        recipe_data = response.json()
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             logger.warning("Recipe ID %s not found when loading page.", recipe_id)
-            return with_layout(
+            result = with_layout(
                 Titled("Recipe Not Found", P("The requested recipe does not exist."))
             )
         else:
@@ -164,7 +165,7 @@ async def get_single_recipe_page(recipe_id: int):
                 e.response.text,
                 exc_info=True,
             )
-            return with_layout(
+            result = with_layout(
                 Titled(
                     "Error",
                     P(
@@ -180,7 +181,7 @@ async def get_single_recipe_page(recipe_id: int):
             e,
             exc_info=True,
         )
-        return with_layout(
+        result = with_layout(
             Titled(
                 "Error",
                 P(
@@ -189,10 +190,10 @@ async def get_single_recipe_page(recipe_id: int):
                 ),
             )
         )
+    else:
+        result = with_layout(_build_recipe_display(response.json()))
 
-    content = _build_recipe_display(recipe_data)
-
-    return with_layout(content)
+    return result
 
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
@@ -208,13 +209,13 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
         )
         raise
 
-    processed_recipe = postprocess_recipe(extracted_recipe)
+    result = postprocess_recipe(extracted_recipe)
     logger.info(
         "Extraction (via llm_service) and postprocessing successful. Recipe Name: %s",
-        processed_recipe.name,
+        result.name,
     )
-    logger.debug("Processed Recipe Object: %r", processed_recipe)
-    return processed_recipe
+    logger.debug("Processed Recipe Object: %r", result)
+    return result
 
 
 def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
