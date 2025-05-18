@@ -28,15 +28,14 @@ from meal_planner.services.webpage_text_extractor import (
 from meal_planner.ui.common import (
     CSS_ERROR_CLASS,
     CSS_SUCCESS_CLASS,
-    DRAG_HANDLE_ICON,
-    ICON_ADD,
-    ICON_DELETE,
-    create_loading_indicator,
 )
 from meal_planner.ui.layout import _wrap_for_full_page_iff_not_htmx, with_layout
 from meal_planner.ui.recipe_editor import (
-    _build_diff_content_children,
-    _build_recipe_display,
+    _build_edit_review_form,
+    build_diff_content_children,
+    build_recipe_display,
+    render_ingredient_list_items,
+    render_instruction_list_items,
 )
 from meal_planner.ui.recipe_form import create_extraction_form
 from meal_planner.ui.recipe_list import format_recipe_list
@@ -191,7 +190,7 @@ async def get_single_recipe_page(recipe_id: int):
             )
         )
     else:
-        result = with_layout(_build_recipe_display(response.json()))
+        result = with_layout(build_recipe_display(response.json()))
 
     return result
 
@@ -238,338 +237,6 @@ def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
         "ingredients": ingredients,
         "instructions": instructions,
     }
-
-
-def _build_edit_review_form(
-    current_recipe: RecipeBase,
-    original_recipe: RecipeBase | None = None,
-    modification_prompt_value: str | None = None,
-    error_message_content: FT | None = None,
-):
-    """Builds the primary recipe editing interface components.
-
-    This function constructs the main card containing the editable recipe form
-    (manual edits and AI modification controls) and the separate review card
-    containing the diff view and save button.
-
-    Args:
-        current_recipe: The RecipeBase object representing the current state
-            of the recipe being edited.
-        original_recipe: An optional RecipeBase object representing the initial
-            state of the recipe before any edits (or modifications). This is used
-            as the baseline for the diff view. If None, `current_recipe` is used
-            as the baseline.
-        modification_prompt_value: An optional string containing the user's
-            previous AI modification request, used to pre-fill the input.
-        error_message_content: Optional FastHTML content (e.g., a Div with an
-            error message) to display within the modification controls section.
-
-    Returns:
-        A tuple containing two components:
-        1. main_edit_card (Card): The card containing the modification
-           controls and the editable fields (name, ingredients, instructions).
-        2. review_section_card (Card): The card containing the diff view
-           and the save button.
-    """
-    diff_baseline_recipe = original_recipe
-    if diff_baseline_recipe is None:
-        diff_baseline_recipe = current_recipe
-
-    controls_section = _build_modification_controls(
-        modification_prompt_value, error_message_content
-    )
-    original_hidden_fields = _build_original_hidden_fields(diff_baseline_recipe)
-    editable_section = _build_editable_section(current_recipe)
-    review_section = _build_review_section(diff_baseline_recipe, current_recipe)
-
-    combined_edit_section = Div(
-        H2("Edit Recipe"),
-        Div(
-            controls_section,
-            editable_section,
-            id="form-content-wrapper",
-        ),
-        cls="space-y-4",
-    )
-
-    diff_style = Style("""\
-        /* Apply background colors, let default text decoration apply */
-        ins { @apply bg-green-100 dark:bg-green-700 dark:bg-opacity-40; }\
-        del { @apply bg-red-100 dark:bg-red-700 dark:bg-opacity-40; }\
-    """)
-
-    main_edit_card = Card(
-        Form(
-            combined_edit_section,
-            *original_hidden_fields,
-            id="edit-review-form",
-        ),
-        diff_style,
-    )
-
-    return main_edit_card, review_section
-
-
-def _build_modification_controls(
-    modification_prompt_value: str | None, error_message_content
-):
-    """Builds the 'Modify with AI' control section."""
-    modification_input = Input(
-        id="modification_prompt",
-        name="modification_prompt",
-        placeholder="e.g., Make it vegan, double the servings",
-        label="Modify Recipe Request (Optional)",
-        value=modification_prompt_value or "",
-        cls="mb-2",
-    )
-    modify_button_container = Div(
-        Button(
-            "Modify Recipe",
-            hx_post="/recipes/modify",
-            hx_target="#edit-form-target",
-            hx_swap="outerHTML",
-            hx_include="closest form",
-            hx_indicator="#modify-indicator",
-            cls=ButtonT.primary,
-        ),
-        create_loading_indicator("modify-indicator"),
-        cls="mb-4",
-    )
-    edit_disclaimer = P(
-        "AI recipe modification is experimental. Review changes carefully.",
-        cls=f"{TextT.muted} text-xs mt-1 mb-4",
-    )
-    return Div(
-        H3("Modify with AI"),
-        modification_input,
-        modify_button_container,
-        edit_disclaimer,
-        error_message_content or "",
-        cls="mb-6",
-    )
-
-
-def _build_original_hidden_fields(original_recipe: RecipeBase):
-    """Builds the hidden input fields for the original recipe data."""
-    return (
-        Input(type="hidden", name="original_name", value=original_recipe.name),
-        *(
-            Input(type="hidden", name="original_ingredients", value=ing)
-            for ing in original_recipe.ingredients
-        ),
-        *(
-            Input(type="hidden", name="original_instructions", value=inst)
-            for inst in original_recipe.instructions
-        ),
-    )
-
-
-def _build_editable_section(current_recipe: RecipeBase):
-    """Builds the 'Edit Manually' section with inputs for name, ingredients,
-    and instructions."""
-    name_input = _build_name_input(current_recipe.name)
-    ingredients_section = _build_ingredients_section(current_recipe.ingredients)
-    instructions_section = _build_instructions_section(current_recipe.instructions)
-
-    return Div(
-        H3("Edit Manually"),
-        name_input,
-        ingredients_section,
-        instructions_section,
-    )
-
-
-def _build_name_input(name_value: str):
-    """Builds the input field for the recipe name."""
-    return Input(
-        id="name",
-        name="name",
-        label="Recipe Name",
-        value=name_value,
-        cls="mb-4",
-        hx_post="/recipes/ui/update-diff",
-        hx_target="#diff-content-wrapper",
-        hx_swap="innerHTML",
-        hx_trigger="change, keyup changed delay:500ms",
-        hx_include="closest form",
-    )
-
-
-def _render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
-    """Render ingredient input divs as a list of fasthtml.Tag components."""
-    items_list = []
-    for i, ing_value in enumerate(ingredients):
-        drag_handle_component = DRAG_HANDLE_ICON
-        input_component = Input(
-            type="text",
-            name="ingredients",
-            value=ing_value,
-            placeholder="Ingredient",
-            cls="uk-input flex-grow mr-2",
-            hx_post="/recipes/ui/update-diff",
-            hx_target="#diff-content-wrapper",
-            hx_swap="innerHTML",
-            hx_trigger="change, keyup changed delay:500ms",
-            hx_include="closest form",
-        )
-
-        button_component = Button(
-            ICON_DELETE,
-            type="button",
-            hx_post=f"/recipes/ui/delete-ingredient/{i}",
-            hx_target="#ingredients-list",
-            hx_swap="innerHTML",
-            hx_include="closest form",
-            cls="uk-button uk-button-danger uk-border-circle p-1 "
-            "flex items-center justify-center ml-2",
-        )
-
-        item_div = Div(
-            drag_handle_component,
-            input_component,
-            button_component,
-            cls="flex items-center mb-2",
-        )
-        items_list.append(item_div)
-    return items_list
-
-
-def _build_ingredients_section(ingredients: list[str]):
-    """Builds the ingredients list section with inputs and add/remove buttons."""
-    ingredient_item_components = _render_ingredient_list_items(ingredients)
-
-    ingredient_inputs_container = Div(
-        *ingredient_item_components,
-        id="ingredients-list",
-        cls="mb-4",
-        uk_sortable="handle: .drag-handle",
-        hx_trigger="moved",
-        hx_post="/recipes/ui/update-diff",
-        hx_target="#diff-content-wrapper",
-        hx_swap="innerHTML",
-        hx_include="closest form",
-    )
-    add_ingredient_button = Button(
-        ICON_ADD,
-        hx_post="/recipes/ui/add-ingredient",
-        hx_target="#ingredients-list",
-        hx_swap="innerHTML",
-        hx_include="closest form",
-        cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
-    )
-    return Div(
-        H3("Ingredients"),
-        ingredient_inputs_container,
-        add_ingredient_button,
-    )
-
-
-def _render_instruction_list_items(instructions: list[str]) -> list[Tag]:
-    """Render instruction textarea divs as a list of fasthtml.Tag components."""
-    items_list = []
-    for i, inst_value in enumerate(instructions):
-        drag_handle_component = DRAG_HANDLE_ICON
-        textarea_component = Textarea(
-            inst_value,
-            name="instructions",
-            placeholder="Instruction Step",
-            rows=2,
-            cls="uk-textarea flex-grow mr-2",
-            hx_post="/recipes/ui/update-diff",
-            hx_target="#diff-content-wrapper",
-            hx_swap="innerHTML",
-            hx_trigger="change, keyup changed delay:500ms",
-            hx_include="closest form",
-        )
-
-        button_component = Button(
-            ICON_DELETE,
-            type="button",
-            hx_post=f"/recipes/ui/delete-instruction/{i}",
-            hx_target="#instructions-list",
-            hx_swap="innerHTML",
-            hx_include="closest form",
-            cls="uk-button uk-button-danger uk-border-circle p-1 "
-            "flex items-center justify-center ml-2",
-        )
-
-        item_div = Div(
-            drag_handle_component,
-            textarea_component,
-            button_component,
-            cls="flex items-start mb-2",
-        )
-        items_list.append(item_div)
-    return items_list
-
-
-def _build_instructions_section(instructions: list[str]):
-    """Builds the instructions list section with textareas and add/remove buttons."""
-    instruction_item_components = _render_instruction_list_items(instructions)
-
-    instruction_inputs_container = Div(
-        *instruction_item_components,
-        id="instructions-list",
-        cls="mb-4",
-        uk_sortable="handle: .drag-handle",
-        hx_trigger="moved",
-        hx_post="/recipes/ui/update-diff",
-        hx_target="#diff-content-wrapper",
-        hx_swap="innerHTML",
-        hx_include="closest form",
-    )
-    add_instruction_button = Button(
-        ICON_ADD,
-        hx_post="/recipes/ui/add-instruction",
-        hx_target="#instructions-list",
-        hx_swap="innerHTML",
-        hx_include="closest form",
-        cls=ButtonT.primary,
-    )
-    return Div(
-        H3("Instructions"),
-        instruction_inputs_container,
-        add_instruction_button,
-    )
-
-
-def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBase):
-    """Builds the 'Review Changes' section with the diff view."""
-    before_component, after_component = _build_diff_content_children(
-        original_recipe, current_recipe.markdown
-    )
-    diff_content_wrapper = Div(
-        before_component,
-        after_component,
-        cls="flex space-x-4 mt-4",
-        id="diff-content-wrapper",
-    )
-    save_button_container = _build_save_button()
-    return Card(
-        Div(
-            H2("Review Changes"),
-            diff_content_wrapper,
-            save_button_container,
-        )
-    )
-
-
-def _build_save_button() -> FT:
-    """Builds the save button container."""
-    return Div(
-        Button(
-            "Save Recipe",
-            hx_post="/recipes/save",
-            hx_target="#save-button-container",
-            hx_swap="outerHTML",
-            hx_include="#edit-review-form",
-            hx_indicator="#save-indicator",
-            cls=ButtonT.primary,
-        ),
-        create_loading_indicator("save-indicator"),
-        id="save-button-container",
-        cls="mt-6",
-    )
 
 
 @rt("/recipes/fetch-text")
@@ -676,7 +343,7 @@ async def post(recipe_text: str | None = None):
 
     rendered_recipe_html = Div(
         H2("Extracted Recipe (Reference)"),
-        _build_recipe_display(processed_recipe.model_dump()),
+        build_recipe_display(processed_recipe.model_dump()),
         cls="mb-6 space-y-4",
     )
 
@@ -975,7 +642,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
-        new_ingredient_item_components = _render_ingredient_list_items(
+        new_ingredient_item_components = render_ingredient_list_items(
             new_current_recipe.ingredients
         )
         return _build_sortable_list_with_oob_diff(
@@ -993,7 +660,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
         data_for_error_render = _parse_recipe_form_data(form_data)
         ingredients_for_error_render = data_for_error_render.get("ingredients", [])
 
-        error_items_list = _render_ingredient_list_items(ingredients_for_error_render)
+        error_items_list = render_ingredient_list_items(ingredients_for_error_render)
         ingredients_list_component = Div(
             P(
                 "Error updating list after delete. Validation failed.",
@@ -1032,7 +699,7 @@ async def post_delete_instruction_row(request: Request, index: int):
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
-        new_instruction_item_components = _render_instruction_list_items(
+        new_instruction_item_components = render_instruction_list_items(
             new_current_recipe.instructions
         )
         return _build_sortable_list_with_oob_diff(
@@ -1050,7 +717,7 @@ async def post_delete_instruction_row(request: Request, index: int):
         data_for_error_render = _parse_recipe_form_data(form_data)
         instructions_for_error_render = data_for_error_render.get("instructions", [])
 
-        error_items_list = _render_instruction_list_items(instructions_for_error_render)
+        error_items_list = render_instruction_list_items(instructions_for_error_render)
         instructions_list_component = Div(
             P(
                 "Error updating list after delete. Validation failed.",
@@ -1085,7 +752,7 @@ async def post_add_ingredient_row(request: Request):
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
-        new_ingredient_item_components = _render_ingredient_list_items(
+        new_ingredient_item_components = render_ingredient_list_items(
             new_current_recipe.ingredients
         )
         return _build_sortable_list_with_oob_diff(
@@ -1102,7 +769,7 @@ async def post_add_ingredient_row(request: Request):
         current_ingredients_before_error = _parse_recipe_form_data(form_data).get(
             "ingredients", []
         )
-        error_items = _render_ingredient_list_items(current_ingredients_before_error)
+        error_items = render_ingredient_list_items(current_ingredients_before_error)
         return Div(
             P("Error updating list after add.", cls=CSS_ERROR_CLASS),
             *error_items,
@@ -1130,7 +797,7 @@ async def post_add_instruction_row(request: Request):
         original_data = _parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
-        new_instruction_item_components = _render_instruction_list_items(
+        new_instruction_item_components = render_instruction_list_items(
             new_current_recipe.instructions
         )
         return _build_sortable_list_with_oob_diff(
@@ -1147,7 +814,7 @@ async def post_add_instruction_row(request: Request):
         current_instructions_before_error = _parse_recipe_form_data(form_data).get(
             "instructions", []
         )
-        error_items = _render_instruction_list_items(current_instructions_before_error)
+        error_items = render_instruction_list_items(current_instructions_before_error)
         return Div(
             P("Error updating list after add.", cls=CSS_ERROR_CLASS),
             *error_items,
@@ -1171,7 +838,7 @@ async def update_diff(request: Request) -> FT:
         current_recipe = RecipeBase(**current_data)
         original_recipe = RecipeBase(**original_data)
 
-        before_component, after_component = _build_diff_content_children(
+        before_component, after_component = build_diff_content_children(
             original_recipe, current_recipe.markdown
         )
         return Div(
@@ -1219,7 +886,7 @@ def _build_sortable_list_with_oob_diff(
         hx_include="closest form",
     )
 
-    before_notstr, after_notstr = _build_diff_content_children(
+    before_notstr, after_notstr = build_diff_content_children(
         original_recipe, current_recipe.markdown
     )
     oob_diff_component = Div(

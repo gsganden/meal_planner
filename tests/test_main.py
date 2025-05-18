@@ -1669,7 +1669,7 @@ class TestRecipeUpdateDiff:
         }
         return form_data
 
-    @patch("meal_planner.main._build_diff_content_children")
+    @patch("meal_planner.main.build_diff_content_children")
     @patch("meal_planner.main.logger.error")
     async def test_diff_generation_error(
         self, mock_logger_error, mock_build_diff, client: AsyncClient
