@@ -15,7 +15,6 @@ from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
-from meal_planner.ui.recipe_editor import _build_recipe_display
 from meal_planner.services.llm_service import (
     generate_modified_recipe as llm_generate_modified_recipe,
 )
@@ -35,7 +34,10 @@ from meal_planner.ui.common import (
     create_loading_indicator,
 )
 from meal_planner.ui.layout import with_layout
-from meal_planner.ui.recipe_editor import _build_diff_content_children
+from meal_planner.ui.recipe_editor import (
+    _build_diff_content_children,
+    _build_recipe_display,
+)
 from meal_planner.ui.recipe_form import create_extraction_form_parts
 
 MODEL_NAME = "gemini-2.0-flash"
@@ -251,7 +253,7 @@ async def get_single_recipe_page(recipe_id: int):
 
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
-    """Extracts a recipe from the given text using an LLM and postprocesses it."""
+    """Extracts a recipe from the given text and postprocesses it."""
     logger.info("Attempting to extract recipe from provided text.")
     try:
         extracted_recipe: RecipeBase = await llm_generate_recipe_from_text(
