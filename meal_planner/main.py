@@ -33,12 +33,12 @@ from meal_planner.ui.common import (
     ICON_DELETE,
     create_loading_indicator,
 )
-from meal_planner.ui.layout import with_layout
+from meal_planner.ui.layout import _wrap_for_full_page_iff_not_htmx, with_layout
 from meal_planner.ui.recipe_editor import (
     _build_diff_content_children,
     _build_recipe_display,
 )
-from meal_planner.ui.recipe_form import create_extraction_form_parts
+from meal_planner.ui.recipe_form import create_extraction_form
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -80,39 +80,14 @@ def get():
 
 @rt("/recipes/extract")
 def get():
-    """Get the recipe extraction form."""
-    (
-        url_input_component,
-        fetch_url_error_display_div,
-        text_area_container,
-        extract_button_group,
-        disclaimer,
-        results_div,
-    ) = create_extraction_form_parts()
-
-    input_section = Div(
-        H2("Extract Recipe"),
-        H3("URL"),
-        url_input_component,
-        fetch_url_error_display_div,
-        H3("Text"),
-        text_area_container,
-        extract_button_group,
-        disclaimer,
-        results_div,
-        cls="space-y-4 mb-6",
-    )
-
-    edit_form_target_div = Div(id="edit-form-target", cls="mt-6")
-    review_section_target_div = Div(id="review-section-target", cls="mt-6")
-
     return with_layout(
         Titled(
             "Create Recipe",
-            Card(input_section, cls="mt-6"),
-            edit_form_target_div,
-            review_section_target_div,
+            Div(create_extraction_form()),
+            Div(id="edit-form-target"),
+            Div(id="review-section-target"),
             id="content",
+            cls="space-y-4",
         )
     )
 
@@ -152,10 +127,7 @@ async def get_recipes_htmx(request: Request):
         )
 
     if error_content:
-        if "HX-Request" in request.headers:
-            return error_content
-        else:
-            return with_layout(error_content)
+        return _wrap_for_full_page_iff_not_htmx(error_content, request)
 
     if not recipes_data:
         content = Div("No recipes found.")
@@ -194,10 +166,7 @@ async def get_recipes_htmx(request: Request):
         hx_swap="outerHTML",
     )
 
-    if "HX-Request" in request.headers:
-        return list_component
-    else:
-        return with_layout(list_component)
+    return _wrap_for_full_page_iff_not_htmx(list_component, request)
 
 
 @rt("/recipes/{recipe_id:int}")

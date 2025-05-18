@@ -81,3 +81,11 @@ def with_layout(content: Any):
         ),
         Script(src="/static/recipe-editor.js"),
     )
+
+
+def _is_htmx(request: Request) -> bool:
+    return "HX-Request" in request.headers
+
+
+def _wrap_for_full_page_iff_not_htmx(content: FT, request: Request) -> FT:
+    return content if _is_htmx(request) else with_layout(content)

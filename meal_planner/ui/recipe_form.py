@@ -4,7 +4,7 @@ from monsterui.all import *
 from meal_planner.ui.common import create_loading_indicator
 
 
-def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
+def create_extraction_form() -> Card:
     """Creates and returns the UI components for the recipe extraction form."""
     url_input_component = Div(
         Div(
@@ -33,7 +33,10 @@ def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
         cls="mb-4",
     )
 
-    fetch_url_error_display_div = Div(id="fetch-url-error-display", cls="mt-2 mb-2")
+    fetch_url_error_display_div = Div(
+        id="fetch-url-error-display",
+        cls="mt-2 mb-2",
+    )
 
     text_area_container = Div(
         TextArea(
@@ -63,14 +66,17 @@ def create_extraction_form_parts() -> tuple[Div, Div, Div, Div, P, Div]:
     disclaimer = P(
         "Recipe extraction uses AI and may not be perfectly accurate. Always "
         "double-check the results.",
-        cls=f"{TextT.muted} text-xs mt-1",
+        cls=f"{TextT.muted}",
     )
 
     results_div = Div(id="recipe-results")
 
-    return (
+    return Card(
+        H2("Extract Recipe"),
+        H3("URL"),
         url_input_component,
         fetch_url_error_display_div,
+        H3("Text"),
         text_area_container,
         extract_button_group,
         disclaimer,
