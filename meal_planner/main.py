@@ -336,32 +336,34 @@ async def post(recipe_text: str | None = None):
             e,
             exc_info=True,
         )
-        return Div(
+        result = Div(
             "Recipe extraction failed. An unexpected error occurred during processing.",
             cls=CSS_ERROR_CLASS,
         )
+    else:
+        rendered_recipe_html = Div(
+            H2("Extracted Recipe (Reference)"),
+            build_recipe_display(processed_recipe.model_dump()),
+            cls="mb-6 space-y-4",
+        )
 
-    rendered_recipe_html = Div(
-        H2("Extracted Recipe (Reference)"),
-        build_recipe_display(processed_recipe.model_dump()),
-        cls="mb-6 space-y-4",
-    )
+        edit_form_card, review_section_card = _build_edit_review_form(
+            processed_recipe, processed_recipe
+        )
 
-    edit_form_card, review_section_card = _build_edit_review_form(
-        processed_recipe, processed_recipe
-    )
+        edit_oob_div = Div(
+            edit_form_card,
+            hx_swap_oob="innerHTML:#edit-form-target",
+        )
 
-    edit_oob_div = Div(
-        edit_form_card,
-        hx_swap_oob="innerHTML:#edit-form-target",
-    )
+        review_oob_div = Div(
+            review_section_card,
+            hx_swap_oob="innerHTML:#review-section-target",
+        )
 
-    review_oob_div = Div(
-        review_section_card,
-        hx_swap_oob="innerHTML:#review-section-target",
-    )
+        result = Group(rendered_recipe_html, edit_oob_div, review_oob_div)
 
-    return Group(rendered_recipe_html, edit_oob_div, review_oob_div)
+    return result
 
 
 @rt("/recipes/save")
