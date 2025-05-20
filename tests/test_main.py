@@ -2244,7 +2244,6 @@ async def test_save_recipe_api_call_json_error_with_detail(
     assert error_span.get_text(strip=True) == expected_user_msg
 
     mock_post.assert_awaited_once()
-    mock_logger_debug.assert_any_call("API error detail: %s", error_detail_text)
 
 
 def _extract_current_recipe_data_from_html(html_content: str) -> dict:

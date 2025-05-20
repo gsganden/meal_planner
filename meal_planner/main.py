@@ -374,79 +374,68 @@ async def post_save_recipe(request: Request):
         recipe_obj = RecipeBase(**parsed_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
-        return Span(
+        result = Span(
             "Invalid recipe data. Please check the fields.",
             cls=CSS_ERROR_CLASS,
             id="save-button-container",
         )
     except Exception as e:
         logger.error("Error parsing form data during save: %s", e, exc_info=True)
-        return Span(
+        result = Span(
             "Error processing form data.",
             cls=CSS_ERROR_CLASS,
             id="save-button-container",
         )
-
-    user_final_message = ""
-    message_is_error = False
-    headers = {}
-
-    try:
-        response = await internal_client.post(
-            "/api/v0/recipes", json=recipe_obj.model_dump()
-        )
-        response.raise_for_status()
-        logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
-        user_final_message = "Current Recipe Saved!"
-        headers["HX-Trigger"] = "recipeListChanged"
-
-    except httpx.HTTPStatusError as e:
-        message_is_error = True
-        logger.error(
-            "API error saving recipe: Status %s, Response: %s",
-            e.response.status_code,
-            e.response.text,
-            exc_info=True,
-        )
-        if e.response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
-            user_final_message = "Could not save recipe: Invalid data for some fields."
-        else:
-            user_final_message = (
-                "Could not save recipe. Please check input and try again."
-            )
-        try:
-            detail = e.response.json().get("detail")
-            if detail:
-                logger.debug("API error detail: %s", detail)
-        except Exception:
-            logger.debug("Failed to parse API error detail: %s", e, exc_info=True)
-
-    except httpx.RequestError as e:
-        message_is_error = True
-        logger.error("Network error saving recipe: %s", e, exc_info=True)
-        user_final_message = (
-            "Could not save recipe due to a network issue. Please try again."
-        )
-
-    except Exception as e:
-        message_is_error = True
-        logger.error("Unexpected error saving recipe via API: %s", e, exc_info=True)
-        user_final_message = "An unexpected error occurred while saving the recipe."
-
-    if message_is_error:
-        return Span(
-            user_final_message,
-            cls=CSS_ERROR_CLASS,
-            id="save-button-container",
-        )
     else:
-        user_final_message = "Current Recipe Saved!"
-        css_class = CSS_SUCCESS_CLASS
-        html_content = (
-            f'<span id="save-button-container" class="{css_class}">{user_final_message}'
-            "</span>"
-        )
-        return HTMLResponse(content=html_content, headers=headers)
+        try:
+            response = await internal_client.post(
+                "/api/v0/recipes", json=recipe_obj.model_dump()
+            )
+            response.raise_for_status()
+            logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "API error saving recipe: Status %s, Response: %s",
+                e.response.status_code,
+                e.response.text,
+                exc_info=True,
+            )
+            if e.response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
+                result = Span(
+                    "Could not save recipe: Invalid data for some fields.",
+                    cls=CSS_ERROR_CLASS,
+                    id="save-button-container",
+                )
+            else:
+                result = Span(
+                    "Could not save recipe. Please check input and try again.",
+                    cls=CSS_ERROR_CLASS,
+                    id="save-button-container",
+                )
+        except httpx.RequestError as e:
+            logger.error("Network error saving recipe: %s", e, exc_info=True)
+            result = Span(
+                "Could not save recipe due to a network issue. Please try again.",
+                cls=CSS_ERROR_CLASS,
+                id="save-button-container",
+            )
+
+        except Exception as e:
+            logger.error("Unexpected error saving recipe via API: %s", e, exc_info=True)
+            result = Span(
+                "An unexpected error occurred while saving the recipe.",
+                cls=CSS_ERROR_CLASS,
+                id="save-button-container",
+            )
+        else:
+            user_final_message = "Current Recipe Saved!"
+            css_class = CSS_SUCCESS_CLASS
+            result = FtResponse(
+                Span(user_final_message, id="save-button-container", cls=css_class),
+                headers={"HX-Trigger": "recipeListChanged"},
+            )
+
+    return result
 
 
 class ModifyFormError(Exception):
