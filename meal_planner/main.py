@@ -10,7 +10,6 @@ from monsterui.all import *
 from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
-from starlette.responses import HTMLResponse
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
@@ -452,7 +451,7 @@ class RecipeModificationError(Exception):
 
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
-    form_data = await request.form()
+    form_data: FormData = await request.form()
     modification_prompt = str(form_data.get("modification_prompt", ""))
 
     error_message_for_ui: FT | None = None
