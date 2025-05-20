@@ -265,6 +265,38 @@ async def post_fetch_text(input_url: str | None = None):
     try:
         logger.info("Fetching and cleaning text from URL: %s", input_url)
         cleaned_text = await fetch_and_clean_text_from_url(input_url)
+    except httpx.RequestError as e:
+        logger.error("Network error fetching URL %s: %s", input_url, e, exc_info=True)
+        result = _prepare_error_response(
+            "Error fetching URL. Please check the URL and your connection."
+        )
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "HTTP error fetching URL %s: %s. Response: %s",
+            input_url,
+            e,
+            e.response.text,
+            exc_info=True,
+        )
+        result = _prepare_error_response(
+            "Error fetching URL: The server returned an error."
+        )
+    except RuntimeError as e:
+        logger.error(
+            "RuntimeError processing URL content from %s: %s",
+            input_url,
+            e,
+            exc_info=True,
+        )
+        result = _prepare_error_response("Failed to process the content from the URL.")
+    except Exception as e:
+        logger.error(
+            "Unexpected error fetching text from %s: %s", input_url, e, exc_info=True
+        )
+        result = _prepare_error_response(
+            "An unexpected error occurred while fetching text."
+        )
+    else:
         text_area = Div(
             TextArea(
                 cleaned_text,
@@ -280,38 +312,9 @@ async def post_fetch_text(input_url: str | None = None):
             Div(id="fetch-url-error-display"),
             hx_swap_oob="outerHTML:#fetch-url-error-display",
         )
-        return Group(text_area, clear_error_oob)
-    except httpx.RequestError as e:
-        logger.error("Network error fetching URL %s: %s", input_url, e, exc_info=True)
-        return _prepare_error_response(
-            "Error fetching URL. Please check the URL and your connection."
-        )
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "HTTP error fetching URL %s: %s. Response: %s",
-            input_url,
-            e,
-            e.response.text,
-            exc_info=True,
-        )
-        return _prepare_error_response(
-            "Error fetching URL: The server returned an error."
-        )
-    except RuntimeError as e:
-        logger.error(
-            "RuntimeError processing URL content from %s: %s",
-            input_url,
-            e,
-            exc_info=True,
-        )
-        return _prepare_error_response("Failed to process the content from the URL.")
-    except Exception as e:
-        logger.error(
-            "Unexpected error fetching text from %s: %s", input_url, e, exc_info=True
-        )
-        return _prepare_error_response(
-            "An unexpected error occurred while fetching text."
-        )
+        result = Group(text_area, clear_error_oob)
+
+    return result
 
 
 @rt("/recipes/extract/run")
