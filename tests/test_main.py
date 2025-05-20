@@ -524,8 +524,7 @@ class TestRecipeExtractRunEndpoint:
         assert expected_error_msg in response.text
         assert f'class="{CSS_ERROR_CLASS}"' in response.text
         mock_logger_error.assert_any_call(
-            "Error during recipe extraction from %s: %s",
-            "provided text",
+            "Error during recipe extraction: %s",
             llm_exception,
             exc_info=True,
         )

@@ -324,18 +324,15 @@ async def post(recipe_text: str | None = None):
         return Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
 
     try:
-        log_source = "provided text"
-        logger.info("Calling extraction logic for source: %s", log_source)
+        logger.info("Calling extraction logic")
         processed_recipe = await extract_recipe_from_text(recipe_text)
-        logger.info("Extraction successful for source: %s", log_source)
+        logger.info("Extraction successful")
         logger.info(
             f"Instructions before building form: {processed_recipe.instructions}"
         )
     except Exception as e:
-        log_source = "provided text"
         logger.error(
-            "Error during recipe extraction from %s: %s",
-            log_source,
+            "Error during recipe extraction: %s",
             e,
             exc_info=True,
         )
