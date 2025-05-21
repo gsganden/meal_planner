@@ -451,132 +451,128 @@ class RecipeModificationError(Exception):
 
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
+    """
+    Handles recipe modification requests.
+
+    This endpoint receives form data containing the current recipe,
+    the original recipe (for diffing/reference), and a modification prompt.
+    It attempts to:
+    1. Parse and validate the current and original recipe data.
+    2. If a modification prompt is provided, call an LLM service to modify the
+       current recipe based on the prompt.
+    3. Re-render the recipe edit form with the (potentially) modified recipe,
+       the original recipe, and any error messages or results.
+
+    If parsing, validation, or LLM modification fails, it displays
+    appropriate error messages to the user while attempting to preserve
+    the form state.
+
+    Args:
+        request: The FastAPI request object, containing the form data.
+                 Expected form fields include:
+                 - 'name', 'ingredients', 'instructions' for the current recipe.
+                 - 'original_name', 'original_ingredients', 'original_instructions'
+                   for the original recipe.
+                 - 'modification_prompt' for the user's modification instructions.
+
+    Returns:
+        A fasthtml.Div component representing the updated edit form section,
+        potentially with OOB swaps for other parts of the UI like the review section.
+        In case of critical unrecoverable errors, it returns a simple error Div.
+    """
     form_data: FormData = await request.form()
     modification_prompt = str(form_data.get("modification_prompt", ""))
 
-    error_message_for_ui: FT | None = None
-    current_data_for_form_render: dict
-    original_recipe_for_form_render: RecipeBase
+    current_recipe = RecipeBase(**_parse_recipe_form_data(form_data))
+    original_recipe = RecipeBase(
+        **_parse_recipe_form_data(form_data, prefix="original_")
+    )
 
     try:
-        (validated_current_recipe, validated_original_recipe, _) = (
-            _parse_and_validate_modify_form(form_data)
-        )
-
-        current_data_for_form_render = validated_current_recipe.model_dump()
-        original_recipe_for_form_render = validated_original_recipe
-
         if not modification_prompt:
             logger.info("Modification requested with empty prompt.")
-            error_message_for_ui = Div(
-                "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
+            result = _build_modify_form_response(
+                current_recipe=current_recipe,
+                original_recipe=original_recipe,
+                modification_prompt_value=modification_prompt,
+                error_message_content=Div(
+                    "Please enter modification instructions.",
+                    cls=f"{CSS_ERROR_CLASS} mt-2",
+                ),
             )
 
         else:
             try:
                 modified_recipe = await _request_recipe_modification(
-                    validated_current_recipe, modification_prompt
+                    current_recipe, modification_prompt
                 )
-                edit_form_card, review_section_card = _build_edit_review_form(
+                result = _build_modify_form_response(
                     current_recipe=modified_recipe,
-                    original_recipe=validated_original_recipe,
+                    original_recipe=original_recipe,
                     modification_prompt_value=modification_prompt,
                     error_message_content=None,
-                )
-                oob_review = Div(
-                    review_section_card, hx_swap_oob="innerHTML:#review-section-target"
-                )
-                return Div(
-                    edit_form_card, oob_review, id="edit-form-target", cls="mt-6"
                 )
 
             except RecipeModificationError as llm_e:
                 logger.error("LLM modification error: %s", llm_e, exc_info=True)
-                error_message_for_ui = Div(str(llm_e), cls=f"{CSS_ERROR_CLASS} mt-2")
+                result = _build_modify_form_response(
+                    current_recipe=current_recipe,
+                    original_recipe=original_recipe,
+                    modification_prompt_value=modification_prompt,
+                    error_message_content=Div(
+                        str(llm_e), cls=f"{CSS_ERROR_CLASS} mt-2"
+                    ),
+                )
 
-    except ModifyFormError as form_e:
-        logger.warning("Form validation/parsing error: %s", form_e, exc_info=False)
-        error_message_for_ui = Div(str(form_e), cls=f"{CSS_ERROR_CLASS} mt-2")
-        try:
-            original_data_raw = _parse_recipe_form_data(form_data, prefix="original_")
-            original_recipe_for_form_render = RecipeBase(**original_data_raw)
-            current_data_for_form_render = original_data_raw
-        except Exception as parse_orig_e:
-            logger.error(
-                "Critical: Could not parse original data during ModifyFormError "
-                "handling: %s",
-                parse_orig_e,
-                exc_info=True,
-            )
-            critical_error_msg = Div(
-                "Critical Error: Could not recover the recipe form state. Please "
-                "refresh and try again.",
-                cls=CSS_ERROR_CLASS,
-                id="edit-form-target",
-            )
-            return critical_error_msg
-
+    except ValidationError as ve:
+        logger.warning(
+            "Validation error processing modify form: %s", ve, exc_info=False
+        )
+        result = _build_modify_form_response(
+            current_recipe=current_recipe,
+            original_recipe=original_recipe,
+            modification_prompt_value=modification_prompt,
+            error_message_content=Div(
+                "Invalid recipe data. Please check the fields.",
+                cls=f"{CSS_ERROR_CLASS} mt-2",
+            ),
+        )
     except Exception as e:
         logger.error(
             "Unexpected error in recipe modification flow: %s", e, exc_info=True
         )
-        critical_error_msg = Div(
-            "Critical Error: An unexpected error occurred. Please refresh and try "
-            "again.",
-            cls=CSS_ERROR_CLASS,
-            id="edit-form-target",
-        )
-        return critical_error_msg
-
-    try:
-        current_recipe_for_render = RecipeBase(**current_data_for_form_render)
-    except ValidationError:
-        logger.error(
-            "Data intended for form render failed validation: %s",
-            current_data_for_form_render,
-        )
-        current_recipe_for_render = RecipeBase(
-            name="[Validation Error]", ingredients=[], instructions=[]
+        result = _build_modify_form_response(
+            current_recipe=current_recipe,
+            original_recipe=original_recipe,
+            modification_prompt_value=modification_prompt,
+            error_message_content=Div(
+                "Critical Error: An unexpected error occurred. Please refresh and try again.",
+                cls=CSS_ERROR_CLASS,
+            ),
         )
 
+    return result
+
+
+def _build_modify_form_response(
+    current_recipe: RecipeBase,
+    original_recipe: RecipeBase,
+    modification_prompt_value: str,
+    error_message_content: FT | None,
+) -> Div:
+    """Builds the common HTML response for the recipe modification form."""
     edit_form_card, review_section_card = _build_edit_review_form(
-        current_recipe=current_recipe_for_render,
-        original_recipe=original_recipe_for_form_render,
-        modification_prompt_value=modification_prompt,
-        error_message_content=error_message_for_ui,
+        current_recipe=current_recipe,
+        original_recipe=original_recipe,
+        modification_prompt_value=modification_prompt_value,
+        error_message_content=error_message_content,
     )
-    oob_review = Div(
-        review_section_card, hx_swap_oob="innerHTML:#review-section-target"
+    return Div(
+        edit_form_card,
+        Div(review_section_card, hx_swap_oob="innerHTML:#review-section-target"),
+        id="edit-form-target",
+        cls="mt-6",
     )
-    return Div(edit_form_card, oob_review, id="edit-form-target", cls="mt-6")
-
-
-def _parse_and_validate_modify_form(
-    form_data: FormData,
-) -> tuple[RecipeBase, RecipeBase, str]:
-    """Parses and validates form data for the modify recipe request.
-
-    Raises:
-        ModifyFormError: If validation or parsing fails.
-    """
-    try:
-        current_data = _parse_recipe_form_data(form_data)
-        original_data = _parse_recipe_form_data(form_data, prefix="original_")
-        modification_prompt = str(form_data.get("modification_prompt", ""))
-
-        original_recipe = RecipeBase(**original_data)
-        current_recipe = RecipeBase(**current_data)
-
-        return current_recipe, original_recipe, modification_prompt
-
-    except ValidationError as e:
-        logger.warning("Validation error on modify form submit: %s", e, exc_info=False)
-        user_message = "Invalid recipe data. Please check the fields."
-        raise ModifyFormError(user_message) from e
-    except Exception as e:
-        logger.error("Error parsing modify form data: %s", e, exc_info=True)
-        user_message = "Error processing modification request form."
-        raise ModifyFormError(user_message) from e
 
 
 async def _request_recipe_modification(
