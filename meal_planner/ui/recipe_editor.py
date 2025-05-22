@@ -433,7 +433,8 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
             H2("Review Changes"),
             diff_content_wrapper,
             save_button_container,
-        )
+        ),
+        id="review-card",
     )
 
 

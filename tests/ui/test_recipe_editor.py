@@ -10,6 +10,7 @@ from httpx import AsyncClient
 from meal_planner.models import RecipeBase
 from meal_planner.ui.recipe_editor import (
     generate_diff_html,
+    build_edit_review_form,
 )
 from tests.constants import (
     FIELD_INGREDIENTS,
@@ -326,3 +327,28 @@ class TestRecipeUpdateDiffViaEndpoint:
         assert s1_mod_ins_tag is not None, "<ins>- s1_mod</ins> not found in after_pre"
         assert "- s1" not in after_pre.get_text().splitlines()
         assert "- s1_mod" in after_pre.get_text().splitlines()
+
+
+def test_build_edit_review_form_no_original():
+    "Test hitting the `original_recipe = current_recipe` line."
+    current = RecipeBase(name="Test", ingredients=["i"], instructions=["s"])
+    result = build_edit_review_form(current)
+    assert result is not None
+    edit_card, review_card = result
+    assert edit_card is not None
+    assert review_card is not None
+
+
+def test_build_edit_review_form_with_original():
+    """Test hitting the logic where original_recipe is provided."""
+    current = RecipeBase(
+        name="Updated Name", ingredients=["i1", "i2"], instructions=["s1"]
+    )
+    original = RecipeBase(
+        name="Original Name", ingredients=["i1"], instructions=["s1", "s2"]
+    )
+    result = build_edit_review_form(current, original)
+    assert result is not None
+    edit_card, review_card = result
+    assert edit_card is not None
+    assert review_card is not None

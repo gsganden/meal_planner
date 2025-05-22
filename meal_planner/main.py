@@ -15,10 +15,10 @@ from starlette.staticfiles import StaticFiles
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
 from meal_planner.services.llm_service import (
-    generate_modified_recipe as llm_generate_modified_recipe,
+    generate_modified_recipe,
 )
 from meal_planner.services.llm_service import (
-    generate_recipe_from_text as llm_generate_recipe_from_text,
+    generate_recipe_from_text,
 )
 from meal_planner.services.recipe_processing import postprocess_recipe
 from meal_planner.services.webpage_text_extractor import (
@@ -199,9 +199,7 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
     """Extracts a recipe from the given text and postprocesses it."""
     logger.info("Attempting to extract recipe from provided text.")
     try:
-        extracted_recipe: RecipeBase = await llm_generate_recipe_from_text(
-            text=page_text
-        )
+        extracted_recipe: RecipeBase = await generate_recipe_from_text(text=page_text)
     except Exception as e:
         logger.error(
             f"LLM service failed to generate recipe from text: {e!r}", exc_info=True
@@ -540,12 +538,13 @@ async def post_modify_recipe(request: Request):
         )
 
     try:
-        modified_recipe_from_llm = await _request_recipe_modification(
-            current_recipe, modification_prompt
+        modified_recipe: RecipeBase = await generate_modified_recipe(
+            current_recipe=current_recipe, modification_request=modification_prompt
         )
+        processed_recipe = postprocess_recipe(modified_recipe)
         print("DEBUG: LLM modification successful. Building success response.")
         result = build_modify_form_response(
-            current_recipe=modified_recipe_from_llm,
+            current_recipe=modified_recipe,
             original_recipe=original_recipe,  # original_recipe remains the same baseline
             modification_prompt_value=modification_prompt,  # Preserve the prompt that led to success
             error_message_content=None,
@@ -583,41 +582,6 @@ async def post_modify_recipe(request: Request):
             ),
         )
     return result
-
-
-async def _request_recipe_modification(
-    current_recipe: RecipeBase, modification_prompt: str
-) -> RecipeBase:
-    """Requests recipe modification from LLM service and handles postprocessing."""
-    logger.info(
-        "Requesting recipe modification from llm_service. Current: %s, Prompt: %s",
-        current_recipe.name,
-        modification_prompt,
-    )
-    try:
-        modified_recipe: RecipeBase = await llm_generate_modified_recipe(
-            current_recipe=current_recipe, modification_request=modification_prompt
-        )
-        processed_recipe = postprocess_recipe(modified_recipe)
-        logger.info(
-            "Modification (via llm_service) and postprocessing successful. "
-            "Recipe Name: %s",
-            processed_recipe.name,
-        )
-        logger.debug("Modified Recipe Object: %r", processed_recipe)
-        return processed_recipe
-    except Exception as e:
-        logger.error(
-            "Error calling llm_generate_modified_recipe from "
-            "_request_recipe_modification: %s",
-            e,
-            exc_info=True,
-        )
-        user_message = (
-            "Recipe modification failed. "
-            "An unexpected error occurred during service call."
-        )
-        raise RecipeModificationError(user_message) from e
 
 
 @rt("/recipes/ui/delete-ingredient/{index:int}", methods=["POST"])

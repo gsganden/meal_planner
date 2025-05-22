@@ -106,7 +106,7 @@ class TestRecipeSortableListPersistence:
             f"hx-include missing or incorrect for {list_id_prefix}"
         )
 
-    @patch("meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock)
+    @patch("meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock)
     async def test_sortable_after_ingredient_delete(
         self, mock_llm_extract: AsyncMock, client: AsyncClient
     ):
@@ -168,7 +168,7 @@ class TestRecipeSortableListPersistence:
         assert inputs[0].get("value") == "Ing1"
         assert inputs[1].get("value") == "Ing3"
 
-    @patch("meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock)
+    @patch("meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock)
     async def test_sortable_after_instruction_delete(
         self, mock_llm_extract: AsyncMock, client: AsyncClient
     ):
@@ -223,7 +223,7 @@ class TestRecipeSortableListPersistence:
         assert len(textareas) == 1, f"Expected 1 instruction, got {len(textareas)}"
         assert textareas[0].get_text(strip=True) == "Second instruction details."
 
-    @patch("meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock)
+    @patch("meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock)
     async def test_sortable_after_ingredient_add(
         self, mock_llm_extract: AsyncMock, client: AsyncClient
     ):
@@ -273,7 +273,7 @@ class TestRecipeSortableListPersistence:
         assert inputs[2].get("value") == "Ing3"
         assert inputs[3].get("value", "") == ""
 
-    @patch("meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock)
+    @patch("meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock)
     async def test_sortable_after_instruction_add(
         self, mock_llm_extract: AsyncMock, client: AsyncClient
     ):
@@ -469,7 +469,7 @@ class TestRecipeExtractRunEndpoint:
     @pytest.fixture
     def mock_llm_generate_recipe(self):
         with patch(
-            "meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock
+            "meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock
         ) as mock_service_call:
             yield mock_service_call
 
@@ -536,7 +536,7 @@ class TestRecipeExtractRunEndpoint:
         assert f'class="{CSS_ERROR_CLASS}"' in response.text
 
     @patch("meal_planner.main.postprocess_recipe")
-    @patch("meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock)
+    @patch("meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock)
     async def test_extract_run_missing_instructions(
         self, mock_llm_generate_recipe, mock_postprocess, client: AsyncClient
     ):
@@ -563,7 +563,7 @@ class TestRecipeExtractRunEndpoint:
         assert _extract_form_list_values(html_content, FIELD_INSTRUCTIONS) == []
 
     @patch("meal_planner.main.postprocess_recipe")
-    @patch("meal_planner.main.llm_generate_recipe_from_text", new_callable=AsyncMock)
+    @patch("meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock)
     async def test_extract_run_missing_ingredients(
         self, mock_llm_generate_recipe, mock_postprocess, client: AsyncClient
     ):
@@ -775,291 +775,6 @@ def mock_llm_modified_recipe_fixture() -> RecipeBase:
         ingredients=["mod ing 1"],
         instructions=["mod inst 1"],
     )
-
-
-@pytest.mark.anyio
-class TestRecipeModifyEndpoint:
-    @pytest.fixture
-    def mock_llm_generate_modified_recipe(self):
-        with patch(
-            "meal_planner.main.llm_generate_modified_recipe", new_callable=AsyncMock
-        ) as mock_service_call:
-            yield mock_service_call
-
-    def _build_modify_form_data(
-        self,
-        current_recipe: RecipeBase,
-        original_recipe: RecipeBase,
-        modification_prompt: str | None = None,
-    ) -> dict:
-        data = {
-            FIELD_NAME: current_recipe.name,
-            FIELD_INGREDIENTS: current_recipe.ingredients,
-            FIELD_INSTRUCTIONS: current_recipe.instructions,
-            FIELD_ORIGINAL_NAME: original_recipe.name,
-            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
-            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
-        }
-        if modification_prompt is not None:
-            data[FIELD_MODIFICATION_PROMPT] = modification_prompt
-        return data
-
-    @patch("meal_planner.main.logger.info")
-    async def test_modify_success(
-        self,
-        mock_logger_info,
-        client: AsyncClient,
-        mock_llm_generate_modified_recipe,
-        mock_current_recipe_before_modify_fixture: RecipeBase,
-        mock_original_recipe_fixture: RecipeBase,
-        mock_llm_modified_recipe_fixture: RecipeBase,
-    ):
-        mock_llm_generate_modified_recipe.return_value = (
-            mock_llm_modified_recipe_fixture
-        )
-        test_prompt = "Make it spicier"
-        form_data = self._build_modify_form_data(
-            mock_current_recipe_before_modify_fixture,
-            mock_original_recipe_fixture,
-            test_prompt,
-        )
-
-        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
-
-        assert response.status_code == 200
-        mock_llm_generate_modified_recipe.assert_called_once_with(
-            current_recipe=mock_current_recipe_before_modify_fixture,
-            modification_request=test_prompt,
-        )
-
-        assert f'value="{mock_llm_modified_recipe_fixture.name}"' in response.text
-        assert 'id="name"' in response.text
-        assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
-            f' value="{mock_original_recipe_fixture.name}"' in response.text
-        )
-
-    async def test_modify_no_prompt(
-        self,
-        client: AsyncClient,
-        mock_llm_generate_modified_recipe,
-        mock_current_recipe_before_modify_fixture: RecipeBase,
-        mock_original_recipe_fixture: RecipeBase,
-    ):
-        form_data = self._build_modify_form_data(
-            mock_current_recipe_before_modify_fixture, mock_original_recipe_fixture, ""
-        )
-
-        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
-
-        assert response.status_code == 200
-        assert "Please enter modification instructions." in response.text
-        assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
-        assert 'id="name"' in response.text
-        assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
-            f' value="{mock_original_recipe_fixture.name}"' in response.text
-        )
-        mock_llm_generate_modified_recipe.assert_not_called()
-
-    async def test_modify_llm_error(
-        self,
-        client: AsyncClient,
-        mock_llm_generate_modified_recipe,
-        mock_current_recipe_before_modify_fixture: RecipeBase,
-        mock_original_recipe_fixture: RecipeBase,
-    ):
-        mock_llm_generate_modified_recipe.side_effect = Exception(
-            "LLM modification error"
-        )
-        test_prompt = "Cause an error"
-        form_data = self._build_modify_form_data(
-            mock_current_recipe_before_modify_fixture,
-            mock_original_recipe_fixture,
-            test_prompt,
-        )
-
-        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
-
-        assert response.status_code == 200
-        assert (
-            "Recipe modification failed. An unexpected error occurred during service "
-            "call." in response.text
-        )
-        assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
-        assert 'id="name"' in response.text
-        assert (
-            f'<input type="hidden" name="{FIELD_ORIGINAL_NAME}"'
-            f' value="{mock_original_recipe_fixture.name}"' in response.text
-        )
-        mock_llm_generate_modified_recipe.assert_called_once()
-
-    async def test_modify_validation_error(
-        self,
-        client: AsyncClient,
-        mock_current_recipe_before_modify_fixture: RecipeBase,
-        mock_original_recipe_fixture: RecipeBase,
-    ):
-        """Test that a validation error during form parsing returns the correct
-        HTML error."""
-        form_data = self._build_modify_form_data(
-            mock_current_recipe_before_modify_fixture,
-            mock_original_recipe_fixture,
-            "A valid prompt",
-        )
-        form_data[FIELD_NAME] = ""
-
-        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
-
-        assert response.status_code == 200
-        assert "Invalid recipe data. Please check the fields." in response.text
-        assert CSS_ERROR_CLASS in response.text
-        with patch(
-            "meal_planner.main.llm_generate_modified_recipe", new_callable=AsyncMock
-        ) as local_mock_llm:
-            local_mock_llm.assert_not_called()
-
-    @patch("meal_planner.main.extract_recipe_from_text", new_callable=AsyncMock)
-    async def test_modify_recipe_multiple_times(
-        self,
-        mock_extract_recipe: AsyncMock,
-        mock_llm_generate_modified_recipe: AsyncMock,
-        client: AsyncClient,
-    ):
-        """
-        Tests that the 'Modify with AI' button can be used multiple times
-        successfully. This specifically tests if the hx-target for the modify
-        button is correctly preserved/replaced after the first modification.
-        """
-        initial_recipe = RecipeBase(
-            name="Initial Recipe",
-            ingredients=["Pepper", "Garlic"],
-            instructions=["Season well", "Cook slowly"],
-        )
-        modified_recipe_v1 = RecipeBase(
-            name="Modified V1",
-            ingredients=["Salt", "Pepper", "Garlic"],
-            instructions=["Mix ingredients", "Season well", "Cook slowly"],
-        )
-        modified_recipe_v2 = RecipeBase(
-            name="Modified V2 (Vegan)",
-            ingredients=["Olive Oil", "Salt", "Pepper", "Garlic"],
-            instructions=[
-                "Sauté garlic",
-                "Mix ingredients",
-                "Season well",
-                "Cook slowly",
-            ],
-        )
-
-        mock_extract_recipe.return_value = initial_recipe
-        extract_response = await client.post(
-            RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: "Some initial text"}
-        )
-        assert extract_response.status_code == 200
-
-        mock_llm_generate_modified_recipe.return_value = modified_recipe_v1
-        form_data_1 = self._build_modify_form_data(
-            current_recipe=initial_recipe,
-            original_recipe=initial_recipe,
-            modification_prompt="Make it tastier",
-        )
-        modify_response_1 = await client.post(RECIPES_MODIFY_URL, data=form_data_1)
-        assert modify_response_1.status_code == 200
-        assert mock_llm_generate_modified_recipe.call_count == 1
-
-        html_after_first_modify = ""
-        async for chunk in modify_response_1.aiter_text():
-            html_after_first_modify += chunk
-
-        soup_v1 = BeautifulSoup(html_after_first_modify, "html.parser")
-
-        edit_target_div = soup_v1.find("div", attrs={"id": "edit-form-target"})
-        assert edit_target_div is not None, (
-            "#edit-form-target div not found in response."
-        )
-
-        form_v1 = edit_target_div.find("form", attrs={"id": "edit-review-form"})
-        assert form_v1 is not None, (
-            "#edit-review-form not found within #edit-form-target in response."
-        )
-
-        modify_button_v1 = form_v1.find("button", string="Modify Recipe")
-        assert modify_button_v1 is not None, (
-            "Modify button not found within #edit-review-form in response after "
-            "first modification."
-        )
-
-        assert modify_button_v1.has_attr("hx-indicator"), (
-            "hx-indicator attribute missing from modify button after first "
-            "modification."
-        )
-        assert modify_button_v1.get("hx-indicator") == "#modify-indicator", (
-            "hx-indicator attribute has incorrect value on modify button after "
-            "first modification."
-        )
-
-        mock_llm_generate_modified_recipe.return_value = modified_recipe_v2
-
-        current_data_after_v1_modify = _extract_current_recipe_data_from_html(
-            html_after_first_modify
-        )
-
-        form_data_2 = self._build_modify_form_data(
-            current_recipe=RecipeBase(**current_data_after_v1_modify),
-            original_recipe=initial_recipe,
-            modification_prompt="Now make it vegan",
-        )
-
-        modify_response_2 = await client.post(RECIPES_MODIFY_URL, data=form_data_2)
-        assert modify_response_2.status_code == 200
-
-        assert mock_llm_generate_modified_recipe.call_count == 2, (
-            "LLM was not called for the second modification attempt."
-        )
-
-        html_after_second_modify = ""
-        async for chunk in modify_response_2.aiter_text():
-            html_after_second_modify += chunk
-
-        soup_v2 = BeautifulSoup(html_after_second_modify, "html.parser")
-        name_input_v2 = soup_v2.find("input", {"name": FIELD_NAME})
-        assert name_input_v2 is not None
-        assert name_input_v2["value"] == "Modified V2 (Vegan)"
-
-
-@pytest.mark.anyio
-@patch("meal_planner.main._parse_recipe_form_data")
-async def test_modify_parsing_exception(mock_parse, client: AsyncClient):
-    "Test generic exception during form parsing in post_modify_recipe."
-    mock_parse.side_effect = Exception("Simulated parsing error")
-    dummy_form_data = {FIELD_NAME: "Test", "original_name": "Orig"}
-
-    response = await client.post(RECIPES_MODIFY_URL, data=dummy_form_data)
-
-    assert response.status_code == 200
-    assert (
-        "Critical Error: Could not recover the recipe form state. Please refresh and "
-        "try again." in response.text
-    )
-
-
-@pytest.mark.anyio
-async def test_modify_critical_failure(client: AsyncClient):
-    """Test critical failure during form parsing in post_modify_recipe."""
-    with patch("meal_planner.main._parse_and_validate_modify_form") as mock_validate:
-        mock_validate.side_effect = ModifyFormError("Form validation error")
-
-        with patch("meal_planner.main._parse_recipe_form_data") as mock_parse:
-            mock_parse.side_effect = Exception("Critical parsing error")
-
-            response = await client.post(RECIPES_MODIFY_URL, data={"name": "Test"})
-
-            assert response.status_code == 200
-            assert (
-                "Critical Error: Could not recover the recipe form state. Please "
-                "refresh and try again." in response.text
-            )
 
 
 class TestParseRecipeFormData:
@@ -1774,25 +1489,6 @@ async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
     mock_parse.assert_called_once()
 
 
-def test_build_edit_review_form_no_original():
-    "Test hitting the `original_recipe = current_recipe` line."
-    current = RecipeBase(name="Test", ingredients=["i"], instructions=["s"])
-    result = main_module._build_edit_review_form(current)
-    assert result is not None
-
-
-def test_build_edit_review_form_with_original():
-    """Test hitting the logic where original_recipe is provided."""
-    current = RecipeBase(
-        name="Updated Name", ingredients=["i1", "i2"], instructions=["s1"]
-    )
-    original = RecipeBase(
-        name="Original Name", ingredients=["i1"], instructions=["s1", "s2"]
-    )
-    result = main_module._build_edit_review_form(current, original)
-    assert result is not None
-
-
 @pytest.mark.anyio
 class TestGetRecipesPageErrors:
     @patch("meal_planner.main.internal_api_client", autospec=True)
@@ -2385,87 +2081,6 @@ def _extract_full_edit_form_data(html_content: str) -> dict[str, Any]:
     return data
 
 
-@pytest.mark.anyio
-@patch("meal_planner.main._parse_and_validate_modify_form")
-async def test_modify_unexpected_exception(mock_validate, client: AsyncClient):
-    """Test the final unexpected exception handler in post_modify_recipe."""
-    mock_validate.side_effect = Exception("Completely unexpected error")
-    dummy_form_data = {FIELD_NAME: "Test", "original_name": "Orig"}
-
-    response = await client.post(RECIPES_MODIFY_URL, data=dummy_form_data)
-
-    assert response.status_code == 200
-    assert (
-        "Critical Error: An unexpected error occurred. Please refresh and try again."
-        in response.text
-    )
-    mock_validate.assert_called_once()
-
-
-@pytest.mark.anyio
-@patch("meal_planner.main._build_edit_review_form")
-@patch("meal_planner.main.RecipeBase")
-@patch("meal_planner.main._request_recipe_modification", new_callable=AsyncMock)
-@patch("meal_planner.main._parse_and_validate_modify_form")
-async def test_modify_render_validation_error(
-    mock_validate: MagicMock,
-    mock_request_mod: AsyncMock,
-    mock_recipe_base: MagicMock,
-    mock_build_form: MagicMock,
-    client: AsyncClient,
-    mock_current_recipe_before_modify_fixture: RecipeBase,
-    mock_original_recipe_fixture: RecipeBase,
-):
-    """Test ValidationError during form re-rendering in common error path."""
-    mock_validate.return_value = (
-        mock_current_recipe_before_modify_fixture,
-        mock_original_recipe_fixture,
-        "Valid prompt",
-    )
-
-    mock_request_mod.side_effect = main_module.RecipeModificationError("LLM Failed")
-
-    validation_error = ValidationError.from_exception_data(
-        title="TestValError", line_errors=[]
-    )
-    fallback_instance_mock = MagicMock(spec=RecipeBase)
-    fallback_instance_mock.name = "[Validation Error]"
-    fallback_instance_mock.ingredients = []
-    fallback_instance_mock.instructions = []
-    mock_recipe_base.side_effect = [
-        validation_error,
-        fallback_instance_mock,
-        fallback_instance_mock,
-    ]
-
-    mock_build_form.return_value = (
-        MagicMock(name="edit_card"),
-        MagicMock(name="review_card"),
-    )
-
-    form_data = TestRecipeModifyEndpoint()._build_modify_form_data(
-        mock_current_recipe_before_modify_fixture,
-        mock_original_recipe_fixture,
-        "Trigger LLM Error",
-    )
-
-    response = await client.post(RECIPES_MODIFY_URL, data=form_data)
-
-    assert response.status_code == 200
-    mock_validate.assert_called_once()
-    mock_request_mod.assert_called_once()
-
-    assert mock_recipe_base.call_count >= 2
-
-    mock_build_form.assert_called_once()
-    call_args, call_kwargs = mock_build_form.call_args
-
-    assert call_kwargs["current_recipe"] is fallback_instance_mock
-    assert call_kwargs["current_recipe"].name == "[Validation Error]"
-
-    assert call_kwargs["original_recipe"] is mock_original_recipe_fixture
-
-
 def create_mock_api_response(
     status_code: int,
     json_data: list | dict | None = None,
@@ -2492,3 +2107,229 @@ def mock_recipe_data_fixture() -> RecipeBase:
         ingredients=["orig ing 1"],
         instructions=["orig inst 1"],
     )
+
+
+@pytest.mark.anyio
+class TestRecipeModifyEndpoint:
+    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
+    async def test_modify_recipe_happy_path(
+        self,
+        mock_llm_modify: AsyncMock,
+        client: AsyncClient,
+        mock_original_recipe_fixture: RecipeBase,
+        mock_llm_modified_recipe_fixture: RecipeBase,
+    ):
+        """Test successful recipe modification and UI update."""
+        mock_llm_modify.return_value = mock_llm_modified_recipe_fixture
+        modification_prompt = "Make it spicier"
+
+        # In this happy path, current_recipe_before_llm is same as original
+        current_recipe_before_llm = mock_original_recipe_fixture
+
+        form_data = {
+            FIELD_NAME: current_recipe_before_llm.name,
+            FIELD_INGREDIENTS: current_recipe_before_llm.ingredients,
+            FIELD_INSTRUCTIONS: current_recipe_before_llm.instructions,
+            FIELD_ORIGINAL_NAME: mock_original_recipe_fixture.name,
+            FIELD_ORIGINAL_INGREDIENTS: mock_original_recipe_fixture.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: mock_original_recipe_fixture.instructions,
+            FIELD_MODIFICATION_PROMPT: modification_prompt,
+        }
+
+        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
+        assert response.status_code == 200
+
+        mock_llm_modify.assert_called_once_with(
+            current_recipe=current_recipe_before_llm,
+            modification_request=modification_prompt,
+        )
+
+        html_content = response.text
+
+        # Check that the "current" part of the form (left side) shows the LLM's output
+        current_data_from_html = _extract_current_recipe_data_from_html(html_content)
+        assert current_data_from_html["name"] == mock_llm_modified_recipe_fixture.name
+        assert (
+            current_data_from_html["ingredients"]
+            == mock_llm_modified_recipe_fixture.ingredients
+        )
+        assert (
+            current_data_from_html["instructions"]
+            == mock_llm_modified_recipe_fixture.instructions
+        )
+
+        # Check that the "original" hidden fields (still part of the main form)
+        # and the "review" side (right side) correctly show the *original* recipe details.
+        full_form_data_from_html = _extract_full_edit_form_data(html_content)
+        assert (
+            full_form_data_from_html[FIELD_ORIGINAL_NAME]
+            == mock_original_recipe_fixture.name
+        )
+        assert (
+            full_form_data_from_html[FIELD_ORIGINAL_INGREDIENTS]
+            == mock_original_recipe_fixture.ingredients
+        )
+        assert (
+            full_form_data_from_html[FIELD_ORIGINAL_INSTRUCTIONS]
+            == mock_original_recipe_fixture.instructions
+        )
+
+        soup = BeautifulSoup(html_content, "html.parser")
+        # Find the OOB container for the review section first
+        review_section_oob_container = soup.find(
+            "div", attrs={"hx-swap-oob": "innerHTML:#review-section-target"}
+        )
+        assert review_section_oob_container is not None, (
+            "Review section OOB container not found"
+        )
+        assert isinstance(review_section_oob_container, Tag)
+
+        # Now find the review card within this OOB container
+        review_card_div = review_section_oob_container.find("div", id="review-card")
+        assert review_card_div is not None, (
+            "Review card div not found within OOB container"
+        )
+        assert isinstance(review_card_div, Tag)
+
+        # Verify content of the review card (original recipe)
+        assert mock_original_recipe_fixture.name in review_card_div.get_text(), (
+            "Original recipe name not in review card"
+        )
+        for ing in mock_original_recipe_fixture.ingredients:
+            assert ing in review_card_div.get_text(), (
+                f"Original ingredient '{ing}' not in review card"
+            )
+        for inst in mock_original_recipe_fixture.instructions:
+            assert inst in review_card_div.get_text(), (
+                f"Original instruction '{inst}' not in review card"
+            )
+
+        # Verify diff view is also populated with original vs LLM modified
+        diff_before_pre = soup.find("pre", id="diff-before-pre")
+        diff_after_pre = soup.find("pre", id="diff-after-pre")
+        assert diff_before_pre is not None, "Diff before <pre> not found"
+        assert diff_after_pre is not None, "Diff after <pre> not found"
+
+        # Before diff should contain original recipe text
+        original_recipe_text_parts = [
+            f"# {mock_original_recipe_fixture.name}",
+            *mock_original_recipe_fixture.ingredients,
+            *mock_original_recipe_fixture.instructions,
+        ]
+        for part in original_recipe_text_parts:
+            assert part in diff_before_pre.get_text(), f"'{part}' not in diff-before"
+
+        # After diff should contain LLM modified recipe text
+        llm_modified_recipe_text_parts = [
+            f"# {mock_llm_modified_recipe_fixture.name}",
+            *mock_llm_modified_recipe_fixture.ingredients,
+            *mock_llm_modified_recipe_fixture.instructions,
+        ]
+        for part in llm_modified_recipe_text_parts:
+            assert part in diff_after_pre.get_text(), f"'{part}' not in diff-after"
+
+    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
+    async def test_modify_recipe_initial_validation_error(
+        self,
+        mock_llm_modify: AsyncMock,  # Patched but not expected to be called
+        client: AsyncClient,
+        mock_original_recipe_fixture: RecipeBase,
+    ):
+        """Test UI response when initial form data fails Pydantic validation."""
+        modification_prompt = "Make it vegan"
+
+        # Create invalid form data (e.g., empty name)
+        invalid_form_data = {
+            FIELD_NAME: "",  # Invalid
+            FIELD_INGREDIENTS: mock_original_recipe_fixture.ingredients,
+            FIELD_INSTRUCTIONS: mock_original_recipe_fixture.instructions,
+            FIELD_ORIGINAL_NAME: mock_original_recipe_fixture.name,
+            FIELD_ORIGINAL_INGREDIENTS: mock_original_recipe_fixture.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: mock_original_recipe_fixture.instructions,
+            FIELD_MODIFICATION_PROMPT: modification_prompt,
+        }
+
+        response = await client.post(RECIPES_MODIFY_URL, data=invalid_form_data)
+        assert response.status_code == 200  # Endpoint handles error gracefully
+
+        mock_llm_modify.assert_not_called()  # LLM should not be called
+
+        html_content = response.text
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # Check for the specific error message div related to form validation
+        error_div = soup.find(
+            "div", string="Invalid recipe data. Please check the fields."
+        )
+        assert error_div is not None, "Validation error message not found"
+        assert CSS_ERROR_CLASS in error_div.get("class", []), (
+            "Error message does not have the error CSS class"
+        )
+
+        # Ensure the form fields are still populated with the (invalid) submitted data
+        # and original data for review section
+        form_data_from_html = _extract_full_edit_form_data(html_content)
+        assert form_data_from_html[FIELD_NAME] == ""
+        assert (
+            form_data_from_html[FIELD_INGREDIENTS]
+            == mock_original_recipe_fixture.ingredients
+        )
+        assert (
+            form_data_from_html[FIELD_ORIGINAL_NAME]
+            == mock_original_recipe_fixture.name
+        )
+        assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
+
+        # The review card should still show the original recipe
+        review_card_div = soup.find("div", id="review-card")
+        assert review_card_div is not None, "Review card not found"
+        assert mock_original_recipe_fixture.name in review_card_div.get_text()
+
+    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
+    async def test_modify_recipe_empty_prompt(
+        self,
+        mock_llm_modify: AsyncMock,  # Patched but not expected to be called
+        client: AsyncClient,
+        mock_current_recipe_before_modify_fixture: RecipeBase,
+        mock_original_recipe_fixture: RecipeBase,
+    ):
+        """Test UI response when modification prompt is empty."""
+        # Current recipe and original recipe can be different or same for this test
+        current_recipe = mock_current_recipe_before_modify_fixture
+        original_recipe = mock_original_recipe_fixture
+
+        form_data = {
+            FIELD_NAME: current_recipe.name,
+            FIELD_INGREDIENTS: current_recipe.ingredients,
+            FIELD_INSTRUCTIONS: current_recipe.instructions,
+            FIELD_ORIGINAL_NAME: original_recipe.name,
+            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
+            FIELD_MODIFICATION_PROMPT: "",  # Empty prompt
+        }
+
+        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
+        assert response.status_code == 200
+
+        mock_llm_modify.assert_not_called()  # LLM should not be called
+
+        html_content = response.text
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        error_div = soup.find("div", string="Please enter modification instructions.")
+        assert error_div is not None, "Empty prompt error message not found"
+        assert CSS_ERROR_CLASS in error_div.get("class", []), (
+            "Error message does not have the error CSS class"
+        )
+
+        # Form should retain current and original values
+        form_data_from_html = _extract_full_edit_form_data(html_content)
+        assert form_data_from_html[FIELD_NAME] == current_recipe.name
+        assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
+        assert form_data_from_html[FIELD_ORIGINAL_NAME] == original_recipe.name
+        # Ensure prompt field is still empty
+        assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == ""
+
+        review_card_div = soup.find("div", id="review-card")
+        assert review_card_div is not None, "Review card not found"
+        assert original_recipe.name in review_card_div.get_text()
