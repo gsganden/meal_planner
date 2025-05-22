@@ -123,7 +123,7 @@ def build_recipe_display(recipe_data: dict) -> FT:
     )
 
 
-def _build_edit_review_form(
+def build_edit_review_form(
     current_recipe: RecipeBase,
     original_recipe: RecipeBase | None = None,
     modification_prompt_value: str | None = None,
@@ -451,5 +451,29 @@ def _build_save_button() -> FT:
         ),
         create_loading_indicator("save-indicator"),
         id="save-button-container",
+        cls="mt-6",
+    )
+
+
+def build_modify_form_response(
+    current_recipe: RecipeBase,
+    original_recipe: RecipeBase,
+    modification_prompt_value: str,
+    error_message_content: FT | None,
+) -> Div:
+    """Builds the common HTML response for the recipe modification form."""
+    edit_form_card, review_section_card = build_edit_review_form(
+        current_recipe=current_recipe,
+        original_recipe=original_recipe,
+        modification_prompt_value=modification_prompt_value,
+        error_message_content=error_message_content,
+    )
+    return Div(
+        edit_form_card,
+        Div(
+            review_section_card,
+            hx_swap_oob="innerHTML:#review-section-target",
+        ),
+        id="edit-form-target",
         cls="mt-6",
     )
