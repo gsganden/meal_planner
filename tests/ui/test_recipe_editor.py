@@ -1,7 +1,7 @@
 """Tests for UI components and helpers in meal_planner.ui.recipe_editor."""
 
 from typing import Any, cast
-from unittest.mock import AsyncMock, patch as mock_patch
+from unittest.mock import patch as mock_patch
 
 import monsterui.all as mu
 import pytest
