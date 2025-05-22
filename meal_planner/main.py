@@ -1241,6 +1241,8 @@ async def _request_recipe_modification(
 
 @rt("/recipes/ui/delete-ingredient/{index:int}", methods=["POST"])
 async def post_delete_ingredient_row(request: Request, index: int):
+    fn_logger = logging.getLogger(f"{__name__}.post_delete_ingredient_row")
+
     form_data = await request.form()
     try:
         parsed_data = _parse_recipe_form_data(form_data)
@@ -1249,7 +1251,9 @@ async def post_delete_ingredient_row(request: Request, index: int):
         if 0 <= index < len(current_ingredients):
             del current_ingredients[index]
         else:
-            logger.warning(f"Attempted to delete ingredient at invalid index {index}")
+            fn_logger.warning(
+                f"Attempted to delete ingredient at invalid index {index}"
+            )
 
         parsed_data["ingredients"] = current_ingredients
         new_current_recipe = RecipeBase(**parsed_data)
@@ -1268,7 +1272,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
         )
 
     except ValidationError as e:
-        logger.error(
+        fn_logger.error(
             f"Validation error processing ingredient deletion at index {index}: {e}",
             exc_info=True,
         )
@@ -1287,10 +1291,13 @@ async def post_delete_ingredient_row(request: Request, index: int):
         )
         return ingredients_list_component
 
-    except Exception as e:
-        logger.error(f"Error deleting ingredient at index {index}: {e}", exc_info=True)
+    except Exception as e_generic:
+        fn_logger.critical(
+            f"FN_LOGGER: GENERIC EXCEPTION in post_delete_ingredient_row: {type(e_generic).__name__} - {str(e_generic)}",
+            exc_info=True,
+        )
         return Div(
-            "Error processing delete request.",
+            f"GENERIC ERROR HANDLER HIT: {type(e_generic).__name__}",
             cls=CSS_ERROR_CLASS,
             id="ingredients-list",
         )
