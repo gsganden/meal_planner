@@ -16,8 +16,6 @@ from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
 from meal_planner.services.llm_service import (
     generate_modified_recipe,
-)
-from meal_planner.services.llm_service import (
     generate_recipe_from_text,
 )
 from meal_planner.services.recipe_processing import postprocess_recipe
@@ -544,9 +542,9 @@ async def post_modify_recipe(request: Request):
         processed_recipe = postprocess_recipe(modified_recipe)
         print("DEBUG: LLM modification successful. Building success response.")
         result = build_modify_form_response(
-            current_recipe=modified_recipe,
-            original_recipe=original_recipe,  # original_recipe remains the same baseline
-            modification_prompt_value=modification_prompt,  # Preserve the prompt that led to success
+            current_recipe=processed_recipe,
+            original_recipe=original_recipe,
+            modification_prompt_value=modification_prompt,
             error_message_content=None,
         )
 
@@ -577,7 +575,8 @@ async def post_modify_recipe(request: Request):
             original_recipe=original_recipe,
             modification_prompt_value=modification_prompt,
             error_message_content=Div(
-                "Critical Error: An unexpected error occurred. Please refresh and try again.",
+                "Critical Error: An unexpected error occurred. "
+                "Please refresh and try again.",
                 cls=CSS_ERROR_CLASS,
             ),
         )

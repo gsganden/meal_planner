@@ -9,8 +9,8 @@ from httpx import AsyncClient
 
 from meal_planner.models import RecipeBase
 from meal_planner.ui.recipe_editor import (
-    generate_diff_html,
     build_edit_review_form,
+    generate_diff_html,
 )
 from tests.constants import (
     FIELD_INGREDIENTS,
