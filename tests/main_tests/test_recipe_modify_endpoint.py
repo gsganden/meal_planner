@@ -5,8 +5,9 @@ import pytest
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 from httpx import AsyncClient
+from pydantic import ValidationError
 
-from meal_planner.main import CSS_ERROR_CLASS
+from meal_planner.main import CSS_ERROR_CLASS, RecipeModificationError
 from meal_planner.models import RecipeBase
 from tests.constants import (
     FIELD_INGREDIENTS,
@@ -388,3 +389,162 @@ class TestRecipeModifyEndpoint:
         review_card_div = soup.find("div", id="review-card")
         assert review_card_div is not None, "Review card not found"
         assert original_recipe.name in review_card_div.get_text()
+
+    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
+    async def test_modify_recipe_recipe_modification_error(
+        self,
+        mock_llm_modify: AsyncMock,
+        client: AsyncClient,
+        mock_current_recipe_before_modify_fixture: RecipeBase,
+        mock_original_recipe_fixture: RecipeBase,
+    ):
+        """Test RecipeModificationError during LLM modification."""
+        modification_error = RecipeModificationError(
+            "LLM service failed to modify recipe"
+        )
+        mock_llm_modify.side_effect = modification_error
+
+        current_recipe = mock_current_recipe_before_modify_fixture
+        original_recipe = mock_original_recipe_fixture
+        modification_prompt = "Make it gluten-free"
+
+        form_data = {
+            FIELD_NAME: current_recipe.name,
+            FIELD_INGREDIENTS: current_recipe.ingredients,
+            FIELD_INSTRUCTIONS: current_recipe.instructions,
+            FIELD_ORIGINAL_NAME: original_recipe.name,
+            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
+            FIELD_MODIFICATION_PROMPT: modification_prompt,
+        }
+
+        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
+        assert response.status_code == 200
+
+        mock_llm_modify.assert_called_once_with(
+            current_recipe=current_recipe, modification_request=modification_prompt
+        )
+
+        html_content = response.text
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        error_div = soup.find("div", string="LLM service failed to modify recipe")
+        assert error_div is not None, "RecipeModificationError message not found"
+        assert CSS_ERROR_CLASS in error_div.get("class", []), (
+            "Error message does not have the error CSS class"
+        )
+
+        form_data_from_html = _extract_full_edit_form_data(html_content)
+        assert form_data_from_html[FIELD_NAME] == current_recipe.name
+        assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
+        assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
+
+    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
+    @patch("meal_planner.main.postprocess_recipe")
+    async def test_modify_recipe_postprocess_validation_error(
+        self,
+        mock_postprocess,
+        mock_llm_modify: AsyncMock,
+        client: AsyncClient,
+        mock_current_recipe_before_modify_fixture: RecipeBase,
+        mock_original_recipe_fixture: RecipeBase,
+        mock_llm_modified_recipe_fixture: RecipeBase,
+    ):
+        """Test ValidationError during postprocessing after LLM success."""
+        mock_llm_modify.return_value = mock_llm_modified_recipe_fixture
+
+        validation_error = ValidationError.from_exception_data(
+            title="PostprocessValidationError", line_errors=[]
+        )
+        mock_postprocess.side_effect = validation_error
+
+        current_recipe = mock_current_recipe_before_modify_fixture
+        original_recipe = mock_original_recipe_fixture
+        modification_prompt = "Make it healthier"
+
+        form_data = {
+            FIELD_NAME: current_recipe.name,
+            FIELD_INGREDIENTS: current_recipe.ingredients,
+            FIELD_INSTRUCTIONS: current_recipe.instructions,
+            FIELD_ORIGINAL_NAME: original_recipe.name,
+            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
+            FIELD_MODIFICATION_PROMPT: modification_prompt,
+        }
+
+        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
+        assert response.status_code == 200
+
+        mock_llm_modify.assert_called_once_with(
+            current_recipe=current_recipe, modification_request=modification_prompt
+        )
+        mock_postprocess.assert_called_once_with(mock_llm_modified_recipe_fixture)
+
+        html_content = response.text
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        error_div = soup.find(
+            "div", string="Invalid recipe data after modification attempt."
+        )
+        assert error_div is not None, "Post-LLM validation error message not found"
+        assert CSS_ERROR_CLASS in error_div.get("class", []), (
+            "Error message does not have the error CSS class"
+        )
+
+        form_data_from_html = _extract_full_edit_form_data(html_content)
+        assert form_data_from_html[FIELD_NAME] == current_recipe.name
+        assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
+        assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
+
+    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
+    async def test_modify_recipe_generic_exception(
+        self,
+        mock_llm_modify: AsyncMock,
+        client: AsyncClient,
+        mock_current_recipe_before_modify_fixture: RecipeBase,
+        mock_original_recipe_fixture: RecipeBase,
+    ):
+        """Test generic Exception during modification flow."""
+        generic_exception = TypeError("Unexpected error during recipe modification")
+        mock_llm_modify.side_effect = generic_exception
+
+        current_recipe = mock_current_recipe_before_modify_fixture
+        original_recipe = mock_original_recipe_fixture
+        modification_prompt = "Make it spicy"
+
+        form_data = {
+            FIELD_NAME: current_recipe.name,
+            FIELD_INGREDIENTS: current_recipe.ingredients,
+            FIELD_INSTRUCTIONS: current_recipe.instructions,
+            FIELD_ORIGINAL_NAME: original_recipe.name,
+            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
+            FIELD_MODIFICATION_PROMPT: modification_prompt,
+        }
+
+        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
+        assert response.status_code == 200
+
+        mock_llm_modify.assert_called_once_with(
+            current_recipe=current_recipe, modification_request=modification_prompt
+        )
+
+        html_content = response.text
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        error_div = soup.find(
+            "div",
+            string=(
+                "Critical Error: An unexpected error occurred. "
+                "Please refresh and try again."
+            ),
+        )
+        assert error_div is not None, "Generic error message not found"
+        assert CSS_ERROR_CLASS in error_div.get("class", []), (
+            "Error message does not have the error CSS class"
+        )
+
+        form_data_from_html = _extract_full_edit_form_data(html_content)
+        assert form_data_from_html[FIELD_NAME] == current_recipe.name
+        assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
+        assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
