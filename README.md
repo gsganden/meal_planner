@@ -17,34 +17,53 @@ graph LR
 
     subgraph "Meal Planner Application"
         direction LR
-        UI_Layer["UI & orchestration<br/>(main.py)<br/>FastHTML, MonsterUI, HTMX"]
+        
+        subgraph "UI Layer & Route Orchestration"
+            direction TB
+            Main_Routes["Route Handlers<br/>(main.py)<br/>FastHTML endpoints"]
+            
+            subgraph "UI Components (ui/)"
+                direction TB
+                Layout["Layout & Navigation<br/>(layout.py)"]
+                Recipe_Editor["Recipe Editor<br/>(recipe_editor.py)<br/>Edit forms, diffs"]
+                Recipe_Form["Recipe Forms<br/>(recipe_form.py)<br/>Extraction forms"]
+                Recipe_List["Recipe List<br/>(recipe_list.py)<br/>List formatting"]
+                Common["Common UI<br/>(common.py)<br/>Shared styles"]
+            end
+        end
 
         subgraph "Business Logic (services/)"
             direction TB
-            Webpage_Text_Extractor_Service["Webpage text extraction<br/>(webpage_text_extractor.py)"]
-            Recipe_Processing_Service["Recipe processing<br/>(recipe_processing.py)"]
-            LLM_Service["LLM calls<br/>(llm_service.py)<br/> OpenAI client, Instructor"]
+            Webpage_Text_Extractor_Service["Webpage text extraction<br/>(webpage_text_extractor.py)<br/>URL fetching, HTML cleaning"]
+            Recipe_Processing_Service["Recipe processing<br/>(recipe_processing.py)<br/>Data cleaning & standardization"]
+            LLM_Service["LLM interactions<br/>(llm_service.py)<br/>OpenAI client, Instructor"]
         end
 
         subgraph "Backend API Layer (api/)"
             API_Layer["Recipe CRUD operations<br/>(recipes.py)<br/>FastAPI"]
         end
 
-        UI_Layer -- "Uses" --> Webpage_Text_Extractor_Service
-        UI_Layer -- "Uses" --> Recipe_Processing_Service
-        UI_Layer -- "Uses" --> LLM_Service
-        UI_Layer -- "Internal API Call" --> API_Layer
+        Main_Routes -- "Renders" --> Layout
+        Main_Routes -- "Renders" --> Recipe_Editor
+        Main_Routes -- "Renders" --> Recipe_Form
+        Main_Routes -- "Renders" --> Recipe_List
+        Main_Routes -- "Uses" --> Common
+        
+        Main_Routes -- "Calls" --> Webpage_Text_Extractor_Service
+        Main_Routes -- "Calls" --> Recipe_Processing_Service
+        Main_Routes -- "Calls" --> LLM_Service
+        Main_Routes -- "Internal API Call" --> API_Layer
     end
 
     subgraph "External Resources"
         direction TB
-        External_Web_Pages["External Web Pages/URLs"]
         Database[("Database (SQLite)")]
+        External_Web_Pages["External Web Pages/URLs"]
         Gemini_AI["Google Gemini"]
     end
 
     User --> Modal
-    Modal --> UI_Layer
+    Modal --> Main_Routes
 
     Webpage_Text_Extractor_Service -- "Fetches content" --> External_Web_Pages
     LLM_Service -- "AI Tasks" --> Gemini_AI

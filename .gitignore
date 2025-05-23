@@ -24,3 +24,5 @@ wheels/
 *.db-trace
 
 scripts/
+
+CLAUDE.md
