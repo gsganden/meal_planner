@@ -393,7 +393,7 @@ async def test_save_recipe_parsing_exception(mock_parse, client: AsyncClient):
 
 
 @pytest.mark.anyio
-class TestGetRecipesPageErrors:
+class TestGetRecipeListPageErrors:
     @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_api_status_error(
         self,
@@ -557,7 +557,7 @@ async def test_save_recipe_api_call_request_error(client: AsyncClient, monkeypat
 
 
 @pytest.mark.anyio
-class TestGetRecipesPageSuccess:
+class TestGetRecipeListPageSuccess:
     @patch("meal_planner.main.internal_api_client", autospec=True)
     async def test_get_recipes_page_success_with_data(
         self,
