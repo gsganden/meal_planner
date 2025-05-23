@@ -4,10 +4,10 @@ set -uo pipefail
 source .env
 
 # Define the specific eval test we want to run
-specific_eval_test="tests/test_main_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
+specific_eval_test="tests/test_ml_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
 
 # Find all other test files
-test_files=$(find tests -path tests/test_main_evals.py -prune -o -name 'test_*.py' -print | xargs)
+test_files=$(find tests -path tests/test_ml_evals.py -prune -o -name 'test_*.py' -print | xargs)
 
 #######################################################################################
 # 1. Run the tests with coverage and capture exit status

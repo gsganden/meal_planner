@@ -31,9 +31,9 @@ from tests.constants import (
 
 def _extract_full_edit_form_data(html_content: str) -> dict:
     """Helper function to extract form data from HTML."""
-    from tests.test_main import _extract_full_edit_form_data as main_extract
+    from tests.test_helpers import _extract_full_edit_form_data as helpers_extract
 
-    return main_extract(html_content)
+    return helpers_extract(html_content)
 
 
 def _build_ui_fragment_form_data(

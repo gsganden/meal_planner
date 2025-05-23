@@ -12,6 +12,7 @@ from alembic import command
 from alembic.config import Config
 from meal_planner.database import get_session
 from meal_planner.main import api_app, app
+from meal_planner.models import RecipeBase
 
 logger = logging.getLogger(__name__)
 
@@ -94,3 +95,12 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
+
+
+@pytest.fixture
+def mock_recipe_data_fixture() -> RecipeBase:
+    return RecipeBase(
+        name="Test Recipe",
+        ingredients=["Test Ingredient 1", "Test Ingredient 2"],
+        instructions=["Test Instruction 1", "Test Instruction 2"],
+    )
