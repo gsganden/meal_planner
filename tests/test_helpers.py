@@ -3,7 +3,6 @@
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
-import httpx
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 from httpx import Response
