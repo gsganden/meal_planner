@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from meal_planner.models import RecipeBase
-from meal_planner.services.llm_service import (
+from meal_planner.services.call_llm import (
     ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE,
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
     MODEL_NAME,
@@ -12,12 +12,12 @@ from meal_planner.services.llm_service import (
     generate_recipe_from_text,
     get_structured_llm_response,
 )
-from meal_planner.services.llm_service import logger as llm_service_logger
+from meal_planner.services.call_llm import logger as llm_service_logger
 
 
 @pytest.mark.anyio
 @patch(
-    "meal_planner.services.llm_service.aclient.chat.completions.create",
+    "meal_planner.services.call_llm.aclient.chat.completions.create",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "error")
@@ -46,7 +46,7 @@ async def test_get_structured_llm_response_api_error(
 
 @pytest.mark.anyio
 @patch(
-    "meal_planner.services.llm_service.aclient.chat.completions.create",
+    "meal_planner.services.call_llm.aclient.chat.completions.create",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "error")
@@ -74,9 +74,9 @@ async def test_get_structured_llm_response_generic_exception_explicitly(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch(
-    "meal_planner.services.llm_service.get_structured_llm_response",
+    "meal_planner.services.call_llm.get_structured_llm_response",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "info")
@@ -118,7 +118,7 @@ async def test_generate_recipe_from_text_success(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch.object(llm_service_logger, "error")
 async def test_generate_recipe_from_text_prompt_file_not_found(
     mock_logger_error, mock_get_prompt_path
@@ -144,9 +144,9 @@ async def test_generate_recipe_from_text_prompt_file_not_found(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch(
-    "meal_planner.services.llm_service.get_structured_llm_response",
+    "meal_planner.services.call_llm.get_structured_llm_response",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "error")
@@ -177,9 +177,9 @@ async def test_generate_recipe_from_text_generic_exception(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch(
-    "meal_planner.services.llm_service.get_structured_llm_response",
+    "meal_planner.services.call_llm.get_structured_llm_response",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "info")
@@ -231,7 +231,7 @@ async def test_generate_modified_recipe_success(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch.object(llm_service_logger, "error")
 async def test_generate_modified_recipe_prompt_file_not_found(
     mock_logger_error, mock_get_prompt_path
@@ -262,9 +262,9 @@ async def test_generate_modified_recipe_prompt_file_not_found(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch(
-    "meal_planner.services.llm_service.get_structured_llm_response",
+    "meal_planner.services.call_llm.get_structured_llm_response",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "error")
@@ -300,7 +300,7 @@ async def test_generate_modified_recipe_generic_exception(
 
 @pytest.mark.anyio
 @patch(
-    "meal_planner.services.llm_service.aclient.chat.completions.create",
+    "meal_planner.services.call_llm.aclient.chat.completions.create",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "debug")

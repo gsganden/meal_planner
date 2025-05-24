@@ -3,8 +3,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import html2text
 import httpx
 import pytest
+from bs4 import BeautifulSoup
+from httpx import Request, Response
 
-from meal_planner.services.webpage_text_extractor import (
+from meal_planner.services.extract_webpage_text import (
     fetch_and_clean_text_from_url,
     fetch_page_text,
 )
@@ -75,7 +77,7 @@ class TestFetchAndCleanTextFromUrl:
     @pytest.fixture
     def mock_fetch_page_text(self):
         with patch(
-            "meal_planner.services.webpage_text_extractor.fetch_page_text",
+            "meal_planner.services.extract_webpage_text.fetch_page_text",
             new_callable=AsyncMock,
         ) as mock_fetch:
             mock_fetch.return_value = (
@@ -88,7 +90,7 @@ class TestFetchAndCleanTextFromUrl:
         mock_cleaner_instance = MagicMock(spec=html2text.HTML2Text)
         mock_cleaner_instance.handle.return_value = "Link Bar"
         with patch(
-            "meal_planner.services.webpage_text_extractor.create_html_cleaner",
+            "meal_planner.services.extract_webpage_text.create_html_cleaner",
             return_value=mock_cleaner_instance,
         ) as _:
             yield mock_cleaner_instance
@@ -122,7 +124,7 @@ class TestFetchAndCleanTextFromUrl:
             ),
         ],
     )
-    @patch("meal_planner.services.webpage_text_extractor.logger.error")
+    @patch("meal_planner.services.extract_webpage_text.logger.error")
     async def test_fetch_and_clean_errors_during_fetch(
         self,
         mock_logger_error,
@@ -145,7 +147,7 @@ class TestFetchAndCleanTextFromUrl:
             f"Log message '{args[0]}' did not contain '{expected_log_fragment}'"
         )
 
-    @patch("meal_planner.services.webpage_text_extractor.logger.error")
+    @patch("meal_planner.services.extract_webpage_text.logger.error")
     async def test_fetch_and_clean_html_cleaner_error(
         self,
         mock_logger_error,

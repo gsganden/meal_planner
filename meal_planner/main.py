@@ -14,12 +14,12 @@ from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 from meal_planner.models import RecipeBase
-from meal_planner.services.llm_service import (
+from meal_planner.services.call_llm import (
     generate_modified_recipe,
     generate_recipe_from_text,
 )
-from meal_planner.services.recipe_processing import postprocess_recipe
-from meal_planner.services.webpage_text_extractor import (
+from meal_planner.services.process_recipe import postprocess_recipe
+from meal_planner.services.extract_webpage_text import (
     fetch_and_clean_text_from_url,
 )
 from meal_planner.ui.common import (
@@ -27,7 +27,7 @@ from meal_planner.ui.common import (
     CSS_SUCCESS_CLASS,
 )
 from meal_planner.ui.layout import with_layout, wrap_for_full_page_iff_not_htmx
-from meal_planner.ui.recipe_editor import (
+from meal_planner.ui.edit_recipe import (
     build_diff_content_children,
     build_edit_review_form,
     build_modify_form_response,
@@ -35,8 +35,8 @@ from meal_planner.ui.recipe_editor import (
     render_ingredient_list_items,
     render_instruction_list_items,
 )
-from meal_planner.ui.recipe_form import create_extraction_form
-from meal_planner.ui.recipe_list import format_recipe_list
+from meal_planner.ui.extract_recipe import create_extraction_form
+from meal_planner.ui.list_recipes import format_recipe_list
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -206,7 +206,7 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
 
     result = postprocess_recipe(extracted_recipe)
     logger.info(
-        "Extraction (via llm_service) and postprocessing successful. Recipe Name: %s",
+        "Extraction (via call_llm) and postprocessing successful. Recipe Name: %s",
         result.name,
     )
     logger.debug("Processed Recipe Object: %r", result)

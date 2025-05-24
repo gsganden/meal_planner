@@ -1,4 +1,4 @@
-"""Tests for UI components and helpers in meal_planner.ui.recipe_editor."""
+"""Tests for UI components and helpers in meal_planner.ui.edit_recipe."""
 
 from typing import Any, cast
 from unittest.mock import patch as mock_patch
@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from meal_planner.main import CSS_ERROR_CLASS
 from meal_planner.models import RecipeBase
-from meal_planner.ui.recipe_editor import (
+from meal_planner.ui.edit_recipe import (
     build_edit_review_form,
     generate_diff_html,
 )

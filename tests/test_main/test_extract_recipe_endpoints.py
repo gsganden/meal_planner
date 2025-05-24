@@ -16,7 +16,7 @@ from tests.constants import (
 
 
 @pytest.mark.anyio
-class TestRecipeFetchTextEndpoint:
+class TestFetchTextEndpoint:
     TEST_URL = "http://example.com/fetch-success"
 
     async def test_success(self, client: AsyncClient):
@@ -136,7 +136,7 @@ class TestRecipeFetchTextEndpoint:
 
 
 @pytest.mark.anyio
-class TestRecipeExtractRunEndpoint:
+class TestExtractRecipeEndpoint:
     @pytest.fixture
     def mock_llm_generate_recipe(self):
         with patch(
