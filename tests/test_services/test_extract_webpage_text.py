@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from meal_planner.services.extract_webpage_text import (
+    clean_html_text,
     fetch_and_clean_text_from_url,
     fetch_page_text,
 )
@@ -84,14 +85,12 @@ class TestFetchAndCleanTextFromUrl:
             yield mock_fetch
 
     @pytest.fixture
-    def mock_html_cleaner(self):
-        mock_cleaner_instance = MagicMock(spec=html2text.HTML2Text)
-        mock_cleaner_instance.handle.return_value = "Link Bar"
+    def mock_clean_html_text(self):
         with patch(
-            "meal_planner.services.extract_webpage_text.create_html_cleaner",
-            return_value=mock_cleaner_instance,
-        ) as _:
-            yield mock_cleaner_instance
+            "meal_planner.services.extract_webpage_text.clean_html_text",
+            return_value="Link Bar",
+        ) as mock_clean:
+            yield mock_clean
 
     @pytest.mark.parametrize(
         "raised_exception, expected_caught_exception, expected_log_fragment",
@@ -127,7 +126,7 @@ class TestFetchAndCleanTextFromUrl:
         self,
         mock_logger_error,
         mock_fetch_page_text,
-        mock_html_cleaner,
+        mock_clean_html_text,
         raised_exception,
         expected_caught_exception,
         expected_log_fragment,
@@ -138,7 +137,7 @@ class TestFetchAndCleanTextFromUrl:
             await fetch_and_clean_text_from_url(TEST_URL)
 
         mock_fetch_page_text.assert_called_once_with(TEST_URL)
-        assert not mock_html_cleaner.handle.called
+        assert not mock_clean_html_text.called
         mock_logger_error.assert_called_once()
         args, _ = mock_logger_error.call_args
         assert expected_log_fragment in args[0], (
@@ -150,16 +149,16 @@ class TestFetchAndCleanTextFromUrl:
         self,
         mock_logger_error,
         mock_fetch_page_text,
-        mock_html_cleaner,
+        mock_clean_html_text,
     ):
-        mock_html_cleaner.handle.side_effect = Exception("Cleaning failed")
+        mock_clean_html_text.side_effect = Exception("Cleaning failed")
 
         with pytest.raises(RuntimeError) as exc_info:
             await fetch_and_clean_text_from_url(TEST_URL)
 
         assert "Failed to process URL content" in str(exc_info.value)
         mock_fetch_page_text.assert_called_once_with(TEST_URL)
-        mock_html_cleaner.handle.assert_called_once_with(
+        mock_clean_html_text.assert_called_once_with(
             "<html><body><a href='foo'>Link</a> Bar</body></html>"
         )
         mock_logger_error.assert_called_once()
@@ -167,12 +166,12 @@ class TestFetchAndCleanTextFromUrl:
         assert "Error cleaning HTML text" in args[0]
 
     async def test_fetch_and_clean_success(
-        self, mock_fetch_page_text, mock_html_cleaner
+        self, mock_fetch_page_text, mock_clean_html_text
     ):
         result = await fetch_and_clean_text_from_url(TEST_URL)
         assert result == "Link Bar"
         mock_fetch_page_text.assert_called_once_with(TEST_URL)
-        mock_html_cleaner.handle.assert_called_once_with(
+        mock_clean_html_text.assert_called_once_with(
             "<html><body><a href='foo'>Link</a> Bar</body></html>"
         )
 
@@ -186,3 +185,44 @@ class TestFetchAndCleanTextFromUrl:
 
         assert result.strip() == "Link Bar"
         mock_fetch_page_text.assert_called_once_with(TEST_URL)
+
+
+class TestCleanHtmlText:
+    """Tests for the clean_html_text utility function."""
+
+    def test_clean_simple_html(self):
+        """Test cleaning simple HTML content."""
+        html_input = "<html><body><p>Hello world</p></body></html>"
+        result = clean_html_text(html_input)
+        assert "Hello world" in result
+        assert "<html>" not in result
+        assert "<p>" not in result
+
+    def test_clean_html_with_links(self):
+        """Test that links are ignored as configured."""
+        html_input = '<p>Visit <a href="http://example.com">our site</a> for more.</p>'
+        result = clean_html_text(html_input)
+        assert "Visit our site for more." in result
+        assert "http://example.com" not in result
+        assert "<a>" not in result
+
+    def test_clean_html_with_images(self):
+        """Test that images are ignored as configured."""
+        html_input = '<p>See this <img src="image.jpg" alt="picture"> here.</p>'
+        result = clean_html_text(html_input)
+        assert "See this" in result and "here." in result
+        assert "image.jpg" not in result
+        assert "<img>" not in result
+
+    def test_clean_empty_html(self):
+        """Test cleaning empty HTML."""
+        result = clean_html_text("")
+        assert result.strip() == ""
+
+    def test_clean_html_preserves_text_structure(self):
+        """Test that basic text structure is preserved."""
+        html_input = "<h1>Title</h1><p>Paragraph one.</p><p>Paragraph two.</p>"
+        result = clean_html_text(html_input)
+        assert "Title" in result
+        assert "Paragraph one." in result
+        assert "Paragraph two." in result

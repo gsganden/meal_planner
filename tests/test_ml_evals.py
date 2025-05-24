@@ -9,15 +9,9 @@ import pytest
 
 from meal_planner.main import extract_recipe_from_text
 from meal_planner.models import RecipeBase
-from meal_planner.services.extract_webpage_text import create_html_cleaner
+from meal_planner.services.extract_webpage_text import clean_html_text
 
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
-
-
-def clean_html_text(html_text: str) -> str:
-    """Cleans raw HTML text and returns plain text."""
-    cleaner = create_html_cleaner()
-    return cleaner.handle(html_text)
 
 
 def load_all_test_data(data_dir: Path) -> dict:
