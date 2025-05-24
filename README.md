@@ -18,19 +18,19 @@ graph LR
     subgraph "Meal Planner Application"
         direction LR
         
-        subgraph "UI Layer & Route Orchestration"
+
+        direction TB
+        Main_Routes["Route Handlers<br/>(main.py)<br/>FastHTML"]
+        
+        subgraph "UI Components (ui/)"
             direction TB
-            Main_Routes["Route Handlers<br/>(main.py)<br/>FastHTML endpoints"]
-            
-            subgraph "UI Components (ui/)"
-                direction TB
-                Layout["Layout & Navigation<br/>(layout.py)"]
-                Recipe_Editor["Recipe Editor<br/>(recipe_editor.py)<br/>Edit forms, diffs"]
-                Recipe_Form["Recipe Forms<br/>(recipe_form.py)<br/>Extraction forms"]
-                Recipe_List["Recipe List<br/>(recipe_list.py)<br/>List formatting"]
-                Common["Common UI<br/>(common.py)<br/>Shared styles"]
-            end
+            Layout["Layout & Navigation<br/>(layout.py)"]
+            Recipe_Editor["Recipe Editor<br/>(recipe_editor.py)<br/>Edit forms, diffs"]
+            Recipe_Form["Recipe Forms<br/>(recipe_form.py)<br/>Extraction forms"]
+            Recipe_List["Recipe List<br/>(recipe_list.py)<br/>List formatting"]
+            Common["Common UI<br/>(common.py)<br/>Shared styles"]
         end
+
 
         subgraph "Business Logic (services/)"
             direction TB
@@ -107,7 +107,7 @@ uv run pytest --runslow
 To skip tests that make slow LLM calls:
 
 ```bash
-uv run pytest --runslow
+uv run pytest
 ```
 
 To check test coverage with minimal LLM calls:
