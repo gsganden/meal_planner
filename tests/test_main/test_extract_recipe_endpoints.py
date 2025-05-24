@@ -5,8 +5,8 @@ import pytest
 from bs4 import BeautifulSoup
 from httpx import AsyncClient, Request, Response
 
+from meal_planner.main import CSS_ERROR_CLASS
 from meal_planner.models import RecipeBase
-from meal_planner.ui.common import CSS_ERROR_CLASS
 from tests.constants import (
     FIELD_RECIPE_TEXT,
     FIELD_RECIPE_URL,

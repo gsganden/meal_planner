@@ -9,8 +9,15 @@ import pytest
 
 from meal_planner.main import extract_recipe_from_text
 from meal_planner.models import RecipeBase
+from meal_planner.services.extract_webpage_text import create_html_cleaner
 
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
+
+
+def clean_html_text(html_text: str) -> str:
+    """Cleans raw HTML text and returns plain text."""
+    cleaner = create_html_cleaner()
+    return cleaner.handle(html_text)
 
 
 def load_all_test_data(data_dir: Path) -> dict:
@@ -34,10 +41,11 @@ recipes_data = load_all_test_data(TEST_DATA_DIR)
 async def extracted_recipe_fixture(request, anyio_backend):
     """Fixture to extract recipe data for a given path."""
     html_file_path: Path = request.param
-    raw_text = html_file_path.read_text()
 
     expected_data = recipes_data[html_file_path]
-    extracted_recipe = await extract_recipe_from_text(raw_text)
+    extracted_recipe = await extract_recipe_from_text(
+        clean_html_text(html_file_path.read_text())
+    )
     return extracted_recipe, expected_data
 
 
