@@ -184,7 +184,7 @@ def _extract_full_edit_form_data(html_content: str) -> dict[str, Any]:
 
 
 @pytest.mark.anyio
-class TestRecipeModifyEndpoint:
+class TestModifyRecipeEndpoint:
     @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
     async def test_modify_recipe_happy_path(
         self,
