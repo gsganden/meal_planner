@@ -22,32 +22,18 @@ graph LR
         direction TB
         Main_Routes["Route Handlers<br/>(main.py)<br/>FastHTML"]
         
-        subgraph "UI Components (ui/)"
-            direction TB
-            Layout["Layout & Navigation<br/>(layout.py)"]
-            Recipe_Editor["Recipe Editor<br/>(recipe_editor.py)<br/>Edit forms, diffs"]
-            Recipe_Form["Recipe Forms<br/>(recipe_form.py)<br/>Extraction forms"]
-            Recipe_List["Recipe List<br/>(recipe_list.py)<br/>List formatting"]
-            Common["Common UI<br/>(common.py)<br/>Shared styles"]
-        end
-
+        UI_Components["UI Components<br/>(ui/)<br/>MonsterUI"]
 
         subgraph "Business Logic (services/)"
             direction TB
-            Webpage_Text_Extractor_Service["Webpage text extraction<br/>(webpage_text_extractor.py)<br/>URL fetching, HTML cleaning"]
-            Recipe_Processing_Service["Recipe processing<br/>(recipe_processing.py)<br/>Data cleaning & standardization"]
-            LLM_Service["LLM interactions<br/>(llm_service.py)<br/>OpenAI client, Instructor"]
+            Webpage_Text_Extractor_Service["Webpage text extraction<br/>(extract_webpage_text.py)<br/>URL fetching, HTML cleaning"]
+            Recipe_Processing_Service["Recipe processing<br/>(process_recipe.py)<br/>Data cleaning & standardization"]
+            LLM_Service["LLM interactions<br/>(call_llm.py)<br/>OpenAI client, Instructor"]
         end
 
-        subgraph "Backend API Layer (api/)"
-            API_Layer["Recipe CRUD operations<br/>(recipes.py)<br/>FastAPI"]
-        end
+        API_Layer["Recipe CRUD operations<br/>(recipes.py)<br/>FastAPI"]
 
-        Main_Routes -- "Renders" --> Layout
-        Main_Routes -- "Renders" --> Recipe_Editor
-        Main_Routes -- "Renders" --> Recipe_Form
-        Main_Routes -- "Renders" --> Recipe_List
-        Main_Routes -- "Uses" --> Common
+        Main_Routes -- "Renders" --> UI_Components
         
         Main_Routes -- "Calls" --> Webpage_Text_Extractor_Service
         Main_Routes -- "Calls" --> Recipe_Processing_Service
