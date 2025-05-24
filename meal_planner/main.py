@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 import httpx
-
 from bs4.element import Tag
 from fastapi import FastAPI, Request
 from fasthtml.common import *
