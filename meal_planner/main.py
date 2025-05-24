@@ -38,8 +38,6 @@ from meal_planner.ui.extract_recipe import create_extraction_form
 from meal_planner.ui.layout import with_layout, wrap_for_full_page_iff_not_htmx
 from meal_planner.ui.list_recipes import format_recipe_list
 
-MODEL_NAME = "gemini-2.0-flash"
-
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 logging.basicConfig(

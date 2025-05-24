@@ -7,8 +7,9 @@ from bs4.element import Tag
 from httpx import AsyncClient
 from pydantic import ValidationError
 
-from meal_planner.main import CSS_ERROR_CLASS, RecipeModificationError
+from meal_planner.main import RecipeModificationError
 from meal_planner.models import RecipeBase
+from meal_planner.ui.common import CSS_ERROR_CLASS
 from tests.constants import (
     FIELD_INGREDIENTS,
     FIELD_INSTRUCTIONS,

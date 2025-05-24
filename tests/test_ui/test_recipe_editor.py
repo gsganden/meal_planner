@@ -11,8 +11,8 @@ from fasthtml.common import *
 from httpx import AsyncClient
 from pydantic import ValidationError
 
-from meal_planner.main import CSS_ERROR_CLASS
 from meal_planner.models import RecipeBase
+from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.edit_recipe import (
     build_edit_review_form,
     generate_diff_html,
