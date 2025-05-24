@@ -18,15 +18,14 @@ from meal_planner.services.call_llm import (
     generate_modified_recipe,
     generate_recipe_from_text,
 )
-from meal_planner.services.process_recipe import postprocess_recipe
 from meal_planner.services.extract_webpage_text import (
     fetch_and_clean_text_from_url,
 )
+from meal_planner.services.process_recipe import postprocess_recipe
 from meal_planner.ui.common import (
     CSS_ERROR_CLASS,
     CSS_SUCCESS_CLASS,
 )
-from meal_planner.ui.layout import with_layout, wrap_for_full_page_iff_not_htmx
 from meal_planner.ui.edit_recipe import (
     build_diff_content_children,
     build_edit_review_form,
@@ -36,6 +35,7 @@ from meal_planner.ui.edit_recipe import (
     render_instruction_list_items,
 )
 from meal_planner.ui.extract_recipe import create_extraction_form
+from meal_planner.ui.layout import with_layout, wrap_for_full_page_iff_not_htmx
 from meal_planner.ui.list_recipes import format_recipe_list
 
 MODEL_NAME = "gemini-2.0-flash"

@@ -3,8 +3,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import html2text
 import httpx
 import pytest
-from bs4 import BeautifulSoup
-from httpx import Request, Response
 
 from meal_planner.services.extract_webpage_text import (
     fetch_and_clean_text_from_url,
