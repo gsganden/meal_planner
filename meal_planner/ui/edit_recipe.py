@@ -1,6 +1,7 @@
 """UI components for recipe editing and display."""
 
 import difflib
+import html
 
 from bs4.element import Tag
 from fasthtml.common import *
@@ -28,19 +29,21 @@ def generate_diff_html(
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             for line in before_lines[i1:i2]:
-                before_items.extend([line, "\n"])
-                after_items.extend([line, "\n"])
+                # Escape HTML entities to prevent XSS attacks
+                escaped_line = html.escape(line)
+                before_items.extend([escaped_line, "\n"])
+                after_items.extend([escaped_line, "\n"])
         elif tag == "replace":
             for line in before_lines[i1:i2]:
-                before_items.extend([Del(line), "\n"])
+                before_items.extend([Del(html.escape(line)), "\n"])
             for line in after_lines[j1:j2]:
-                after_items.extend([Ins(line), "\n"])
+                after_items.extend([Ins(html.escape(line)), "\n"])
         elif tag == "delete":
             for line in before_lines[i1:i2]:
-                before_items.extend([Del(line), "\n"])
+                before_items.extend([Del(html.escape(line)), "\n"])
         elif tag == "insert":
             for line in after_lines[j1:j2]:
-                after_items.extend([Ins(line), "\n"])
+                after_items.extend([Ins(html.escape(line)), "\n"])
 
     if before_items and before_items[-1] == "\n":
         before_items.pop()

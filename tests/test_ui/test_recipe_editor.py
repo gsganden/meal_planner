@@ -188,6 +188,42 @@ class TestGenerateDiffHtml:
             ("ins", "line6_add"),
         ]
 
+    def test_html_escaping_prevents_xss(self):
+        malicious_before = (
+            "normal line\n<script>alert('xss')</script>\n<img src=x onerror=alert(1)>"
+        )
+        malicious_after = (
+            'normal line\n<div onclick="evil()">click me</div>\n& < > " \' characters'
+        )
+
+        b_items, a_items = generate_diff_html(malicious_before, malicious_after)
+
+        comparable_before = self._to_comparable(b_items)
+        comparable_after = self._to_comparable(a_items)
+
+        for tag_type, content in comparable_before:
+            if tag_type in ("str", "del", "ins"):
+                assert "<script>" not in content
+                assert "<img" not in content
+                if "script" in content:
+                    assert "&lt;script&gt;" in content
+                if "img" in content:
+                    assert "&lt;img" in content
+
+        for tag_type, content in comparable_after:
+            if tag_type in ("str", "del", "ins"):
+                assert "<div" not in content
+                if "div" in content:
+                    assert "&lt;div" in content
+                if "&" in content and not content.startswith("&"):
+                    assert "&amp;" in content
+                if "<" in content:
+                    assert "&lt;" in content
+                if ">" in content:
+                    assert "&gt;" in content
+                if '"' in content:
+                    assert "&quot;" in content
+
 
 @pytest.mark.anyio
 class TestRecipeUpdateDiffViaEndpoint:
