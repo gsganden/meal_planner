@@ -19,7 +19,7 @@ def format_recipe_list(recipes_data: list[dict]) -> FT:
                 Button(
                     ICON_DELETE,
                     title="Delete",
-                    hx_delete=f"/api/v0/recipes/{recipe['id']}",
+                    hx_post=f"/recipes/delete?id={recipe['id']}",
                     hx_confirm=f"Are you sure you want to delete {recipe['name']}?",
                     cls=f"{ButtonT.sm} p-1",
                 ),

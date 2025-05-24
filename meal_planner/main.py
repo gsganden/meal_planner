@@ -3,7 +3,7 @@ from pathlib import Path
 
 import httpx
 from bs4.element import Tag
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fasthtml.common import *
 from httpx import ASGITransport
 from monsterui.all import *
@@ -856,3 +856,26 @@ def _build_sortable_list_with_oob_diff(
         hx_swap_oob="innerHTML:#diff-content-wrapper",
     )
     return Group(list_component, oob_diff_component)
+
+
+@rt("/recipes/delete")
+async def post_delete_recipe(id: int):
+    """Delete a recipe via POST request."""
+    try:
+        response = await internal_api_client.delete(f"/v0/recipes/{id}")
+        response.raise_for_status()
+        logger.info("Successfully deleted recipe ID %s", id)
+        return Response(headers={"HX-Trigger": "recipeListChanged"})
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            logger.warning("Recipe ID %s not found for deletion", id)
+        else:
+            logger.error(
+                "API error deleting recipe ID %s: Status %s, Response: %s",
+                id,
+                e.response.status_code,
+                e.response.text,
+                exc_info=True,
+            )
+    except Exception as e:
+        logger.error("Error deleting recipe ID %s: %s", id, e, exc_info=True)

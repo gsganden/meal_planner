@@ -17,9 +17,6 @@ from tests.constants import (
     FIELD_ORIGINAL_NAME,
 )
 
-# This file will contain shared test utilities and helper functions
-# Content will be moved from tests/test_main.py in Phase 2
-
 
 class FormTargetDivNotFoundError(Exception):
     """Custom exception raised when the target div for form parsing is not found."""
