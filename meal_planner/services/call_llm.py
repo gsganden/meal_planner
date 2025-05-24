@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -59,7 +60,7 @@ async def get_structured_llm_response(prompt: str, response_model: type[T]) -> T
             e,
             exc_info=True,
         )
-        raise  # Re-raise the exception to be handled by the caller
+        raise
 
 
 def _get_llm_prompt_path(category: str, filename: str) -> Path:
@@ -78,7 +79,7 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
             "recipe_extraction", ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
         )
         logger.info("Using extraction prompt file: %s", prompt_file_path.name)
-        prompt_template = prompt_file_path.read_text()
+        prompt_template = prompt_file_path.read_text(encoding="utf-8")
         formatted_prompt = prompt_template.format(page_text=text)
 
         extracted_recipe: RecipeBase = await get_structured_llm_response(
@@ -89,7 +90,6 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
         return extracted_recipe
     except FileNotFoundError as e:
         logger.error("Prompt file not found: %s", e, exc_info=True)
-        # Consider a more specific exception type for the service layer
         raise RuntimeError(
             f"LLM service error: Prompt file missing - {e.filename}"
         ) from e
@@ -97,7 +97,6 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
         logger.error(
             "Error during LLM recipe generation from text: %s", e, exc_info=True
         )
-        # Consider a more specific exception type
         raise RuntimeError(
             "LLM service error during recipe generation from text."
         ) from e

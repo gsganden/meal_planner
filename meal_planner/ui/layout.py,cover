@@ -1,0 +1,91 @@
+> from typing import Any
+  
+> from fasthtml.common import *
+> from monsterui.all import *
+  
+  
+> def sidebar():
+>     nav = NavContainer(
+>         Li(
+>             A(
+>                 DivFullySpaced("Meal Planner"),
+>                 href="/",
+>                 hx_target="#content",
+>                 hx_push_url="true",
+>             )
+>         ),
+>         NavParentLi(
+>             A(DivFullySpaced("Recipes")),
+>             NavContainer(
+>                 Li(
+>                     A(
+>                         "Create",
+>                         href="/recipes/extract",
+>                         hx_target="#content",
+>                         hx_push_url="true",
+>                     )
+>                 ),
+>                 Li(
+>                     A(
+>                         "View All",
+>                         href="/recipes",
+>                         hx_target="#content",
+>                         hx_push_url="true",
+>                     )
+>                 ),
+>                 parent=False,
+>             ),
+>         ),
+>         uk_nav=True,
+>         cls=NavT.primary,
+>         uk_sticky="offset: 20",
+>     )
+>     return Div(nav, cls="space-y-4 p-4 w-full md:w-full")
+  
+  
+> def with_layout(content: Any):
+>     indicator_style = Style(
+>         """
+>         .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+>         .htmx-indicator.htmx-request { opacity: 1; }
+>     """
+>     )
+  
+>     hamburger_button = Div(
+>         Button(
+>             UkIcon("menu"),
+>             data_uk_toggle="target: #mobile-sidebar",
+>             cls="p-2",
+>         ),
+>         cls="md:hidden flex justify-end p-2",
+>     )
+  
+>     mobile_sidebar_container = Div(
+>         sidebar(),
+>         id="mobile-sidebar",
+>         hidden=True,
+>     )
+  
+>     return (
+>         Title("Meal Planner"),
+>         indicator_style,
+>         hamburger_button,
+>         mobile_sidebar_container,
+>         Div(cls="flex flex-col md:flex-row w-full")(
+>             Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
+>             Div(
+>                 content,
+>                 cls="md:w-4/5 w-full p-4",
+>                 id="content",
+>             ),
+>         ),
+>         Script(src="/static/recipe-editor.js"),
+>     )
+  
+  
+> def _is_htmx(request: Request) -> bool:
+>     return "HX-Request" in request.headers
+  
+  
+> def wrap_for_full_page_iff_not_htmx(content: FT, request: Request) -> FT:
+>     return content if _is_htmx(request) else with_layout(content)

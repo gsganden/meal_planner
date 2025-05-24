@@ -2,8 +2,9 @@ import logging
 from pathlib import Path
 
 import httpx
+
 from bs4.element import Tag
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request
 from fasthtml.common import *
 from httpx import ASGITransport
 from monsterui.all import *
@@ -513,7 +514,7 @@ async def post_modify_recipe(request: Request):
         current_recipe = RecipeBase(**current_recipe_data)
         original_recipe = RecipeBase(**original_recipe_data)
     except ValidationError as ve:
-        print(f"DEBUG: Initial validation error: {ve}")
+        logger.error("Initial validation error in modify recipe: %s", ve)
         return build_modify_form_response(
             current_recipe=RecipeBase.model_construct(**current_recipe_data),
             original_recipe=RecipeBase.model_construct(**original_recipe_data),
@@ -525,7 +526,7 @@ async def post_modify_recipe(request: Request):
         )
 
     if not modification_prompt:
-        print("DEBUG: Empty modification prompt detected by print statement")
+        logger.debug("Empty modification prompt detected")
         return build_modify_form_response(
             current_recipe=current_recipe,
             original_recipe=original_recipe,
@@ -540,7 +541,7 @@ async def post_modify_recipe(request: Request):
             current_recipe=current_recipe, modification_request=modification_prompt
         )
         processed_recipe = postprocess_recipe(modified_recipe)
-        print("DEBUG: LLM modification successful. Building success response.")
+        logger.info("LLM modification successful. Building success response.")
         result = build_modify_form_response(
             current_recipe=processed_recipe,
             original_recipe=original_recipe,
@@ -549,7 +550,7 @@ async def post_modify_recipe(request: Request):
         )
 
     except RecipeModificationError as llm_e:
-        print(f"DEBUG: LLM modification error: {llm_e}")
+        logger.error("LLM modification error: %s", llm_e)
         result = build_modify_form_response(
             current_recipe=current_recipe,  # Revert to recipe before LLM attempt
             original_recipe=original_recipe,
@@ -558,7 +559,7 @@ async def post_modify_recipe(request: Request):
         )
 
     except ValidationError as ve:
-        print(f"DEBUG: Validation error post-LLM or unexpected: {ve}")
+        logger.error("Validation error post-LLM or unexpected: %s", ve)
         result = build_modify_form_response(
             current_recipe=current_recipe,  # Revert to recipe before this error
             original_recipe=original_recipe,
@@ -569,7 +570,9 @@ async def post_modify_recipe(request: Request):
             ),
         )
     except Exception as e:
-        print(f"DEBUG: Unexpected error in recipe modification flow: {e}")
+        logger.error(
+            "Unexpected error in recipe modification flow: %s", e, exc_info=True
+        )
         result = build_modify_form_response(
             current_recipe=current_recipe,  # Revert to recipe before this error
             original_recipe=original_recipe,
@@ -820,7 +823,7 @@ def _build_sortable_list_with_oob_diff(
     rendered_list_items: list[Tag],
     original_recipe: RecipeBase,
     current_recipe: RecipeBase,
-) -> tuple[Div, Div]:
+) -> FT:
     """
     Builds a sortable list component and an OOB diff component.
 
@@ -853,4 +856,4 @@ def _build_sortable_list_with_oob_diff(
         after_notstr,
         hx_swap_oob="innerHTML:#diff-content-wrapper",
     )
-    return list_component, oob_diff_component
+    return Group(list_component, oob_diff_component)
