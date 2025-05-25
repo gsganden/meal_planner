@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 import httpx
-from bs4.element import Tag
 from fastapi import FastAPI, Request, Response
 from fasthtml.common import *
 from httpx import ASGITransport
@@ -803,7 +802,7 @@ async def update_diff(request: Request) -> FT:
 
 def _build_sortable_list_with_oob_diff(
     list_id: str,
-    rendered_list_items: list[Tag],
+    rendered_list_items: list[FT],
     original_recipe: RecipeBase,
     current_recipe: RecipeBase,
 ) -> FT:
@@ -812,7 +811,7 @@ def _build_sortable_list_with_oob_diff(
 
     Args:
         list_id: The HTML ID for the list container (e.g., "ingredients-list").
-        rendered_list_items: A list of fasthtml.Tag components representing the items.
+        rendered_list_items: A list of FastHTML components representing the items.
         original_recipe: The baseline recipe for the diff.
         current_recipe: The current state of the recipe for the diff.
 
