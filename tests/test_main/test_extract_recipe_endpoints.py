@@ -137,13 +137,6 @@ class TestFetchTextEndpoint:
 
 @pytest.mark.anyio
 class TestExtractRecipeEndpoint:
-    @pytest.fixture
-    def mock_llm_generate_recipe(self):
-        with patch(
-            "meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock
-        ) as mock_service_call:
-            yield mock_service_call
-
     @patch("meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock)
     async def test_success(self, mock_llm_generate_recipe, client: AsyncClient):
         expected_recipe = RecipeBase(
@@ -194,9 +187,10 @@ class TestExtractRecipeEndpoint:
         assert len(instruction_textareas) >= 1
         assert expected_recipe.instructions[0] in instruction_textareas[0].get_text()
 
+    @patch("meal_planner.main.generate_recipe_from_text", new_callable=AsyncMock)
     @patch("meal_planner.main.logger.error")
     async def test_extraction_error(
-        self, mock_logger_error, client: AsyncClient, mock_llm_generate_recipe
+        self, mock_logger_error, mock_llm_generate_recipe, client: AsyncClient
     ):
         error_message = "LLM extraction failed"
         mock_llm_generate_recipe.side_effect = Exception(error_message)
