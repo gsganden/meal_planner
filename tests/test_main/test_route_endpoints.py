@@ -482,7 +482,7 @@ class TestGetRecipeListPage:
 
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
-        assert "<title>Meal Planner</title>" in response.text
+        assert "<title>Error</title>" in response.text
         assert "Error fetching recipes from API." in response.text
         assert 'id="recipe-list-area"' in response.text
         mock_api_client.get.assert_called_once_with("/v0/recipes")
@@ -507,7 +507,7 @@ class TestGetRecipeListPage:
         response = await client.get(RECIPES_LIST_PATH, headers=headers)
 
         assert response.status_code == 200
-        assert "<title>Meal Planner</title>" not in response.text
+        assert "<title>" not in response.text
         assert 'id="recipe-list-area"' in response.text
         assert "Error fetching recipes from API." in response.text
         mock_api_client.get.assert_called_once_with("/v0/recipes")
@@ -522,9 +522,27 @@ class TestGetRecipeListPage:
 
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
-        assert "<title>Meal Planner</title>" in response.text
+        assert "<title>Error</title>" in response.text
         assert "An unexpected error occurred while fetching recipes." in response.text
         assert 'id="recipe-list-area"' in response.text
+        mock_api_client.get.assert_called_once_with("/v0/recipes")
+
+    @patch("meal_planner.main.internal_api_client", autospec=True)
+    async def test_get_recipes_page_api_generic_error_htmx(
+        self,
+        mock_api_client: AsyncMock,
+        client: AsyncClient,
+    ):
+        """Test generic error handling via HTMX request."""
+        mock_api_client.get.side_effect = Exception("Generic API failure")
+
+        headers = {"HX-Request": "true"}
+        response = await client.get(RECIPES_LIST_PATH, headers=headers)
+
+        assert response.status_code == 200
+        assert "<title>" not in response.text
+        assert 'id="recipe-list-area"' in response.text
+        assert "An unexpected error occurred while fetching recipes." in response.text
         mock_api_client.get.assert_called_once_with("/v0/recipes")
 
     @patch("meal_planner.main.internal_api_client", autospec=True)
@@ -539,7 +557,7 @@ class TestGetRecipeListPage:
 
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
-        assert "<title>Meal Planner</title>" in response.text
+        assert "<title>All Recipes</title>" in response.text
         assert 'id="recipe-list-area"' in response.text
         assert '<ul id="recipe-list-ul">' in response.text
         assert "Recipe One" in response.text
@@ -561,9 +579,8 @@ class TestGetRecipeListPage:
         response = await client.get(RECIPES_LIST_PATH, headers=headers)
 
         assert response.status_code == 200
-        assert "<title>Meal Planner</title>" not in response.text
+        assert "<title>" not in response.text
         assert 'id="recipe-list-area"' in response.text
-        assert "All Recipes" in response.text
         assert '<ul id="recipe-list-ul">' in response.text
         assert "Recipe One HTMX" in response.text
         assert 'id="recipe-item-1"' in response.text
@@ -581,7 +598,7 @@ class TestGetRecipeListPage:
 
         response = await client.get(RECIPES_LIST_PATH)
         assert response.status_code == 200
-        assert "<title>Meal Planner</title>" in response.text
+        assert "<title>All Recipes</title>" in response.text
         assert "No recipes found." in response.text
         assert 'id="recipe-list-area"' in response.text
         mock_api_client.get.assert_called_once_with("/v0/recipes")

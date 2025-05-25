@@ -35,7 +35,7 @@ from meal_planner.ui.edit_recipe import (
     render_instruction_list_items,
 )
 from meal_planner.ui.extract_recipe import create_extraction_form
-from meal_planner.ui.layout import with_layout, wrap_for_full_page_iff_not_htmx
+from meal_planner.ui.layout import with_layout, is_htmx
 from meal_planner.ui.list_recipes import format_recipe_list
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -101,43 +101,36 @@ async def get_recipe_list_page(request: Request):
             e.response.text,
             exc_info=True,
         )
-        result = wrap_for_full_page_iff_not_htmx(
-            Titled(
-                "Error",
-                Div("Error fetching recipes from API.", cls=f"{TextT.error} mb-4"),
-                id="recipe-list-area",
-            ),
-            request,
-        )
+        title = "Error"
+        content = Div("Error fetching recipes from API.", cls=f"{TextT.error} mb-4")
     except Exception as e:
         logger.error("Error fetching recipes: %s", e, exc_info=True)
-        result = wrap_for_full_page_iff_not_htmx(
-            Titled(
-                "Error",
-                Div(
-                    "An unexpected error occurred while fetching recipes.",
-                    cls=f"{TextT.error} mb-4",
-                ),
-                id="recipe-list-area",
-            ),
-            request,
+        title = "Error"
+        content = Div(
+            "An unexpected error occurred while fetching recipes.",
+            cls=f"{TextT.error} mb-4",
         )
     else:
-        result = wrap_for_full_page_iff_not_htmx(
-            Titled(
-                "All Recipes",
-                format_recipe_list(response.json())
-                if response.json()
-                else Div("No recipes found."),
-                id="recipe-list-area",
-                hx_trigger="recipeListChanged from:body",
-                hx_get="/recipes",
-                hx_swap="outerHTML",
-            ),
-            request,
+        title = "All Recipes"
+        content = (
+            format_recipe_list(response.json())
+            if response.json()
+            else Div("No recipes found.")
         )
 
-    return result
+    content_with_attrs = Div(
+        content,
+        id="recipe-list-area",
+        hx_trigger="recipeListChanged from:body",
+        hx_get="/recipes",
+        hx_swap="outerHTML",
+    )
+
+    return (
+        with_layout(Titled(title, content_with_attrs))
+        if not is_htmx(request)
+        else content_with_attrs
+    )
 
 
 @rt("/recipes/{recipe_id:int}")
@@ -149,9 +142,8 @@ async def get_single_recipe_page(recipe_id: int):
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             logger.warning("Recipe ID %s not found when loading page.", recipe_id)
-            result = with_layout(
-                Titled("Recipe Not Found", P("The requested recipe does not exist."))
-            )
+            title = "Recipe Not Found"
+            content = P("The requested recipe does not exist.")
         else:
             logger.error(
                 "API error fetching recipe ID %s: Status %s, Response: %s",
@@ -160,14 +152,10 @@ async def get_single_recipe_page(recipe_id: int):
                 e.response.text,
                 exc_info=True,
             )
-            result = with_layout(
-                Titled(
-                    "Error",
-                    P(
-                        "Error fetching recipe from API.",
-                        cls=CSS_ERROR_CLASS,
-                    ),
-                )
+            title = "Error"
+            content = P(
+                "Error fetching recipe from API.",
+                cls=CSS_ERROR_CLASS,
             )
     except Exception as e:
         logger.error(
@@ -176,19 +164,17 @@ async def get_single_recipe_page(recipe_id: int):
             e,
             exc_info=True,
         )
-        result = with_layout(
-            Titled(
-                "Error",
-                P(
-                    "An unexpected error occurred.",
-                    cls=CSS_ERROR_CLASS,
-                ),
-            )
+        title = "Error"
+        content = P(
+            "An unexpected error occurred.",
+            cls=CSS_ERROR_CLASS,
         )
     else:
-        result = with_layout(build_recipe_display(response.json()))
+        recipe_data = response.json()
+        title = recipe_data["name"]
+        content = build_recipe_display(recipe_data)
 
-    return result
+    return with_layout(Titled(title, content))
 
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:

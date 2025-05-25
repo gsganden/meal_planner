@@ -67,7 +67,6 @@ def with_layout(content: Any):
     )
 
     return (
-        Title("Meal Planner"),
         indicator_style,
         hamburger_button,
         mobile_sidebar_container,
@@ -83,9 +82,5 @@ def with_layout(content: Any):
     )
 
 
-def _is_htmx(request: Request) -> bool:
+def is_htmx(request: Request) -> bool:
     return "HX-Request" in request.headers
-
-
-def wrap_for_full_page_iff_not_htmx(content: FT, request: Request) -> FT:
-    return content if _is_htmx(request) else with_layout(content)
