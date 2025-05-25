@@ -433,13 +433,7 @@ async def post_save_recipe(request: Request):
 
 
 class ModifyFormError(Exception):
-    """Custom exception for errors during modification form parsing/validation."""
-
-    pass
-
-
-class RecipeModificationError(Exception):
-    """Custom exception for errors during LLM recipe modification."""
+    """Custom exception for fatal errors during recipe modification flows."""
 
     pass
 
@@ -484,10 +478,10 @@ async def post_modify_recipe(request: Request):
             -   **On Successful LLM Modification:**
                 -   The form is re-rendered, showing the new `modified_recipe`
                   as current, with no error message.
-            -   **On LLM Service or Postprocessing Error (`RecipeModificationError`):**
+            -   **On LLM Service or Postprocessing Error (`RuntimeError`):**
                 -   The error is logged.
                 -   The form is re-rendered with the specific error message from
-                    `RecipeModificationError`. The recipe data from *before* the
+                    `RuntimeError`. The recipe data from *before* the
                     LLM call is used to populate the form.
 
     3.  **Other Unexpected Internal Errors (Generic `Exception`):**
@@ -546,7 +540,19 @@ async def post_modify_recipe(request: Request):
             error_message_content=None,
         )
 
-    except RecipeModificationError as llm_e:
+    except FileNotFoundError as fnf_e:
+        logger.error("Configuration error - prompt file missing: %s", fnf_e)
+        result = build_modify_form_response(
+            current_recipe=current_recipe,
+            original_recipe=original_recipe,
+            modification_prompt_value=modification_prompt,
+            error_message_content=Div(
+                "Service configuration error. Please try again later.",
+                cls=f"{CSS_ERROR_CLASS} mt-2",
+            ),
+        )
+
+    except RuntimeError as llm_e:
         logger.error("LLM modification error: %s", llm_e)
         result = build_modify_form_response(
             current_recipe=current_recipe,  # Revert to recipe before LLM attempt

@@ -89,9 +89,7 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
         return extracted_recipe
     except FileNotFoundError as e:
         logger.error("Prompt file not found: %s", e, exc_info=True)
-        raise RuntimeError(
-            f"LLM service error: Prompt file missing - {e.filename}"
-        ) from e
+        raise
     except Exception as e:
         logger.error(
             "Error during LLM recipe generation from text: %s", e, exc_info=True
@@ -134,9 +132,7 @@ async def generate_modified_recipe(
         return modified_recipe
     except FileNotFoundError as e:
         logger.error("Prompt file not found: %s", e, exc_info=True)
-        raise RuntimeError(
-            f"LLM service error: Prompt file missing - {e.filename}"
-        ) from e
+        raise
     except Exception as e:
         logger.error("Error during LLM recipe modification: %s", e, exc_info=True)
         raise RuntimeError("LLM service error during recipe modification.") from e

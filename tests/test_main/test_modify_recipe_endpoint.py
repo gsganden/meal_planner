@@ -7,7 +7,6 @@ from bs4.element import Tag
 from httpx import AsyncClient
 from pydantic import ValidationError
 
-from meal_planner.main import RecipeModificationError
 from meal_planner.models import RecipeBase
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from tests.constants import (
@@ -392,55 +391,6 @@ class TestModifyRecipeEndpoint:
         assert original_recipe.name in review_card_div.get_text()
 
     @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
-    async def test_modify_recipe_recipe_modification_error(
-        self,
-        mock_llm_modify: AsyncMock,
-        client: AsyncClient,
-        mock_current_recipe_before_modify_fixture: RecipeBase,
-        mock_original_recipe_fixture: RecipeBase,
-    ):
-        """Test RecipeModificationError during LLM modification."""
-        modification_error = RecipeModificationError(
-            "LLM service failed to modify recipe"
-        )
-        mock_llm_modify.side_effect = modification_error
-
-        current_recipe = mock_current_recipe_before_modify_fixture
-        original_recipe = mock_original_recipe_fixture
-        modification_prompt = "Make it gluten-free"
-
-        form_data = {
-            FIELD_NAME: current_recipe.name,
-            FIELD_INGREDIENTS: current_recipe.ingredients,
-            FIELD_INSTRUCTIONS: current_recipe.instructions,
-            FIELD_ORIGINAL_NAME: original_recipe.name,
-            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
-            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
-            FIELD_MODIFICATION_PROMPT: modification_prompt,
-        }
-
-        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
-        assert response.status_code == 200
-
-        mock_llm_modify.assert_called_once_with(
-            current_recipe=current_recipe, modification_request=modification_prompt
-        )
-
-        html_content = response.text
-        soup = BeautifulSoup(html_content, "html.parser")
-
-        error_div = soup.find("div", string="LLM service failed to modify recipe")
-        assert error_div is not None, "RecipeModificationError message not found"
-        assert CSS_ERROR_CLASS in error_div.get("class", []), (
-            "Error message does not have the error CSS class"
-        )
-
-        form_data_from_html = _extract_full_edit_form_data(html_content)
-        assert form_data_from_html[FIELD_NAME] == current_recipe.name
-        assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
-        assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
-
-    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
     @patch("meal_planner.main.postprocess_recipe")
     async def test_modify_recipe_postprocess_validation_error(
         self,
@@ -541,6 +491,104 @@ class TestModifyRecipeEndpoint:
             ),
         )
         assert error_div is not None, "Generic error message not found"
+        assert CSS_ERROR_CLASS in error_div.get("class", []), (
+            "Error message does not have the error CSS class"
+        )
+
+        form_data_from_html = _extract_full_edit_form_data(html_content)
+        assert form_data_from_html[FIELD_NAME] == current_recipe.name
+        assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
+        assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
+
+    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
+    async def test_modify_recipe_runtime_error(
+        self,
+        mock_llm_modify: AsyncMock,
+        client: AsyncClient,
+        mock_current_recipe_before_modify_fixture: RecipeBase,
+        mock_original_recipe_fixture: RecipeBase,
+    ):
+        """Test RuntimeError during LLM modification."""
+        modification_error = RuntimeError("LLM service failed to modify recipe")
+        mock_llm_modify.side_effect = modification_error
+
+        current_recipe = mock_current_recipe_before_modify_fixture
+        original_recipe = mock_original_recipe_fixture
+        modification_prompt = "Make it gluten-free"
+
+        form_data = {
+            FIELD_NAME: current_recipe.name,
+            FIELD_INGREDIENTS: current_recipe.ingredients,
+            FIELD_INSTRUCTIONS: current_recipe.instructions,
+            FIELD_ORIGINAL_NAME: original_recipe.name,
+            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
+            FIELD_MODIFICATION_PROMPT: modification_prompt,
+        }
+
+        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
+        assert response.status_code == 200
+
+        mock_llm_modify.assert_called_once_with(
+            current_recipe=current_recipe, modification_request=modification_prompt
+        )
+
+        html_content = response.text
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        error_div = soup.find("div", string="LLM service failed to modify recipe")
+        assert error_div is not None, "RuntimeError message not found"
+        assert CSS_ERROR_CLASS in error_div.get("class", []), (
+            "Error message does not have the error CSS class"
+        )
+
+        form_data_from_html = _extract_full_edit_form_data(html_content)
+        assert form_data_from_html[FIELD_NAME] == current_recipe.name
+        assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
+        assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
+
+    @patch("meal_planner.main.generate_modified_recipe", new_callable=AsyncMock)
+    async def test_modify_recipe_file_not_found_error(
+        self,
+        mock_llm_modify: AsyncMock,
+        client: AsyncClient,
+        mock_current_recipe_before_modify_fixture: RecipeBase,
+        mock_original_recipe_fixture: RecipeBase,
+    ):
+        """Test FileNotFoundError during LLM modification (missing prompt file)."""
+        file_not_found_error = FileNotFoundError(
+            2, "No such file or directory", "missing_prompt.txt"
+        )
+        mock_llm_modify.side_effect = file_not_found_error
+
+        current_recipe = mock_current_recipe_before_modify_fixture
+        original_recipe = mock_original_recipe_fixture
+        modification_prompt = "Make it vegan"
+
+        form_data = {
+            FIELD_NAME: current_recipe.name,
+            FIELD_INGREDIENTS: current_recipe.ingredients,
+            FIELD_INSTRUCTIONS: current_recipe.instructions,
+            FIELD_ORIGINAL_NAME: original_recipe.name,
+            FIELD_ORIGINAL_INGREDIENTS: original_recipe.ingredients,
+            FIELD_ORIGINAL_INSTRUCTIONS: original_recipe.instructions,
+            FIELD_MODIFICATION_PROMPT: modification_prompt,
+        }
+
+        response = await client.post(RECIPES_MODIFY_URL, data=form_data)
+        assert response.status_code == 200
+
+        mock_llm_modify.assert_called_once_with(
+            current_recipe=current_recipe, modification_request=modification_prompt
+        )
+
+        html_content = response.text
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        error_div = soup.find(
+            "div", string="Service configuration error. Please try again later."
+        )
+        assert error_div is not None, "FileNotFoundError message not found"
         assert CSS_ERROR_CLASS in error_div.get("class", []), (
             "Error message does not have the error CSS class"
         )

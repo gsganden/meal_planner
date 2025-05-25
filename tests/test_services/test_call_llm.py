@@ -130,12 +130,10 @@ async def test_generate_recipe_from_text_prompt_file_not_found(
     )
     mock_get_prompt_path.return_value.name = "non_existent_prompt.txt"
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(FileNotFoundError) as excinfo:
         await generate_recipe_from_text(text=test_text)
 
-    assert "LLM service error: Prompt file missing - non_existent_prompt.txt" in str(
-        excinfo.value
-    )
+    assert excinfo.value.filename == "non_existent_prompt.txt"
     args, kwargs = mock_logger_error.call_args
     assert args[0] == "Prompt file not found: %s"
     assert isinstance(args[1], FileNotFoundError)
@@ -247,13 +245,10 @@ async def test_generate_modified_recipe_prompt_file_not_found(
     )
     mock_get_prompt_path.return_value.name = "non_existent_mod_prompt.txt"
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(FileNotFoundError) as excinfo:
         await generate_modified_recipe(current_recipe, modification_request)
 
-    assert (
-        "LLM service error: Prompt file missing - non_existent_mod_prompt.txt"
-        in str(excinfo.value)
-    )
+    assert excinfo.value.filename == "non_existent_mod_prompt.txt"
     args, kwargs = mock_logger_error.call_args
     assert args[0] == "Prompt file not found: %s"
     assert isinstance(args[1], FileNotFoundError)

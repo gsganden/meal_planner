@@ -5,13 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 from bs4 import BeautifulSoup
-from httpx import ASGITransport, AsyncClient, Request, Response
+from httpx import AsyncClient, Request, Response
 from pydantic import ValidationError
 
-from meal_planner.main import (
-    CSS_ERROR_CLASS,
-    app,
-)
+from meal_planner.main import CSS_ERROR_CLASS
 from meal_planner.models import RecipeBase
 from tests.constants import (
     FIELD_INGREDIENTS,
@@ -26,10 +23,6 @@ from tests.constants import (
 from tests.test_helpers import (
     create_mock_api_response,
 )
-
-# Constants
-TRANSPORT = ASGITransport(app=app)
-TEST_URL = "http://test-recipe.com"
 
 
 @pytest.mark.anyio
