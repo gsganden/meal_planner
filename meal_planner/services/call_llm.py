@@ -1,5 +1,6 @@
 import logging
 import os
+import string
 from pathlib import Path
 from typing import TypeVar
 
@@ -11,8 +12,8 @@ from meal_planner.models import RecipeBase
 
 MODEL_NAME = "gemini-2.0-flash"
 PROMPT_DIR = Path(__file__).resolve().parent.parent.parent / "prompt_templates"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"
-ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250525_174436__string_template_syntax.txt"
+ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250525_174436__string_template_syntax.txt"
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,9 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
         )
         logger.info("Using extraction prompt file: %s", prompt_file_path.name)
         prompt_template = prompt_file_path.read_text(encoding="utf-8")
-        formatted_prompt = prompt_template.format(page_text=text)
+        formatted_prompt = string.Template(prompt_template).safe_substitute(
+            page_text=text
+        )
 
         extracted_recipe: RecipeBase = await get_structured_llm_response(
             prompt=formatted_prompt,
@@ -117,7 +120,7 @@ async def generate_modified_recipe(
         )
         logger.info("Using modification prompt file: %s", prompt_file_path.name)
         modification_template = prompt_file_path.read_text()
-        formatted_prompt = modification_template.format(
+        formatted_prompt = string.Template(modification_template).safe_substitute(
             current_recipe_markdown=current_recipe.markdown,
             modification_prompt=modification_request,
         )

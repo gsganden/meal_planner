@@ -1,0 +1,13 @@
+Given the following recipe:
+
+$current_recipe_markdown
+
+Please modify it according to this instruction: $modification_prompt
+
+IMPORTANT INSTRUCTIONS FOR THE LLM:
+- Focus ONLY on the requested modification ($modification_prompt).
+- PRESERVE the original formatting, especially whitespace, list styles, and line breaks, wherever possible.
+- DO NOT make unnecessary formatting changes.
+- If the instructions are modified to use different ingredients, ensure the ingredients list accurately reflects the ingredients used in the modified instructions.
+- When returning the `ingredients` and `instructions` lists in the JSON response, each string in those lists should contain ONLY the ingredient/instruction text itself, without any leading list indicators (like '-', '*', numbers, etc.).
+- Return ONLY the modified recipe in the exact same JSON format (Recipe model: name, ingredients list, instructions list) as the input model. 
