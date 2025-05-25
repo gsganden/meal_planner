@@ -35,7 +35,7 @@ from meal_planner.ui.edit_recipe import (
     render_instruction_list_items,
 )
 from meal_planner.ui.extract_recipe import create_extraction_form
-from meal_planner.ui.layout import with_layout, is_htmx
+from meal_planner.ui.layout import is_htmx, with_layout
 from meal_planner.ui.list_recipes import format_recipe_list
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
