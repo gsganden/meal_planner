@@ -713,7 +713,7 @@ class TestDeleteRecipeEndpoint:
         )
 
         response = await client.post(self.DELETE_PATH, params={"id": 999})
-        assert response.status_code == 200
+        assert response.status_code == 404
         mock_api_client.delete.assert_called_once_with("/v0/recipes/999")
 
     @patch("meal_planner.main.internal_api_client", autospec=True)
@@ -733,7 +733,7 @@ class TestDeleteRecipeEndpoint:
         )
 
         response = await client.post(self.DELETE_PATH, params={"id": 123})
-        assert response.status_code == 200
+        assert response.status_code == 500
         mock_api_client.delete.assert_called_once_with("/v0/recipes/123")
 
     @patch("meal_planner.main.internal_api_client", autospec=True)
@@ -746,5 +746,5 @@ class TestDeleteRecipeEndpoint:
         mock_api_client.delete.side_effect = Exception("Generic API failure")
 
         response = await client.post(self.DELETE_PATH, params={"id": 123})
-        assert response.status_code == 200
+        assert response.status_code == 500
         mock_api_client.delete.assert_called_once_with("/v0/recipes/123")

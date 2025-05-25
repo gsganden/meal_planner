@@ -853,6 +853,7 @@ async def post_delete_recipe(id: int):
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             logger.warning("Recipe ID %s not found for deletion", id)
+            return Response(status_code=404)
         else:
             logger.error(
                 "API error deleting recipe ID %s: Status %s, Response: %s",
@@ -861,5 +862,7 @@ async def post_delete_recipe(id: int):
                 e.response.text,
                 exc_info=True,
             )
+            return Response(status_code=500)
     except Exception as e:
         logger.error("Error deleting recipe ID %s: %s", id, e, exc_info=True)
+        return Response(status_code=500)
