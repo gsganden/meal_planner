@@ -3,7 +3,6 @@
 import difflib
 import html
 
-from bs4.element import Tag
 from fasthtml.common import *
 from monsterui.all import *
 
@@ -281,8 +280,8 @@ def _build_name_input(name_value: str):
     )
 
 
-def render_ingredient_list_items(ingredients: list[str]) -> list[Tag]:
-    """Render ingredient input divs as a list of fasthtml.Tag components."""
+def render_ingredient_list_items(ingredients: list[str]) -> list[FT]:
+    """Render ingredient input divs as a list of FastHTML components."""
     items_list = []
     for i, ing_value in enumerate(ingredients):
         drag_handle_component = DRAG_HANDLE_ICON
@@ -350,8 +349,8 @@ def _build_ingredients_section(ingredients: list[str]):
     )
 
 
-def render_instruction_list_items(instructions: list[str]) -> list[Tag]:
-    """Render instruction textarea divs as a list of fasthtml.Tag components."""
+def render_instruction_list_items(instructions: list[str]) -> list[FT]:
+    """Render instruction textarea divs as a list of FastHTML components."""
     items_list = []
     for i, inst_value in enumerate(instructions):
         drag_handle_component = DRAG_HANDLE_ICON
