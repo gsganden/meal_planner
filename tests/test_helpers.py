@@ -18,91 +18,95 @@ from tests.constants import (
 )
 
 
-class FormTargetDivNotFoundError(Exception):
-    """Custom exception raised when the target div for form parsing is not found."""
+def _find_form_container_and_form(html_content: str) -> Tag:
+    """
+    Finds and returns the form element from the HTML content.
 
-    pass
+    Looks for the form in the edit-form-target div or OOB div, falling back to
+    searching the entire document if needed.
 
-
-def _get_edit_form_target_div(html_text: str) -> Tag:
-    """Parses HTML and finds the specific div target for form edits.
+    Returns:
+        The form Tag element.
 
     Raises:
-        FormTargetDivNotFoundError: If the target div is not found.
+        ValueError: If the form is not found or is not a Tag.
     """
-    soup = BeautifulSoup(html_text, "html.parser")
-    found_element = soup.find("div", attrs={"id": "edit-form-target"})
-    if not found_element:
-        found_element = soup.find(
+    soup = BeautifulSoup(html_content, "html.parser")
+    form_container = soup.find("div", id="edit-form-target")
+    if not form_container:
+        form_container = soup.find(
             "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
         )
 
-    if isinstance(found_element, Tag):
-        return found_element
-    raise FormTargetDivNotFoundError(
-        "Could not find div with id 'edit-form-target' or "
-        "hx-swap-oob='innerHTML:#edit-form-target'"
-    )
+    if not form_container:
+        form_container = soup
+
+    form = form_container.find("form", attrs={"id": "edit-review-form"})
+
+    if not isinstance(form, Tag):
+        raise ValueError("Form with id 'edit-review-form' not found or is not a Tag.")
+
+    return form
 
 
-def _extract_form_value(html_text: str, name: str) -> str | None:
-    """Extracts a single value from an input or textarea in the HTML form section.
-
-    Can propagate FormTargetDivNotFoundError if the main form container is missing.
-    Returns None if the specific field is not found within the container.
+def _extract_single_input_value(form: Tag, field_name: str) -> str:
     """
-    form_div = _get_edit_form_target_div(html_text)
+    Extracts a single value from an input field in the form.
 
-    input_tag_candidate = form_div.find("input", attrs={"name": name})
-    if isinstance(input_tag_candidate, Tag) and input_tag_candidate.has_attr("value"):
-        value = input_tag_candidate["value"]
-        if isinstance(value, str):
-            return value
-        elif isinstance(value, list) and value and isinstance(value[0], str):
-            return value[0]
+    Args:
+        form: The form Tag element to search in.
+        field_name: The name attribute of the input field.
 
-    textarea_tag_candidate = form_div.find("textarea", attrs={"name": name})
-    if isinstance(textarea_tag_candidate, Tag):
-        return (
-            str(textarea_tag_candidate.string)
-            if textarea_tag_candidate.string is not None
-            else ""
-        )
-
-    return None
-
-
-def _extract_form_list_values(html_text: str, name: str) -> list[str]:
-    """Extracts all values from inputs/textareas with the same name.
-
-    Can propagate FormTargetDivNotFoundError if the main form container is missing.
-    Returns an empty list if no specific fields are found within the container.
+    Returns:
+        The input value as a string, or empty string if not found.
     """
-    form_div = _get_edit_form_target_div(html_text)
+    input_element = form.find("input", attrs={"name": field_name})
+    if (
+        input_element
+        and isinstance(input_element, Tag)
+        and "value" in input_element.attrs
+    ):
+        value = input_element["value"]
+        return value[0] if isinstance(value, list) else str(value)
+    return ""
 
-    values: list[str] = []
-    elements = form_div.find_all(
-        lambda tag: isinstance(tag, Tag)
-        and tag.name in ["input", "textarea"]
-        and tag.get("name") == name
-    )
 
-    for element in elements:
-        if isinstance(element, Tag):
-            if element.name == "input" and element.has_attr("value"):
-                value_attr = element["value"]
-                if isinstance(value_attr, str):
-                    values.append(value_attr)
-                elif (
-                    isinstance(value_attr, list)
-                    and value_attr
-                    and isinstance(value_attr[0], str)
-                ):
-                    values.append(value_attr[0])
-            elif element.name == "textarea":
-                values.append(str(element.string) if element.string is not None else "")
+def _extract_input_list_values(form: Tag, field_name: str) -> list[str]:
+    """
+    Extracts all values from input fields with the same name.
 
-    return values
+    Args:
+        form: The form Tag element to search in.
+        field_name: The name attribute of the input fields.
+
+    Returns:
+        List of input values as strings.
+    """
+    inputs = form.find_all("input", attrs={"name": field_name})
+    return [
+        cast(str, input_elem["value"])
+        for input_elem in inputs
+        if isinstance(input_elem, Tag) and "value" in input_elem.attrs
+    ]
+
+
+def _extract_textarea_list_values(form: Tag, field_name: str) -> list[str]:
+    """
+    Extracts all text content from textarea fields with the same name.
+
+    Args:
+        form: The form Tag element to search in.
+        field_name: The name attribute of the textarea fields.
+
+    Returns:
+        List of textarea text content as strings.
+    """
+    textareas = form.find_all("textarea", attrs={"name": field_name})
+    return [
+        textarea.get_text(strip=True)
+        for textarea in textareas
+        if isinstance(textarea, Tag)
+    ]
 
 
 def extract_full_edit_form_data(html_content: str) -> dict[str, Any]:
@@ -110,88 +114,23 @@ def extract_full_edit_form_data(html_content: str) -> dict[str, Any]:
     Extracts all current and original recipe data from the edit-review-form.
     This includes visible inputs/textareas and hidden original_* fields.
     """
-    soup = BeautifulSoup(html_content, "html.parser")
-    form_container = soup.find("div", id="edit-form-target")
-    if not form_container:
-        form_container = soup.find(
-            "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
-        )
+    form = _find_form_container_and_form(html_content)
 
-    if not form_container:
-        form_container = soup
-
-    form = form_container.find("form", attrs={"id": "edit-review-form"})
-
-    if not isinstance(form, Tag):
-        raise ValueError(
-            "Form with id 'edit-review-form' not found or is not a Tag "
-            "in HTML content provided to _extract_full_edit_form_data."
-        )
-
-    data: dict[str, Any] = {}
-
-    name_input = form.find("input", attrs={"name": FIELD_NAME})
-    if name_input and isinstance(name_input, Tag) and "value" in name_input.attrs:
-        name_value = name_input["value"]
-        data[FIELD_NAME] = name_value[0] if isinstance(name_value, list) else name_value
-    else:
-        data[FIELD_NAME] = ""
-
-    ingredients_inputs = form.find_all("input", attrs={"name": FIELD_INGREDIENTS})
-    data[FIELD_INGREDIENTS] = [
-        cast(str, ing_input["value"])
-        for ing_input in ingredients_inputs
-        if isinstance(ing_input, Tag) and "value" in ing_input.attrs
-    ]
-
-    instructions_areas = form.find_all("textarea", attrs={"name": FIELD_INSTRUCTIONS})
-    data[FIELD_INSTRUCTIONS] = [
-        inst_area.get_text(strip=True)
-        for inst_area in instructions_areas
-        if isinstance(inst_area, Tag)
-    ]
-
-    original_name_input = form.find("input", attrs={"name": FIELD_ORIGINAL_NAME})
-    if (
-        original_name_input
-        and isinstance(original_name_input, Tag)
-        and "value" in original_name_input.attrs
-    ):
-        og_name_value = original_name_input["value"]
-        data[FIELD_ORIGINAL_NAME] = (
-            og_name_value[0] if isinstance(og_name_value, list) else og_name_value
-        )
-    else:
-        data[FIELD_ORIGINAL_NAME] = ""
-
-    original_ingredients_inputs = form.find_all(
-        "input", attrs={"name": FIELD_ORIGINAL_INGREDIENTS}
-    )
-    data[FIELD_ORIGINAL_INGREDIENTS] = [
-        cast(str, orig_ing_input["value"])
-        for orig_ing_input in original_ingredients_inputs
-        if isinstance(orig_ing_input, Tag) and "value" in orig_ing_input.attrs
-    ]
-
-    original_instructions_inputs = form.find_all(
-        "input", attrs={"name": FIELD_ORIGINAL_INSTRUCTIONS}
-    )
-    data[FIELD_ORIGINAL_INSTRUCTIONS] = [
-        cast(str, orig_inst_input["value"])
-        for orig_inst_input in original_instructions_inputs
-        if isinstance(orig_inst_input, Tag) and "value" in orig_inst_input.attrs
-    ]
-
-    prompt_input = form.find("input", attrs={"name": FIELD_MODIFICATION_PROMPT})
-    if prompt_input and isinstance(prompt_input, Tag) and "value" in prompt_input.attrs:
-        prompt_value = prompt_input["value"]
-        data[FIELD_MODIFICATION_PROMPT] = (
-            prompt_value[0] if isinstance(prompt_value, list) else prompt_value
-        )
-    else:
-        data[FIELD_MODIFICATION_PROMPT] = ""
-
-    return data
+    return {
+        FIELD_NAME: _extract_single_input_value(form, FIELD_NAME),
+        FIELD_INGREDIENTS: _extract_input_list_values(form, FIELD_INGREDIENTS),
+        FIELD_INSTRUCTIONS: _extract_textarea_list_values(form, FIELD_INSTRUCTIONS),
+        FIELD_ORIGINAL_NAME: _extract_single_input_value(form, FIELD_ORIGINAL_NAME),
+        FIELD_ORIGINAL_INGREDIENTS: _extract_input_list_values(
+            form, FIELD_ORIGINAL_INGREDIENTS
+        ),
+        FIELD_ORIGINAL_INSTRUCTIONS: _extract_input_list_values(
+            form, FIELD_ORIGINAL_INSTRUCTIONS
+        ),
+        FIELD_MODIFICATION_PROMPT: _extract_single_input_value(
+            form, FIELD_MODIFICATION_PROMPT
+        ),
+    }
 
 
 def extract_current_recipe_data_from_html(html_content: str) -> dict[str, Any]:
@@ -199,53 +138,13 @@ def extract_current_recipe_data_from_html(html_content: str) -> dict[str, Any]:
     Extracts only the current recipe data (name, ingredients, instructions)
     from the edit-review-form, excluding original_* fields.
     """
-    soup = BeautifulSoup(html_content, "html.parser")
-    form_container = soup.find("div", id="edit-form-target")
-    if not form_container:
-        form_container = soup.find(
-            "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
-        )
+    form = _find_form_container_and_form(html_content)
 
-    if not form_container:
-        form_container = soup
-
-    form = form_container.find("form", attrs={"id": "edit-review-form"})
-
-    if not form:
-        raise ValueError("Form with id 'edit-review-form' not found in HTML content.")
-    if not isinstance(form, Tag):
-        raise ValueError("Form element is not a Tag.")
-
-    name_input = form.find("input", attrs={"name": FIELD_NAME})
-    name = (
-        name_input.get("value", "")
-        if name_input and isinstance(name_input, Tag)
-        else ""
-    )
-    if isinstance(name, list):
-        name = name[0]
-
-    ingredients_inputs = form.find_all("input", attrs={"name": FIELD_INGREDIENTS})
-    ingredients = [
-        (
-            ing_input.get("value", "")
-            if isinstance(ing_input.get("value"), str)
-            else (
-                ing_input.get("value")[0]
-                if isinstance(ing_input.get("value"), list) and ing_input.get("value")
-                else ""
-            )
-        )
-        for ing_input in ingredients_inputs
-        if isinstance(ing_input, Tag) and "value" in ing_input.attrs
-    ]
-    instructions_areas = form.find_all("textarea", attrs={"name": FIELD_INSTRUCTIONS})
-    instructions = [
-        inst_area.get_text()
-        for inst_area in instructions_areas
-        if isinstance(inst_area, Tag)
-    ]
-    return {"name": str(name), "ingredients": ingredients, "instructions": instructions}
+    return {
+        "name": _extract_single_input_value(form, FIELD_NAME),
+        "ingredients": _extract_input_list_values(form, FIELD_INGREDIENTS),
+        "instructions": _extract_textarea_list_values(form, FIELD_INSTRUCTIONS),
+    }
 
 
 def create_mock_api_response(
