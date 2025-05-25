@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -18,6 +17,10 @@ from tests.constants import (
     FIELD_ORIGINAL_INSTRUCTIONS,
     FIELD_ORIGINAL_NAME,
     RECIPES_MODIFY_URL,
+)
+from tests.test_helpers import (
+    _extract_current_recipe_data_from_html,
+    _extract_full_edit_form_data,
 )
 
 
@@ -46,141 +49,6 @@ def mock_llm_modified_recipe_fixture() -> RecipeBase:
         ingredients=["mod ing 1"],
         instructions=["mod inst 1"],
     )
-
-
-def _extract_current_recipe_data_from_html(html_content: str) -> dict:
-    soup = BeautifulSoup(html_content, "html.parser")
-    form_container = soup.find("div", id="edit-form-target")
-    if not form_container:
-        form_container = soup.find(
-            "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
-        )
-
-    if not form_container:
-        form_container = soup
-
-    form = form_container.find("form", attrs={"id": "edit-review-form"})
-
-    if not form:
-        raise ValueError("Form with id 'edit-review-form' not found in HTML content.")
-    if not isinstance(form, Tag):
-        raise ValueError("Form element is not a Tag.")
-
-    name_input = form.find("input", attrs={"name": FIELD_NAME})
-    name = (
-        name_input.get("value", "")
-        if name_input and isinstance(name_input, Tag)
-        else ""
-    )
-    if isinstance(name, list):
-        name = name[0]
-
-    ingredients_inputs = form.find_all("input", attrs={"name": FIELD_INGREDIENTS})
-    ingredients = [
-        (
-            ing_input.get("value", "")
-            if isinstance(ing_input.get("value"), str)
-            else (
-                ing_input.get("value")[0]
-                if isinstance(ing_input.get("value"), list) and ing_input.get("value")
-                else ""
-            )
-        )
-        for ing_input in ingredients_inputs
-        if isinstance(ing_input, Tag) and "value" in ing_input.attrs
-    ]
-    instructions_areas = form.find_all("textarea", attrs={"name": FIELD_INSTRUCTIONS})
-    instructions = [
-        inst_area.get_text()
-        for inst_area in instructions_areas
-        if isinstance(inst_area, Tag)
-    ]
-    return {"name": str(name), "ingredients": ingredients, "instructions": instructions}
-
-
-def _extract_full_edit_form_data(html_content: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html_content, "html.parser")
-    form_container = soup.find("div", id="edit-form-target")
-    if not form_container:
-        form_container = soup.find(
-            "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
-        )
-
-    if not form_container:
-        form_container = soup
-
-    form = form_container.find("form", attrs={"id": "edit-review-form"})
-
-    if not isinstance(form, Tag):
-        raise ValueError(
-            "Form with id 'edit-review-form' not found or is not a Tag "
-            "in HTML content provided to _extract_full_edit_form_data."
-        )
-
-    data: dict[str, Any] = {}
-
-    name_input = form.find("input", attrs={"name": FIELD_NAME})
-    if name_input and isinstance(name_input, Tag) and "value" in name_input.attrs:
-        name_value = name_input["value"]
-        data[FIELD_NAME] = name_value[0] if isinstance(name_value, list) else name_value
-    else:
-        data[FIELD_NAME] = ""
-
-    ingredients_inputs = form.find_all("input", attrs={"name": FIELD_INGREDIENTS})
-    data[FIELD_INGREDIENTS] = [
-        str(ing_input["value"])
-        for ing_input in ingredients_inputs
-        if isinstance(ing_input, Tag) and "value" in ing_input.attrs
-    ]
-
-    instructions_areas = form.find_all("textarea", attrs={"name": FIELD_INSTRUCTIONS})
-    data[FIELD_INSTRUCTIONS] = [
-        inst_area.get_text(strip=True)
-        for inst_area in instructions_areas
-        if isinstance(inst_area, Tag)
-    ]
-
-    original_name_input = form.find("input", attrs={"name": FIELD_ORIGINAL_NAME})
-    if (
-        original_name_input
-        and isinstance(original_name_input, Tag)
-        and "value" in original_name_input.attrs
-    ):
-        og_name_value = original_name_input["value"]
-        data[FIELD_ORIGINAL_NAME] = (
-            og_name_value[0] if isinstance(og_name_value, list) else og_name_value
-        )
-    else:
-        data[FIELD_ORIGINAL_NAME] = ""
-
-    original_ingredients_inputs = form.find_all(
-        "input", attrs={"name": FIELD_ORIGINAL_INGREDIENTS}
-    )
-    data[FIELD_ORIGINAL_INGREDIENTS] = [
-        str(orig_ing_input["value"])
-        for orig_ing_input in original_ingredients_inputs
-        if isinstance(orig_ing_input, Tag) and "value" in orig_ing_input.attrs
-    ]
-
-    original_instructions_inputs = form.find_all(
-        "input", attrs={"name": FIELD_ORIGINAL_INSTRUCTIONS}
-    )
-    data[FIELD_ORIGINAL_INSTRUCTIONS] = [
-        str(orig_inst_input["value"])
-        for orig_inst_input in original_instructions_inputs
-        if isinstance(orig_inst_input, Tag) and "value" in orig_inst_input.attrs
-    ]
-
-    prompt_input = form.find("input", attrs={"name": FIELD_MODIFICATION_PROMPT})
-    if prompt_input and isinstance(prompt_input, Tag) and "value" in prompt_input.attrs:
-        prompt_value = prompt_input["value"]
-        data[FIELD_MODIFICATION_PROMPT] = (
-            prompt_value[0] if isinstance(prompt_value, list) else prompt_value
-        )
-    else:
-        data[FIELD_MODIFICATION_PROMPT] = ""
-
-    return data
 
 
 @pytest.mark.anyio
