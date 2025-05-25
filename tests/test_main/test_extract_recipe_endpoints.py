@@ -46,35 +46,36 @@ class TestFetchTextEndpoint:
         assert f'class="{CSS_ERROR_CLASS}"' in response.text
 
     @pytest.mark.parametrize(
-        "exception_type, exception_args, expected_message",
+        "exception_type, exception_args, exception_kwargs, expected_message",
         [
             (
                 httpx.RequestError,
                 ("Network connection failed",),
+                {"request": Request("GET", "http://example.com/fetch-success")},
                 "Error fetching URL. Please check the URL and your connection.",
             ),
             (
                 httpx.HTTPStatusError,
-                (
-                    "404 Client Error",
-                    {
-                        "request": Request("GET", "http://example.com/fetch-success"),
-                        "response": Response(
-                            404,
-                            request=Request("GET", "http://example.com/fetch-success"),
-                        ),
-                    },
-                ),
+                ("404 Client Error",),
+                {
+                    "request": Request("GET", "http://example.com/fetch-success"),
+                    "response": Response(
+                        404,
+                        request=Request("GET", "http://example.com/fetch-success"),
+                    ),
+                },
                 "Error fetching URL: The server returned an error.",
             ),
             (
                 RuntimeError,
                 ("Processing failed",),
+                {},
                 "Failed to process the content from the URL.",
             ),
             (
                 Exception,
                 ("Unexpected error",),
+                {},
                 "An unexpected error occurred while fetching text.",
             ),
         ],
@@ -84,20 +85,16 @@ class TestFetchTextEndpoint:
         client: AsyncClient,
         exception_type,
         exception_args,
+        exception_kwargs,
         expected_message,
     ):
         """Test that various exceptions from the service are handled correctly."""
         with patch(
             "meal_planner.main.fetch_and_clean_text_from_url", new_callable=AsyncMock
         ) as local_mock_fetch_clean:
-            if exception_type == httpx.HTTPStatusError:
-                local_mock_fetch_clean.side_effect = exception_type(
-                    exception_args[0],
-                    request=exception_args[1]["request"],
-                    response=exception_args[1]["response"],
-                )
-            else:
-                local_mock_fetch_clean.side_effect = exception_type(*exception_args)
+            local_mock_fetch_clean.side_effect = exception_type(
+                *exception_args, **exception_kwargs
+            )
 
             response = await client.post(
                 RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}

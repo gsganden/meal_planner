@@ -105,7 +105,7 @@ def _extract_form_list_values(html_text: str, name: str) -> list[str]:
     return values
 
 
-def _extract_full_edit_form_data(html_content: str) -> dict[str, Any]:
+def extract_full_edit_form_data(html_content: str) -> dict[str, Any]:
     """
     Extracts all current and original recipe data from the edit-review-form.
     This includes visible inputs/textareas and hidden original_* fields.
@@ -194,7 +194,7 @@ def _extract_full_edit_form_data(html_content: str) -> dict[str, Any]:
     return data
 
 
-def _extract_current_recipe_data_from_html(html_content: str) -> dict[str, Any]:
+def extract_current_recipe_data_from_html(html_content: str) -> dict[str, Any]:
     """
     Extracts only the current recipe data (name, ingredients, instructions)
     from the edit-review-form, excluding original_* fields.

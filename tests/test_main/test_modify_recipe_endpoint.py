@@ -19,8 +19,8 @@ from tests.constants import (
     RECIPES_MODIFY_URL,
 )
 from tests.test_helpers import (
-    _extract_current_recipe_data_from_html,
-    _extract_full_edit_form_data,
+    extract_current_recipe_data_from_html,
+    extract_full_edit_form_data,
 )
 
 
@@ -87,7 +87,7 @@ class TestModifyRecipeEndpoint:
 
         html_content = response.text
 
-        current_data_from_html = _extract_current_recipe_data_from_html(html_content)
+        current_data_from_html = extract_current_recipe_data_from_html(html_content)
         assert current_data_from_html["name"] == mock_llm_modified_recipe_fixture.name
         assert (
             current_data_from_html["ingredients"]
@@ -98,7 +98,7 @@ class TestModifyRecipeEndpoint:
             == mock_llm_modified_recipe_fixture.instructions
         )
 
-        full_form_data_from_html = _extract_full_edit_form_data(html_content)
+        full_form_data_from_html = extract_full_edit_form_data(html_content)
         assert (
             full_form_data_from_html[FIELD_ORIGINAL_NAME]
             == mock_original_recipe_fixture.name
@@ -196,7 +196,7 @@ class TestModifyRecipeEndpoint:
             "Error message does not have the error CSS class"
         )
 
-        form_data_from_html = _extract_full_edit_form_data(html_content)
+        form_data_from_html = extract_full_edit_form_data(html_content)
         assert form_data_from_html[FIELD_NAME] == ""
         assert (
             form_data_from_html[FIELD_INGREDIENTS]
@@ -248,7 +248,7 @@ class TestModifyRecipeEndpoint:
             "Error message does not have the error CSS class"
         )
 
-        form_data_from_html = _extract_full_edit_form_data(html_content)
+        form_data_from_html = extract_full_edit_form_data(html_content)
         assert form_data_from_html[FIELD_NAME] == current_recipe.name
         assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
         assert form_data_from_html[FIELD_ORIGINAL_NAME] == original_recipe.name
@@ -310,7 +310,7 @@ class TestModifyRecipeEndpoint:
             "Error message does not have the error CSS class"
         )
 
-        form_data_from_html = _extract_full_edit_form_data(html_content)
+        form_data_from_html = extract_full_edit_form_data(html_content)
         assert form_data_from_html[FIELD_NAME] == current_recipe.name
         assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
         assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
@@ -363,7 +363,7 @@ class TestModifyRecipeEndpoint:
             "Error message does not have the error CSS class"
         )
 
-        form_data_from_html = _extract_full_edit_form_data(html_content)
+        form_data_from_html = extract_full_edit_form_data(html_content)
         assert form_data_from_html[FIELD_NAME] == current_recipe.name
         assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
         assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
@@ -410,7 +410,7 @@ class TestModifyRecipeEndpoint:
             "Error message does not have the error CSS class"
         )
 
-        form_data_from_html = _extract_full_edit_form_data(html_content)
+        form_data_from_html = extract_full_edit_form_data(html_content)
         assert form_data_from_html[FIELD_NAME] == current_recipe.name
         assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
         assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
@@ -461,7 +461,7 @@ class TestModifyRecipeEndpoint:
             "Error message does not have the error CSS class"
         )
 
-        form_data_from_html = _extract_full_edit_form_data(html_content)
+        form_data_from_html = extract_full_edit_form_data(html_content)
         assert form_data_from_html[FIELD_NAME] == current_recipe.name
         assert form_data_from_html[FIELD_INGREDIENTS] == current_recipe.ingredients
         assert form_data_from_html[FIELD_MODIFICATION_PROMPT] == modification_prompt
