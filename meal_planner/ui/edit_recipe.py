@@ -355,7 +355,7 @@ def render_instruction_list_items(instructions: list[str]) -> list[Tag]:
     items_list = []
     for i, inst_value in enumerate(instructions):
         drag_handle_component = DRAG_HANDLE_ICON
-        textarea_component = Textarea(
+        textarea_component = TextArea(
             inst_value,
             name="instructions",
             placeholder="Instruction Step",
