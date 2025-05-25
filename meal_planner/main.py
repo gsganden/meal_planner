@@ -432,12 +432,6 @@ async def post_save_recipe(request: Request):
     return result
 
 
-class ModifyFormError(Exception):
-    """Custom exception for fatal errors during recipe modification flows."""
-
-    pass
-
-
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
     """
