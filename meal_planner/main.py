@@ -569,7 +569,7 @@ async def post_modify_recipe(request: Request):
     return result
 
 
-@rt("/recipes/ui/delete-ingredient/{index:int}", methods=["POST"])
+@rt("/recipes/ui/delete-ingredient/{index:int}")
 async def post_delete_ingredient_row(request: Request, index: int):
     form_data = await request.form()
     try:
@@ -626,7 +626,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
         )
 
 
-@rt("/recipes/ui/delete-instruction/{index:int}", methods=["POST"])
+@rt("/recipes/ui/delete-instruction/{index:int}")
 async def post_delete_instruction_row(request: Request, index: int):
     form_data = await request.form()
     try:
@@ -683,7 +683,7 @@ async def post_delete_instruction_row(request: Request, index: int):
         )
 
 
-@rt("/recipes/ui/add-ingredient", methods=["POST"])
+@rt("/recipes/ui/add-ingredient")
 async def post_add_ingredient_row(request: Request):
     form_data = await request.form()
     try:
@@ -728,7 +728,7 @@ async def post_add_ingredient_row(request: Request):
         )
 
 
-@rt("/recipes/ui/add-instruction", methods=["POST"])
+@rt("/recipes/ui/add-instruction")
 async def post_add_instruction_row(request: Request):
     form_data = await request.form()
     try:
@@ -773,7 +773,7 @@ async def post_add_instruction_row(request: Request):
         )
 
 
-@rt("/recipes/ui/update-diff", methods=["POST"])
+@rt("/recipes/ui/update-diff")
 async def update_diff(request: Request) -> FT:
     """Updates the diff view based on current form data."""
     form_data = await request.form()
