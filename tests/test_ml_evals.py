@@ -45,7 +45,7 @@ async def extracted_recipe_fixture(request, anyio_backend):
 
 @pytest.mark.slow
 @pytest.mark.anyio
-def test_extract_recipe_name(extracted_recipe_fixture):
+async def test_extract_recipe_name(extracted_recipe_fixture):
     """Tests the extracted recipe name against expected values."""
     extracted_recipe: RecipeBase
     expected_data: dict
