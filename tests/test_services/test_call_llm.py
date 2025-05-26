@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from meal_planner.models import RecipeBase
-from meal_planner.services.llm_service import (
+from meal_planner.services.call_llm import (
     ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE,
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
     MODEL_NAME,
@@ -12,12 +12,12 @@ from meal_planner.services.llm_service import (
     generate_recipe_from_text,
     get_structured_llm_response,
 )
-from meal_planner.services.llm_service import logger as llm_service_logger
+from meal_planner.services.call_llm import logger as llm_service_logger
 
 
 @pytest.mark.anyio
 @patch(
-    "meal_planner.services.llm_service.aclient.chat.completions.create",
+    "meal_planner.services.call_llm.aclient.chat.completions.create",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "error")
@@ -46,7 +46,7 @@ async def test_get_structured_llm_response_api_error(
 
 @pytest.mark.anyio
 @patch(
-    "meal_planner.services.llm_service.aclient.chat.completions.create",
+    "meal_planner.services.call_llm.aclient.chat.completions.create",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "error")
@@ -74,9 +74,9 @@ async def test_get_structured_llm_response_generic_exception_explicitly(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch(
-    "meal_planner.services.llm_service.get_structured_llm_response",
+    "meal_planner.services.call_llm.get_structured_llm_response",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "info")
@@ -88,7 +88,7 @@ async def test_generate_recipe_from_text_success(
     from unittest.mock import MagicMock
 
     mock_prompt_file = MagicMock(spec=Path)
-    mock_prompt_file.read_text.return_value = "Prompt template: {page_text}"
+    mock_prompt_file.read_text.return_value = "Prompt template: $page_text"
     mock_prompt_file.name = "test_prompt.txt"
     mock_get_prompt_path.return_value = mock_prompt_file
 
@@ -118,7 +118,7 @@ async def test_generate_recipe_from_text_success(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch.object(llm_service_logger, "error")
 async def test_generate_recipe_from_text_prompt_file_not_found(
     mock_logger_error, mock_get_prompt_path
@@ -130,12 +130,10 @@ async def test_generate_recipe_from_text_prompt_file_not_found(
     )
     mock_get_prompt_path.return_value.name = "non_existent_prompt.txt"
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(FileNotFoundError) as excinfo:
         await generate_recipe_from_text(text=test_text)
 
-    assert "LLM service error: Prompt file missing - non_existent_prompt.txt" in str(
-        excinfo.value
-    )
+    assert excinfo.value.filename == "non_existent_prompt.txt"
     args, kwargs = mock_logger_error.call_args
     assert args[0] == "Prompt file not found: %s"
     assert isinstance(args[1], FileNotFoundError)
@@ -144,9 +142,9 @@ async def test_generate_recipe_from_text_prompt_file_not_found(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch(
-    "meal_planner.services.llm_service.get_structured_llm_response",
+    "meal_planner.services.call_llm.get_structured_llm_response",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "error")
@@ -156,7 +154,7 @@ async def test_generate_recipe_from_text_generic_exception(
     """Test generic Exception during recipe generation from text."""
     test_text = "Some recipe text"
     mock_prompt_file = MagicMock(spec=Path)
-    mock_prompt_file.read_text.return_value = "Prompt: {page_text}"
+    mock_prompt_file.read_text.return_value = "Prompt: $page_text"
     mock_prompt_file.name = "test_prompt.txt"
     mock_get_prompt_path.return_value = mock_prompt_file
 
@@ -177,9 +175,9 @@ async def test_generate_recipe_from_text_generic_exception(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch(
-    "meal_planner.services.llm_service.get_structured_llm_response",
+    "meal_planner.services.call_llm.get_structured_llm_response",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "info")
@@ -194,7 +192,7 @@ async def test_generate_modified_recipe_success(
 
     mock_prompt_file = MagicMock(spec=Path)
     mock_prompt_file.read_text.return_value = (
-        "Mod Prompt: {current_recipe_markdown} {modification_prompt}"
+        "Mod Prompt: $current_recipe_markdown $modification_prompt"
     )
     mock_prompt_file.name = "mod_prompt.txt"
     mock_get_prompt_path.return_value = mock_prompt_file
@@ -231,7 +229,7 @@ async def test_generate_modified_recipe_success(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch.object(llm_service_logger, "error")
 async def test_generate_modified_recipe_prompt_file_not_found(
     mock_logger_error, mock_get_prompt_path
@@ -247,13 +245,10 @@ async def test_generate_modified_recipe_prompt_file_not_found(
     )
     mock_get_prompt_path.return_value.name = "non_existent_mod_prompt.txt"
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(FileNotFoundError) as excinfo:
         await generate_modified_recipe(current_recipe, modification_request)
 
-    assert (
-        "LLM service error: Prompt file missing - non_existent_mod_prompt.txt"
-        in str(excinfo.value)
-    )
+    assert excinfo.value.filename == "non_existent_mod_prompt.txt"
     args, kwargs = mock_logger_error.call_args
     assert args[0] == "Prompt file not found: %s"
     assert isinstance(args[1], FileNotFoundError)
@@ -262,9 +257,9 @@ async def test_generate_modified_recipe_prompt_file_not_found(
 
 
 @pytest.mark.anyio
-@patch("meal_planner.services.llm_service._get_llm_prompt_path")
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
 @patch(
-    "meal_planner.services.llm_service.get_structured_llm_response",
+    "meal_planner.services.call_llm.get_structured_llm_response",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "error")
@@ -300,7 +295,7 @@ async def test_generate_modified_recipe_generic_exception(
 
 @pytest.mark.anyio
 @patch(
-    "meal_planner.services.llm_service.aclient.chat.completions.create",
+    "meal_planner.services.call_llm.aclient.chat.completions.create",
     new_callable=AsyncMock,
 )
 @patch.object(llm_service_logger, "debug")
@@ -335,3 +330,96 @@ async def test_get_structured_llm_response_success(
     mock_logger_info.assert_called_once_with(
         "LLM Call: model=%s, response_model=%s", MODEL_NAME, TestResponseModel.__name__
     )
+
+
+@pytest.mark.anyio
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
+@patch(
+    "meal_planner.services.call_llm.get_structured_llm_response",
+    new_callable=AsyncMock,
+)
+async def test_generate_recipe_from_text_with_braces_vulnerability(
+    mock_get_structured_response, mock_get_prompt_path
+):
+    """Test that text containing braces is handled safely without format injection."""
+    text_with_braces = (
+        'Recipe: {"ingredients": ["flour", "sugar"]} and some {placeholder} text'
+    )
+
+    mock_prompt_file = MagicMock(spec=Path)
+    mock_prompt_file.read_text.return_value = "Extract recipe from: $page_text"
+    mock_prompt_file.name = "test_prompt.txt"
+    mock_get_prompt_path.return_value = mock_prompt_file
+
+    mock_get_structured_response.return_value = RecipeBase(
+        name="Test Recipe", ingredients=["test"], instructions=["test"]
+    )
+
+    result = await generate_recipe_from_text(text=text_with_braces)
+
+    assert result.name == "Test Recipe"
+
+    mock_get_structured_response.assert_called_once()
+    call_args = mock_get_structured_response.call_args
+    formatted_prompt = call_args[1]["prompt"]
+
+    assert text_with_braces in formatted_prompt
+
+
+@pytest.mark.anyio
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
+async def test_generate_recipe_from_text_format_string_injection_protection(
+    mock_get_prompt_path,
+):
+    """Test protection against format string injection attacks."""
+    malicious_text = "Recipe: {__import__('os').system('rm -rf /')}"
+
+    mock_prompt_file = MagicMock(spec=Path)
+    mock_prompt_file.read_text.return_value = "Process this: $page_text"
+    mock_prompt_file.name = "test_prompt.txt"
+    mock_get_prompt_path.return_value = mock_prompt_file
+
+    try:
+        await generate_recipe_from_text(text=malicious_text)
+    except Exception as e:
+        assert not isinstance(e, (KeyError, ValueError))
+        assert isinstance(e, RuntimeError)
+        assert "LLM service error" in str(e)
+
+
+@pytest.mark.anyio
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
+async def test_generate_recipe_from_text_with_format_placeholders(mock_get_prompt_path):
+    """Test that user input containing format placeholders is handled safely."""
+    text_with_placeholders = (
+        "Recipe: Mix {ingredient1} with {ingredient2} and {missing_key}"
+    )
+
+    mock_prompt_file = MagicMock(spec=Path)
+    mock_prompt_file.read_text.return_value = "Extract recipe from: $page_text"
+    mock_prompt_file.name = "test_prompt.txt"
+    mock_get_prompt_path.return_value = mock_prompt_file
+
+    try:
+        await generate_recipe_from_text(text=text_with_placeholders)
+    except Exception as e:
+        assert not isinstance(e, (KeyError, ValueError))
+
+
+@pytest.mark.anyio
+@patch("meal_planner.services.call_llm._get_llm_prompt_path")
+async def test_generate_recipe_from_text_demonstrates_format_vulnerability(
+    mock_get_prompt_path,
+):
+    """Test that demonstrates why str.format() could be problematic."""
+    text_with_braces = "Recipe: Use {amount} of flour"
+
+    mock_prompt_file = MagicMock(spec=Path)
+    mock_prompt_file.read_text.return_value = "$page_text"
+    mock_prompt_file.name = "test_prompt.txt"
+    mock_get_prompt_path.return_value = mock_prompt_file
+
+    try:
+        await generate_recipe_from_text(text=text_with_braces)
+    except Exception as e:
+        assert not isinstance(e, (KeyError, ValueError))

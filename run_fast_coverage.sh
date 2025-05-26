@@ -3,26 +3,20 @@ set -uo pipefail
 
 source .env
 
-test_specs=(
-  tests/test_main.py
-  tests/test_api.py
-  tests/test_database.py
-  tests/services/test_recipe_processing.py
-  tests/services/test_llm_service.py
-  tests/services/test_webpage_text_extractor.py
-  # These tests are slow and cover the same codepaths with different inputs
-  # to test LLM behavior. Here we run just one of them as a quick check that
-  # the codepath is not broken and has full test coverage.
-  "tests/test_main_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
-)
+# Define the specific eval test we want to run
+specific_eval_test="tests/test_ml_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
+
+# Find all other test files (excluding the specific eval test)
+test_files=$(find tests -name 'test_*.py' ! -name 'test_ml_evals.py' -print0 | xargs -0)
 
 #######################################################################################
 # 1. Run the tests with coverage and capture exit status
 #######################################################################################
 uv run pytest \
+  ${test_files} \
+  "${specific_eval_test}" \
   --cov=meal_planner \
   --cov-report=annotate \
-  "${test_specs[@]}" \
   --runslow
 test_status=$?
 
@@ -30,7 +24,7 @@ test_status=$?
 # 2. Generate temp coverage files and show missing-line details if tests passed
 #######################################################################################
 if [ $test_status -eq 0 ] && [ -f .coverage ]; then
-  echo -e "\nMissing‑line details:"
+  echo -e "\\nMissing‑line details:"
   grep -R --line-number '^!' --include='*.py,cover' . \
   | awk -F: '{sub(/,cover$/,"",$1); gsub(/^!/,"",$3); print $1 ":" $2 ": " $3}'
 fi

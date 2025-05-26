@@ -1,5 +1,6 @@
 import logging
 import os
+import string
 from pathlib import Path
 from typing import TypeVar
 
@@ -11,8 +12,8 @@ from meal_planner.models import RecipeBase
 
 MODEL_NAME = "gemini-2.0-flash"
 PROMPT_DIR = Path(__file__).resolve().parent.parent.parent / "prompt_templates"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250505_213551__terminal_periods_wording.txt"
-ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250429_183353__initial.txt"
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250525_174436__string_template_syntax.txt"
+ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250525_174436__string_template_syntax.txt"
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ async def get_structured_llm_response(prompt: str, response_model: type[T]) -> T
             e,
             exc_info=True,
         )
-        raise  # Re-raise the exception to be handled by the caller
+        raise
 
 
 def _get_llm_prompt_path(category: str, filename: str) -> Path:
@@ -78,8 +79,10 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
             "recipe_extraction", ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE
         )
         logger.info("Using extraction prompt file: %s", prompt_file_path.name)
-        prompt_template = prompt_file_path.read_text()
-        formatted_prompt = prompt_template.format(page_text=text)
+        prompt_template = prompt_file_path.read_text(encoding="utf-8")
+        formatted_prompt = string.Template(prompt_template).safe_substitute(
+            page_text=text
+        )
 
         extracted_recipe: RecipeBase = await get_structured_llm_response(
             prompt=formatted_prompt,
@@ -89,15 +92,11 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
         return extracted_recipe
     except FileNotFoundError as e:
         logger.error("Prompt file not found: %s", e, exc_info=True)
-        # Consider a more specific exception type for the service layer
-        raise RuntimeError(
-            f"LLM service error: Prompt file missing - {e.filename}"
-        ) from e
+        raise
     except Exception as e:
         logger.error(
             "Error during LLM recipe generation from text: %s", e, exc_info=True
         )
-        # Consider a more specific exception type
         raise RuntimeError(
             "LLM service error during recipe generation from text."
         ) from e
@@ -121,7 +120,7 @@ async def generate_modified_recipe(
         )
         logger.info("Using modification prompt file: %s", prompt_file_path.name)
         modification_template = prompt_file_path.read_text()
-        formatted_prompt = modification_template.format(
+        formatted_prompt = string.Template(modification_template).safe_substitute(
             current_recipe_markdown=current_recipe.markdown,
             modification_prompt=modification_request,
         )
@@ -136,9 +135,7 @@ async def generate_modified_recipe(
         return modified_recipe
     except FileNotFoundError as e:
         logger.error("Prompt file not found: %s", e, exc_info=True)
-        raise RuntimeError(
-            f"LLM service error: Prompt file missing - {e.filename}"
-        ) from e
+        raise
     except Exception as e:
         logger.error("Error during LLM recipe modification: %s", e, exc_info=True)
         raise RuntimeError("LLM service error during recipe modification.") from e

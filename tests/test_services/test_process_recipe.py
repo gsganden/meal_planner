@@ -1,7 +1,7 @@
 import pytest
 
 from meal_planner.models import RecipeBase
-from meal_planner.services.recipe_processing import (
+from meal_planner.services.process_recipe import (
     _ensure_ending_punctuation,
     postprocess_recipe,
 )
