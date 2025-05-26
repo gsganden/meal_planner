@@ -141,9 +141,9 @@ def extract_current_recipe_data_from_html(html_content: str) -> dict[str, Any]:
     form = _find_form_container_and_form(html_content)
 
     return {
-        "name": _extract_single_input_value(form, FIELD_NAME),
-        "ingredients": _extract_input_list_values(form, FIELD_INGREDIENTS),
-        "instructions": _extract_textarea_list_values(form, FIELD_INSTRUCTIONS),
+        FIELD_NAME: _extract_single_input_value(form, FIELD_NAME),
+        FIELD_INGREDIENTS: _extract_input_list_values(form, FIELD_INGREDIENTS),
+        FIELD_INSTRUCTIONS: _extract_textarea_list_values(form, FIELD_INSTRUCTIONS),
     }
 
 
