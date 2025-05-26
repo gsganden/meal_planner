@@ -16,17 +16,16 @@ from meal_planner.services.call_llm import logger as llm_service_logger
 
 
 @pytest.mark.anyio
-@patch(
-    "meal_planner.services.call_llm.aclient.chat.completions.create",
-    new_callable=AsyncMock,
-)
+@patch("meal_planner.services.call_llm._get_aclient")
 @patch.object(llm_service_logger, "error")
 async def test_get_structured_llm_response_api_error(
-    mock_logger_error, mock_create_completion
+    mock_logger_error, mock_get_aclient
 ):
     """Test get_structured_llm_response catches and logs API call errors."""
     api_exception = Exception("Simulated API failure")
-    mock_create_completion.side_effect = api_exception
+    mock_aclient = AsyncMock()
+    mock_aclient.chat.completions.create.side_effect = api_exception
+    mock_get_aclient.return_value = mock_aclient
     test_prompt = "Test prompt"
     test_model = RecipeBase
 
@@ -45,17 +44,16 @@ async def test_get_structured_llm_response_api_error(
 
 
 @pytest.mark.anyio
-@patch(
-    "meal_planner.services.call_llm.aclient.chat.completions.create",
-    new_callable=AsyncMock,
-)
+@patch("meal_planner.services.call_llm._get_aclient")
 @patch.object(llm_service_logger, "error")
 async def test_get_structured_llm_response_generic_exception_explicitly(
-    mock_logger_error_specific, mock_create_completion_specific
+    mock_logger_error_specific, mock_get_aclient_specific
 ):
     """Test get_structured_llm_response re-raises generic exceptions after logging."""
     generic_exception = ValueError("Simulated generic failure")
-    mock_create_completion_specific.side_effect = generic_exception
+    mock_aclient = AsyncMock()
+    mock_aclient.chat.completions.create.side_effect = generic_exception
+    mock_get_aclient_specific.return_value = mock_aclient
     test_prompt = "Another test prompt"
     test_model = RecipeBase
 
@@ -294,14 +292,11 @@ async def test_generate_modified_recipe_generic_exception(
 
 
 @pytest.mark.anyio
-@patch(
-    "meal_planner.services.call_llm.aclient.chat.completions.create",
-    new_callable=AsyncMock,
-)
+@patch("meal_planner.services.call_llm._get_aclient")
 @patch.object(llm_service_logger, "debug")
 @patch.object(llm_service_logger, "info")
 async def test_get_structured_llm_response_success(
-    mock_logger_info, mock_logger_debug, mock_create_completion
+    mock_logger_info, mock_logger_debug, mock_get_aclient
 ):
     """Test get_structured_llm_response successful path including debug logging."""
     test_prompt = "Successful prompt"
@@ -312,14 +307,16 @@ async def test_get_structured_llm_response_success(
     expected_response_instance = TestResponseModel(
         name="Test Recipe", ingredients=["Test ing"], instructions=["Test inst"]
     )
-    mock_create_completion.return_value = expected_response_instance
+    mock_aclient = AsyncMock()
+    mock_aclient.chat.completions.create.return_value = expected_response_instance
+    mock_get_aclient.return_value = mock_aclient
 
     result = await get_structured_llm_response(
         prompt=test_prompt, response_model=TestResponseModel
     )
 
     assert result == expected_response_instance
-    mock_create_completion.assert_called_once_with(
+    mock_aclient.chat.completions.create.assert_called_once_with(
         model=MODEL_NAME,
         response_model=TestResponseModel,
         messages=[{"role": "user", "content": test_prompt}],

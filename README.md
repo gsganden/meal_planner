@@ -75,14 +75,7 @@ pre-commit install --hook-type pre-push -f
 ```bash
 uv run modal serve meal_planner/main.py
 ```
-
-## Deploy App
-
-```bash
-uv run modal deploy deploy.app
-```
-
-## Running Tests
+## Run Tests
 
 To run all the tests:
 

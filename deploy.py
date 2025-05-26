@@ -12,7 +12,6 @@ from meal_planner.config import (
     CONTAINER_DB_FULL_PATH,
     CONTAINER_MAIN_DATABASE_URL,
 )
-from meal_planner.main import app as fasthtml_app
 
 app = modal.App("meal-planner")
 
@@ -26,10 +25,6 @@ image = (
     .add_local_python_source("meal_planner")
     .add_local_dir("meal_planner/static", remote_path="/app/meal_planner/static")
     .add_local_dir("prompt_templates", remote_path="/root/prompt_templates")
-)
-
-google_api_key_secret = modal.Secret.from_dict(
-    {"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"]}
 )
 
 
@@ -49,11 +44,28 @@ def _run_migrations():
 
 @app.function(
     image=image,
-    secrets=[google_api_key_secret],
+    volumes={str(CONTAINER_DATA_DIR): volume},
+)
+def migrate():
+    """Run database migrations separately from the web app."""
+    _run_migrations()
+
+
+google_api_key_secret = None
+if "GOOGLE_API_KEY" in os.environ:
+    google_api_key_secret = modal.Secret.from_dict(
+        {"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"]}
+    )
+
+
+@app.function(
+    image=image,
+    secrets=[google_api_key_secret] if google_api_key_secret else [],
     volumes={str(CONTAINER_DATA_DIR): volume},
 )
 @modal.asgi_app()
 def web():
-    _run_migrations()
     _check_api_key()
+    from meal_planner.main import app as fasthtml_app
+
     return fasthtml_app
