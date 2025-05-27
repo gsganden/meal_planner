@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import modal
 
@@ -15,22 +16,40 @@ from meal_planner.config import (
 
 app = modal.App("meal-planner")
 
-volume = modal.Volume.from_name("meal-planner-data", create_if_missing=True)
 
-image = (
-    modal.Image.debian_slim(python_version="3.12")
-    .pip_install_from_pyproject("pyproject.toml")
-    .add_local_file("alembic.ini", remote_path=str(ALEMBIC_INI_PATH_IN_CONTAINER))
-    .add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER))
-    .add_local_python_source("meal_planner")
-    .add_local_dir("meal_planner/static", remote_path="/app/meal_planner/static")
-    .add_local_dir("prompt_templates", remote_path="/root/prompt_templates")
-)
+def create_volume() -> modal.Volume:
+    return modal.Volume.from_name("meal-planner-data", create_if_missing=True)
 
 
-def _check_api_key():
+def create_base_image() -> modal.Image:
+    return (
+        modal.Image.debian_slim(python_version="3.12")
+        .pip_install_from_pyproject("pyproject.toml")
+        .add_local_python_source("meal_planner")
+        .add_local_dir("meal_planner/static", remote_path="/root/meal_planner/static")
+        .add_local_dir("prompt_templates", remote_path="/root/prompt_templates")
+    )
+
+
+def check_api_key():
     if "GOOGLE_API_KEY" not in os.environ:
         raise SystemExit("GOOGLE_API_KEY environment variable not set.")
+
+
+def create_google_api_key_secret() -> Optional[modal.Secret]:
+    if "GOOGLE_API_KEY" in os.environ:
+        return modal.Secret.from_dict({"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"]})
+    return None
+
+
+base_image = create_base_image()
+
+migrate_image = base_image.add_local_file(
+    "alembic.ini", remote_path=str(ALEMBIC_INI_PATH_IN_CONTAINER)
+).add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER))
+
+volume = create_volume()
+google_api_key_secret = create_google_api_key_secret()
 
 
 def _run_migrations():
@@ -43,29 +62,30 @@ def _run_migrations():
 
 
 @app.function(
-    image=image,
+    image=migrate_image,
     volumes={str(CONTAINER_DATA_DIR): volume},
 )
 def migrate():
-    """Run database migrations separately from the web app."""
+    """Run database migrations."""
     _run_migrations()
 
 
-google_api_key_secret = None
-if "GOOGLE_API_KEY" in os.environ:
-    google_api_key_secret = modal.Secret.from_dict(
-        {"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"]}
-    )
-
-
 @app.function(
-    image=image,
+    image=base_image,
     secrets=[google_api_key_secret] if google_api_key_secret else [],
     volumes={str(CONTAINER_DATA_DIR): volume},
 )
 @modal.asgi_app()
 def web():
-    _check_api_key()
+    """Deploy the web application."""
+    check_api_key()
     from meal_planner.main import app as fasthtml_app
 
     return fasthtml_app
+
+
+@app.local_entrypoint()
+def main():
+    """Default entrypoint - deploys the web application."""
+    print("Deploying web application...")
+    # The web function will be deployed when the script is deployed
