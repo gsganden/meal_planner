@@ -90,12 +90,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --compile-bytecode
 
-      - name: Run Database Migrations
-        run: |
-          source .venv/bin/activate
-          modal run deploy.py::migrate
-
       - name: Deploy to Modal
         run: |
           source .venv/bin/activate
           modal deploy deploy.py
+
+      - name: Run Database Migrations
+        run: |
+          source .venv/bin/activate
+          modal run deploy.py::migrate_db

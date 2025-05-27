@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Optional
 
@@ -31,11 +32,6 @@ def create_base_image() -> modal.Image:
     )
 
 
-def check_api_key():
-    if "GOOGLE_API_KEY" not in os.environ:
-        raise SystemExit("GOOGLE_API_KEY environment variable not set.")
-
-
 def create_google_api_key_secret() -> Optional[modal.Secret]:
     if "GOOGLE_API_KEY" in os.environ:
         return modal.Secret.from_dict({"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"]})
@@ -43,48 +39,33 @@ def create_google_api_key_secret() -> Optional[modal.Secret]:
 
 
 base_image = create_base_image()
-
-migrate_image = base_image.add_local_file(
-    "alembic.ini", remote_path=str(ALEMBIC_INI_PATH_IN_CONTAINER)
-).add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER))
-
 volume = create_volume()
-google_api_key_secret = create_google_api_key_secret()
 
 
-def _run_migrations():
+@app.function(
+    image=base_image.add_local_file(
+        "alembic.ini", remote_path=str(ALEMBIC_INI_PATH_IN_CONTAINER)
+    ).add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER)),
+    volumes={str(CONTAINER_DATA_DIR): volume},
+)
+def migrate_db():
+    """Run database migrations."""
     CONTAINER_DB_FULL_PATH.parent.mkdir(parents=True, exist_ok=True)
     alembic_cfg = Config(str(ALEMBIC_INI_PATH_IN_CONTAINER))
     alembic_cfg.set_main_option("script_location", str(ALEMBIC_DIR_PATH_IN_CONTAINER))
     alembic_cfg.set_main_option("sqlalchemy.url", CONTAINER_MAIN_DATABASE_URL)
     command.upgrade(alembic_cfg, "head")
-    print("Database migrations applied.")
-
-
-@app.function(
-    image=migrate_image,
-    volumes={str(CONTAINER_DATA_DIR): volume},
-)
-def migrate():
-    """Run database migrations."""
-    _run_migrations()
+    logging.info("Database migrations applied.")
 
 
 @app.function(
     image=base_image,
-    secrets=[google_api_key_secret] if google_api_key_secret else [],
+    secrets=[create_google_api_key_secret()],
     volumes={str(CONTAINER_DATA_DIR): volume},
 )
 @modal.asgi_app()
 def web():
     """Deploy the web application."""
-    check_api_key()
     from meal_planner.main import app as fasthtml_app
 
     return fasthtml_app
-
-
-@app.local_entrypoint()
-def main():
-    """Default entrypoint - deploys the web application."""
-    print("Deploying web application...")
