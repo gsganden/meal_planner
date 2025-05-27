@@ -88,4 +88,3 @@ def web():
 def main():
     """Default entrypoint - deploys the web application."""
     print("Deploying web application...")
-    # The web function will be deployed when the script is deployed
