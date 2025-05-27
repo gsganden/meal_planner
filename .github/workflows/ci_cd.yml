@@ -86,6 +86,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --compile-bytecode
 
+      - name: Run Database Migrations
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          source .venv/bin/activate
+          modal run deploy.py::migrate
+
       - name: Deploy to Modal
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
