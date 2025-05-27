@@ -70,20 +70,19 @@ internal_api_client = httpx.AsyncClient(
 @rt("/")
 def get():
     """Get the home page."""
-    return with_layout(Titled("Meal Planner"))
+    return with_layout("Meal Planner")
 
 
 @rt("/recipes/extract")
 def get_recipe_extraction_page():
     return with_layout(
-        Titled(
-            "Create Recipe",
+        "Create Recipe",
+        Div(
             Div(create_extraction_form()),
             Div(id="edit-form-target"),
             Div(id="review-section-target"),
-            id="content",
             cls="space-y-4",
-        )
+        ),
     )
 
 
@@ -126,7 +125,7 @@ async def get_recipe_list_page(request: Request):
     )
 
     return (
-        with_layout(Titled(title, content_with_attrs))
+        with_layout(title, content_with_attrs)
         if not is_htmx(request)
         else content_with_attrs
     )
@@ -173,7 +172,7 @@ async def get_single_recipe_page(recipe_id: int):
         title = recipe_data["name"]
         content = build_recipe_display(recipe_data)
 
-    return with_layout(Titled(title, content))
+    return with_layout(title, content)
 
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:

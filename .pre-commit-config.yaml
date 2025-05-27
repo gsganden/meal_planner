@@ -18,7 +18,7 @@ repos:
         stages: [pre-push]
     -   id: ruff-format
         name: Check ruff format
-        entry: uv run ruff format --check
+        entry: uv run ruff format --exit-non-zero-on-format
         language: system
         types: [python]
         pass_filenames: false

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import string
@@ -17,15 +18,27 @@ ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250525_174436__string_template_synta
 
 logger = logging.getLogger(__name__)
 
-
-openai_client = AsyncOpenAI(
-    api_key=os.environ["GOOGLE_API_KEY"],
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-)
-
-aclient = instructor.from_openai(openai_client)
+_openai_client = None
+_aclient = None
 
 T = TypeVar("T", bound=BaseModel)
+
+
+_client_lock = asyncio.Lock()
+
+
+async def _get_aclient():
+    """Lazy initialization of the instructor client."""
+    global _openai_client, _aclient
+    if _aclient is None:
+        async with _client_lock:
+            if _aclient is None:  # Double-check pattern
+                _openai_client = AsyncOpenAI(
+                    api_key=os.environ["GOOGLE_API_KEY"],
+                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                )
+                _aclient = instructor.from_openai(_openai_client)
+    return _aclient
 
 
 async def get_structured_llm_response(prompt: str, response_model: type[T]) -> T:
@@ -45,6 +58,7 @@ async def get_structured_llm_response(prompt: str, response_model: type[T]) -> T
         logger.info(
             "LLM Call: model=%s, response_model=%s", MODEL_NAME, response_model.__name__
         )
+        aclient = await _get_aclient()
         response = await aclient.chat.completions.create(
             model=MODEL_NAME,
             response_model=response_model,
