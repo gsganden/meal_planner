@@ -43,7 +43,8 @@ def sidebar():
     return Div(nav, cls="space-y-4 p-4 w-full md:w-full")
 
 
-def with_layout(content: Any):
+def with_layout(title: str, *content):
+    """Create a complete page with layout for full-page loads."""
     indicator_style = Style(
         """
         .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
@@ -67,13 +68,15 @@ def with_layout(content: Any):
     )
 
     return (
+        Title(title),
         indicator_style,
         hamburger_button,
         mobile_sidebar_container,
         Div(cls="flex flex-col md:flex-row w-full")(
             Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
             Div(
-                content,
+                H1(title, cls="text-3xl font-bold mb-6"),
+                *content,
                 cls="md:w-4/5 w-full p-4",
                 id="content",
             ),
