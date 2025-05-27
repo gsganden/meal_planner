@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import string
@@ -22,7 +23,6 @@ _aclient = None
 
 T = TypeVar("T", bound=BaseModel)
 
-import asyncio
 
 _client_lock = asyncio.Lock()
 
