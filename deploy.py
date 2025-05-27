@@ -1,6 +1,5 @@
 import logging
 import os
-from typing import Optional
 
 import modal
 
@@ -32,7 +31,7 @@ def create_base_image() -> modal.Image:
     )
 
 
-def create_google_api_key_secret() -> Optional[modal.Secret]:
+def create_google_api_key_secret() -> modal.Secret | Nonez:
     if "GOOGLE_API_KEY" in os.environ:
         return modal.Secret.from_dict({"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"]})
     return None
@@ -67,5 +66,8 @@ def migrate_db():
 def web():
     """Deploy the web application."""
     from meal_planner.main import app as fasthtml_app
+
+    if os.environ.get("GOOGLE_API_KEY") is None:
+        raise ValueError("GOOGLE_API_KEY is not set")
 
     return fasthtml_app
