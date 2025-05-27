@@ -67,7 +67,7 @@ def web():
     """Deploy the web application."""
     from meal_planner.main import app as fasthtml_app
 
-    if os.environ.get("GOOGLE_API_KEY") is None:
+    if not os.environ.get("GOOGLE_API_KEY"):
         raise ValueError("GOOGLE_API_KEY is not set")
 
     return fasthtml_app

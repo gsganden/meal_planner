@@ -77,9 +77,12 @@ def get():
 def get_recipe_extraction_page():
     return with_layout(
         "Create Recipe",
-        Div(create_extraction_form()),
-        Div(id="edit-form-target"),
-        Div(id="review-section-target"),
+        Div(
+            Div(create_extraction_form()),
+            Div(id="edit-form-target"),
+            Div(id="review-section-target"),
+            cls="space-y-4",
+        ),
     )
 
 
