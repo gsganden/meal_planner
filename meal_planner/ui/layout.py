@@ -1,5 +1,3 @@
-from typing import Any
-
 from fasthtml.common import *
 from monsterui.all import *
 
