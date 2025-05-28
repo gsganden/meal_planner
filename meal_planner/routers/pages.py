@@ -5,7 +5,9 @@ from fastapi import Request
 from fasthtml.common import *
 from monsterui.all import *
 
-from meal_planner.main import internal_api_client, rt
+from meal_planner.main import internal_api_client, internal_client, rt
+from meal_planner.ui.common import CSS_ERROR_CLASS
+from meal_planner.ui.edit_recipe import build_recipe_display
 from meal_planner.ui.extract_recipe import create_extraction_form
 from meal_planner.ui.layout import is_htmx, with_layout
 from meal_planner.ui.list_recipes import format_recipe_list
@@ -75,3 +77,47 @@ async def get_recipe_list_page(request: Request):
         if not is_htmx(request)
         else content_with_attrs
     )
+
+
+@rt("/recipes/{recipe_id:int}")
+async def get_single_recipe_page(recipe_id: int):
+    """Displays a single recipe page."""
+    try:
+        response = await internal_client.get(f"/api/v0/recipes/{recipe_id}")
+        response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            logger.warning("Recipe ID %s not found when loading page.", recipe_id)
+            title = "Recipe Not Found"
+            content = P("The requested recipe does not exist.")
+        else:
+            logger.error(
+                "API error fetching recipe ID %s: Status %s, Response: %s",
+                recipe_id,
+                e.response.status_code,
+                e.response.text,
+                exc_info=True,
+            )
+            title = "Error"
+            content = P(
+                "Error fetching recipe from API.",
+                cls=CSS_ERROR_CLASS,
+            )
+    except Exception as e:
+        logger.error(
+            "Unexpected error fetching recipe ID %s for page: %s",
+            recipe_id,
+            e,
+            exc_info=True,
+        )
+        title = "Error"
+        content = P(
+            "An unexpected error occurred.",
+            cls=CSS_ERROR_CLASS,
+        )
+    else:
+        recipe_data = response.json()
+        title = recipe_data["name"]
+        content = build_recipe_display(recipe_data)
+
+    return with_layout(title, content)

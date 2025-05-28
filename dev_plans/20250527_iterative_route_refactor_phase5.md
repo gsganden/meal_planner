@@ -132,3 +132,42 @@ This completes the full development loop for the home page route. The next route
     - [x] Run `uv run ruff format .`
     - [x] Run `uv run ruff check --fix .`
     - [x] Ask the user to confirm functionality and commit.
+
+## Dev Loop 4: Refactoring the Single Recipe Page Route (`get_single_recipe_page` at `/recipes/{recipe_id:int}`)
+
+- [x] **1. Code Migration for the `/recipes/{recipe_id:int}` Route:**
+    - [x] **In `meal_planner/routers/pages.py`:**
+        - [x] Add necessary new imports:
+            ```python
+            from meal_planner.main import internal_client
+            from meal_planner.ui.common import CSS_ERROR_CLASS
+            from meal_planner.ui.edit_recipe import build_recipe_display
+            ```
+        - [x] Copy the `get_single_recipe_page()` function from `meal_planner/main.py` to `meal_planner/routers/pages.py`.
+    - [x] **In `meal_planner/main.py`:**
+        - [x] Delete the `get_single_recipe_page()` function definition.
+        - [x] Review if imports like `CSS_ERROR_CLASS`, `build_recipe_display` can be removed from `main.py` if no other functions in `main.py` use them. `internal_client` will still be defined in `main.py`. (Outcome: Both imports kept as they're still heavily used in main.py)
+
+- [x] **2. Update and Verify Existing Tests (likely in `tests/test_main/test_route_endpoints.py`):**
+    - [x] Identify the test(s) for the `/recipes/{recipe_id:int}` endpoint (e.g., `TestGetSingleRecipePage` class and its methods).
+    - [x] Run the test suite (e.g., `./run_fast_coverage.sh`).
+    - [x] Verify the identified test(s) pass.
+    - [x] Confirm test coverage for the single recipe page route functionality (now in `meal_planner.routers.pages`) is maintained.
+
+- [x] **3. Move Tests to `tests/routers/test_pages.py`:**
+    - [x] **In `tests/routers/test_pages.py`:**
+        - [x] Add necessary imports for the moved tests (if not already present).
+        - [x] Move the specific test class/functions for the `/recipes/{recipe_id:int}` endpoint (e.g., `TestGetSingleRecipePage`) to this file.
+        - [x] Update patch targets from `meal_planner.main.internal_client` to `meal_planner.routers.pages.internal_client`.
+    - [x] **In the source test file (e.g., `tests/test_main/test_route_endpoints.py`):**
+        - [x] Delete the test class/functions that were moved.
+
+- [x] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [x] Run the test suite again (`./run_fast_coverage.sh`).
+    - [x] Verify all tests pass.
+    - [x] Verify test coverage is maintained, with the functionality in `meal_planner/routers/pages.py` being tested by `tests/routers/test_pages.py`.
+
+- [x] **5. Code Quality Checks & User Confirmation:**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Ask the user to confirm functionality and commit.

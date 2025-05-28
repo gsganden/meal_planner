@@ -33,7 +33,6 @@ from meal_planner.ui.edit_recipe import (
     render_ingredient_list_items,
     render_instruction_list_items,
 )
-from meal_planner.ui.layout import with_layout
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -66,50 +65,6 @@ internal_api_client = httpx.AsyncClient(
 
 
 from meal_planner.routers import pages  # noqa: F401, E402
-
-
-@rt("/recipes/{recipe_id:int}")
-async def get_single_recipe_page(recipe_id: int):
-    """Displays a single recipe page."""
-    try:
-        response = await internal_client.get(f"/api/v0/recipes/{recipe_id}")
-        response.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            logger.warning("Recipe ID %s not found when loading page.", recipe_id)
-            title = "Recipe Not Found"
-            content = P("The requested recipe does not exist.")
-        else:
-            logger.error(
-                "API error fetching recipe ID %s: Status %s, Response: %s",
-                recipe_id,
-                e.response.status_code,
-                e.response.text,
-                exc_info=True,
-            )
-            title = "Error"
-            content = P(
-                "Error fetching recipe from API.",
-                cls=CSS_ERROR_CLASS,
-            )
-    except Exception as e:
-        logger.error(
-            "Unexpected error fetching recipe ID %s for page: %s",
-            recipe_id,
-            e,
-            exc_info=True,
-        )
-        title = "Error"
-        content = P(
-            "An unexpected error occurred.",
-            cls=CSS_ERROR_CLASS,
-        )
-    else:
-        recipe_data = response.json()
-        title = recipe_data["name"]
-        content = build_recipe_display(recipe_data)
-
-    return with_layout(title, content)
 
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
