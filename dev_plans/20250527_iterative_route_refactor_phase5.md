@@ -84,7 +84,7 @@ This completes the full development loop for the home page route. The next route
 - [x] **4. Confirm Tests and Coverage Post-Test-Move:**
     - [x] Run the test suite again (`./run_fast_coverage.sh`).
     - [x] Verify all tests pass.
-    - [x] Verify test coverage is maintained, with the new functionality in `meal_planner/routers/pages.py` being tested by `tests/routers/test_pages.py`. (N/A for specific test move, overall coverage maintained)
+    - [x] Verify test coverage is maintained, with the new functionality in `meal_planner/routers/pages.py` being tested by `tests/routers/test_pages.py`.
 
 - [x] **5. Code Quality Checks & User Confirmation:**
     - [x] Run `uv run ruff format .`
@@ -131,7 +131,8 @@ This completes the full development loop for the home page route. The next route
 - [x] **5. Code Quality Checks & User Confirmation:**
     - [x] Run `uv run ruff format .`
     - [x] Run `uv run ruff check --fix .`
-    - [x] Ask the user to confirm functionality and commit.
+    - [x] Suggested a one-line commit message.
+    - [x] User confirmed functionality and will commit.
 
 ## Dev Loop 4: Refactoring the Single Recipe Page Route (`get_single_recipe_page` at `/recipes/{recipe_id:int}`)
 
@@ -170,7 +171,9 @@ This completes the full development loop for the home page route. The next route
 - [x] **5. Code Quality Checks & User Confirmation:**
     - [x] Run `uv run ruff format .`
     - [x] Run `uv run ruff check --fix .`
-    - [x] Ask the user to confirm functionality and commit.
+    - [x] Run `./scripts/check_refactor_diff.sh` and reviewed its output; net change is minimal.
+    - [x] Suggested a one-line commit message.
+    - [x] User confirmed functionality and will commit.
 
 ## Dev Loop 5: Refactoring the Save Recipe Action Route (`post_save_recipe` at `/recipes/save`)
 
@@ -209,9 +212,9 @@ This completes the full development loop for the home page route. The next route
 
 - [x] **5. Code Quality Checks & User Confirmation:**
     - [x] Run `uv run ruff format .`
-    - [x] Run `uv run ruff check --fix .` (resolved E402 in `main.py`).
-    - [x] Confirmed that the net diff size reflects the refactoring.
-    - [x] User confirmed functionality by requesting next steps.
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Suggested a one-line commit message.
+    - [x] User confirmed functionality and will commit.
 
 ## Dev Loop 6: Refactoring the Recipe Modification Route (`post_modify_recipe` at `/recipes/modify`)
 
@@ -257,4 +260,71 @@ This completes the full development loop for the home page route. The next route
     - [ ] Run `uv run ruff format .`
     - [ ] Run `uv run ruff check --fix .`
     - [ ] Run `./scripts/check_refactor_diff.sh` and review its output to confirm minimal net change in application code.
+    - [ ] Suggest a one-line commit message.
     - [ ] Ask the user to confirm functionality and commit.
+
+## Dev Loop 7: Refactoring Recipe Editor UI Fragment Routes
+
+- [x] **1. Code Migration for UI Fragment Routes:**
+    - [x] **In `meal_planner/routers/ui_fragments.py`:**
+        - [x] Add necessary initial imports:
+            ```python
+            import logging
+            from fastapi import Request
+            from fasthtml.common import * # type: ignore
+            from pydantic import ValidationError
+
+            from meal_planner.form_processing import _parse_recipe_form_data
+            from meal_planner.main import rt # Assuming rt is needed
+            from meal_planner.models import RecipeBase
+            from meal_planner.ui.common import CSS_ERROR_CLASS
+            from meal_planner.ui.edit_recipe import (
+                build_diff_content_children,
+                render_ingredient_list_items,
+                render_instruction_list_items,
+            )
+            # FT from fasthtml.common may be needed for type hints if not covered by *
+            ```
+        - [x] Initialize logger: `logger = logging.getLogger(__name__)`
+        - [x] Copy the following functions from `meal_planner/main.py` to `meal_planner/routers/ui_fragments.py`:
+            - `post_delete_ingredient_row()`
+            - `post_delete_instruction_row()`
+            - `post_add_ingredient_row()`
+            - `post_add_instruction_row()`
+            - `update_diff()`
+            - `_build_sortable_list_with_oob_diff()`
+    - [x] **In `meal_planner/main.py`:**
+        - [x] Delete the definitions of the six functions listed above.
+        - [x] Add the import statement:
+            ```python
+            from meal_planner.routers import ui_fragments # noqa: F401, E402
+            ```
+        - [x] Review if imports exclusively used by these moved functions can be removed from `main.py`. Potential candidates: `render_ingredient_list_items`, `render_instruction_list_items`, `build_diff_content_children`. `FormData` might still be used by other routes.
+
+- [x] **2. Update and Verify Existing Tests:**
+    - [x] Identify the test(s) for these UI fragment endpoints. These are likely in `tests/test_ui/test_recipe_editor.py` and potentially `tests/test_main/test_route_endpoints.py` (for `update_diff` if it had its own test class there).
+    - [x] Run the test suite (e.g., `./run_fast_coverage.sh`).
+    - [x] Verify the identified test(s) pass. The target URLs remain the same.
+    - [x] Examine and update patch targets within these tests. For example:
+        - `meal_planner.main._parse_recipe_form_data` -> `meal_planner.routers.ui_fragments._parse_recipe_form_data` (as it's imported from `form_processing` into `ui_fragments.py`).
+        - Any other direct mocks of functions now within `ui_fragments.py` need to be updated.
+
+- [x] **3. Move Tests to `tests/routers/test_ui_fragments.py`:**
+    - [x] Create the file `tests/routers/test_ui_fragments.py` (if not already present from a previous refactoring phase).
+    - [x] **In `tests/routers/test_ui_fragments.py`:**
+        - [x] Add necessary new imports for the moved tests.
+        - [x] Move the specific test classes/functions for these UI fragment endpoints to this file.
+    - [x] **In the source test file(s):**
+        - [x] Delete the test classes/functions that were moved.
+
+- [x] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [x] Run the test suite again (`./run_fast_coverage.sh`).
+    - [x] Verify all tests pass.
+    - [x] Verify test coverage is maintained for the moved routes and helper.
+
+- [x] **5. Code Quality Checks & User Confirmation:**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Make sure we haven't added code comments, except docstrings that add information beyond the item name and type hints.
+    - [x] Suggested a one-line commit message.
+    - [x] User confirmed functionality and committed.
