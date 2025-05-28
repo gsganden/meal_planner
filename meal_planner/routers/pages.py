@@ -1,3 +1,5 @@
+"""Routers for user-facing HTML pages that render full page layouts."""
+
 import logging
 
 import httpx

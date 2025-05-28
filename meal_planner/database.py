@@ -1,3 +1,5 @@
+"""Database connection and session management for the Meal Planner application."""
+
 from sqlmodel import Session, create_engine
 
 from meal_planner.config import CONTAINER_MAIN_DATABASE_URL

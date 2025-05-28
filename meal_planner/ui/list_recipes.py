@@ -1,3 +1,5 @@
+"""UI component for displaying a list of recipes."""
+
 from fasthtml.common import *
 from monsterui.all import *
 

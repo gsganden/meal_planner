@@ -1,3 +1,5 @@
+"""UI components for the recipe extraction page."""
+
 from fasthtml.common import *
 from monsterui.all import *
 

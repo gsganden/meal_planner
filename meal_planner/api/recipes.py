@@ -1,3 +1,5 @@
+"""API endpoints for recipe CRUD operations."""
+
 import logging
 from typing import Annotated
 

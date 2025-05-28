@@ -3,4 +3,4 @@ description:
 globs: 
 alwaysApply: true
 ---
-Unless I tell you otherwise, we should plan out any code changes before we make them by writing a checklist in a Markdown file in `dev_plans/`.
+Do not start making code changes until I explicitly tell you to do so. In most cases I will want to review a Markdown checklist in `dev_plans/` first.

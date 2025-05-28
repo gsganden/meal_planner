@@ -1,3 +1,5 @@
+"""Routers for generating and returning HTML UI fragments, often for HTMX swaps."""
+
 import logging
 
 import httpx

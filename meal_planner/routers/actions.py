@@ -1,3 +1,5 @@
+"""Routers for actions that process data or perform operations, often via POST."""
+
 import logging
 
 import httpx  # Added based on post_save_recipe

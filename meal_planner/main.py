@@ -1,3 +1,5 @@
+"""Main application FastAPI instance, router setup, and entry point for Meal Planner."""
+
 import logging
 from pathlib import Path
 
@@ -10,9 +12,6 @@ from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 
-# from meal_planner.services.extract_webpage_text import (
-#     fetch_and_clean_text_from_url,
-# )
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
