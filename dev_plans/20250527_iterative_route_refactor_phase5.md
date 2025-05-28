@@ -367,41 +367,41 @@ This completes the full development loop for the home page route. The next route
 
 ## Dev Loop 9: Refactoring the Recipe Extraction Action Route (`post` at `/recipes/extract/run`)
 
-- [ ] **1. Code Migration for the `/recipes/extract/run` Route and Helper:**
-    - [ ] **In `meal_planner/routers/actions.py`:**
-        - [ ] Add necessary new imports (e.g., `RecipeBase` from `meal_planner.models`, `generate_recipe_from_text` from `meal_planner.services.call_llm`, `postprocess_recipe` from `meal_planner.services.process_recipe`, `build_edit_review_form`, `build_recipe_display` from `meal_planner.ui.edit_recipe`, `H2`, `Group` if not already covered).
-        - [ ] Copy the `extract_recipe_from_text()` helper function from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
-        - [ ] Copy the `post()` function (the one decorated with `@rt("/recipes/extract/run")`) from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
-    - [ ] **In `meal_planner/main.py`:**
-        - [ ] Delete the `extract_recipe_from_text()` function definition.
-        - [ ] Delete the `post()` function definition (for `/recipes/extract/run`).
-        - [ ] Review if imports exclusively used by these moved functions can be removed from `main.py` (e.g., `generate_recipe_from_text`, `postprocess_recipe`, `build_edit_review_form`, `build_recipe_display`).
+- [x] **1. Code Migration for the `/recipes/extract/run` Route and Helper:**
+    - [x] **In `meal_planner/routers/actions.py`:**
+        - [x] Add necessary new imports (e.g., `RecipeBase` from `meal_planner.models`, `generate_recipe_from_text` from `meal_planner.services.call_llm`, `postprocess_recipe` from `meal_planner.services.process_recipe`, `build_edit_review_form`, `build_recipe_display` from `meal_planner.ui.edit_recipe`, `H2`, `Group` if not already covered).
+        - [x] Copy the `extract_recipe_from_text()` helper function from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
+        - [x] Copy the `post()` function (the one decorated with `@rt("/recipes/extract/run")`) from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
+    - [x] **In `meal_planner/main.py`:**
+        - [x] Delete the `extract_recipe_from_text()` function definition.
+        - [x] Delete the `post()` function definition (for `/recipes/extract/run`).
+        - [x] Review if imports exclusively used by these moved functions can be removed from `main.py` (e.g., `generate_recipe_from_text`, `postprocess_recipe`, `build_edit_review_form`, `build_recipe_display`).
 
-- [ ] **2. Update and Verify Existing Tests:**
-    - [ ] Identify the test(s) for the `/recipes/extract/run` endpoint. These are likely in `tests/test_main/test_extract_recipe_endpoints.py` (e.g., `TestExtractRecipeEndpoint` class).
-    - [ ] Run the test suite (e.g., `./run_fast_coverage.sh`).
-    - [ ] Verify the identified test(s) pass. The target URL `/recipes/extract/run` remains the same.
-    - [ ] Examine and update patch targets within these tests. For example:
+- [x] **2. Update and Verify Existing Tests:**
+    - [x] Identify the test(s) for the `/recipes/extract/run` endpoint. These are likely in `tests/test_main/test_extract_recipe_endpoints.py` (e.g., `TestExtractRecipeEndpoint` class).
+    - [x] Run the test suite (e.g., `./run_fast_coverage.sh`).
+    - [x] Verify the identified test(s) pass. The target URL `/recipes/extract/run` remains the same.
+    - [x] Examine and update patch targets within these tests. For example:
         - `meal_planner.main.generate_recipe_from_text` -> `meal_planner.routers.actions.generate_recipe_from_text`
         - `meal_planner.main.postprocess_recipe` -> `meal_planner.routers.actions.postprocess_recipe` (or to their original service locations if that's preferred, but patching where it's looked up in `actions.py` is consistent).
         - `meal_planner.main.logger.error` (if used in the context of these moved functions' tests) -> `meal_planner.routers.actions.logger.error`.
 
-- [ ] **3. Move Tests to `tests/routers/test_actions.py`:**
-    - [ ] **In `tests/routers/test_actions.py`:**
-        - [ ] Add necessary new imports for the moved tests (e.g., `RecipeBase`, any specific constants like `FIELD_RECIPE_TEXT`, `RECIPES_EXTRACT_RUN_URL`, `CSS_ERROR_CLASS`).
-        - [ ] Move the specific test class/functions (e.g., `TestExtractRecipeEndpoint` and any related fixtures like `mock_recipe_data_fixture`) to this file.
-    - [ ] **In the source test file (e.g., `tests/test_main/test_extract_recipe_endpoints.py`):**
-        - [ ] Delete the test class/functions and fixtures that were moved. If the file becomes empty or only contains unused imports, consider deleting it.
+- [x] **3. Move Tests to `tests/routers/test_actions.py`:**
+    - [x] **In `tests/routers/test_actions.py`:**
+        - [x] Add necessary new imports for the moved tests (e.g., `RecipeBase`, any specific constants like `FIELD_RECIPE_TEXT`, `RECIPES_EXTRACT_RUN_URL`, `CSS_ERROR_CLASS`).
+        - [x] Move the specific test class/functions (e.g., `TestExtractRecipeEndpoint` and any related fixtures like `mock_recipe_data_fixture`) to this file.
+    - [x] **In the source test file (e.g., `tests/test_main/test_extract_recipe_endpoints.py`):**
+        - [x] Delete the test class/functions and fixtures that were moved. If the file becomes empty or only contains unused imports, consider deleting it.
 
-- [ ] **4. Confirm Tests and Coverage Post-Test-Move:**
-    - [ ] Run the test suite again (`./run_fast_coverage.sh`).
-    - [ ] Verify all tests pass.
-    - [ ] Verify test coverage is maintained for the moved route and helper.
+- [x] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [x] Run the test suite again (`./run_fast_coverage.sh`).
+    - [x] Verify all tests pass.
+    - [x] Verify test coverage is maintained for the moved route and helper.
 
-- [ ] **5. Code Quality Checks & User Confirmation:**
-    - [ ] Run `uv run ruff format .`
-    - [ ] Run `uv run ruff check --fix .`
-    - [ ] Ensure no non-docstring comments were added.
-    - [ ] Manually check `git diff --stat HEAD` to confirm minimal net change in application code.
-    - [ ] Suggest a one-line commit message.
-    - [ ] Ask the user to confirm functionality and commit.
+- [x] **5. Code Quality Checks & User Confirmation:**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Ensure no non-docstring comments were added.
+    - [x] Manually check `git diff --stat HEAD` to confirm minimal net change in application code.
+    - [x] Suggest a one-line commit message.
+    - [x] Ask the user to confirm functionality and commit.

@@ -234,7 +234,7 @@ class TestRecipeSortableListPersistence:
             f"hx-include missing or incorrect for {list_id_prefix}"
         )
 
-    @patch("meal_planner.main.generate_recipe_from_text")
+    @patch("meal_planner.routers.actions.generate_recipe_from_text")
     async def test_sortable_after_ingredient_delete(
         self, mock_llm_extract, client: AsyncClient
     ):
@@ -294,7 +294,7 @@ class TestRecipeSortableListPersistence:
         assert inputs[0].get("value") == "Ing1"
         assert inputs[1].get("value") == "Ing3"
 
-    @patch("meal_planner.main.generate_recipe_from_text")
+    @patch("meal_planner.routers.actions.generate_recipe_from_text")
     async def test_sortable_after_instruction_delete(
         self, mock_llm_extract, client: AsyncClient
     ):
@@ -349,7 +349,7 @@ class TestRecipeSortableListPersistence:
             textareas[0].get_text(strip=True) == "Second instruction details."
         )  # Original was "Second instruction details"
 
-    @patch("meal_planner.main.generate_recipe_from_text")
+    @patch("meal_planner.routers.actions.generate_recipe_from_text")
     async def test_sortable_after_ingredient_add(
         self, mock_llm_extract, client: AsyncClient
     ):
@@ -399,7 +399,7 @@ class TestRecipeSortableListPersistence:
         assert inputs[2].get("value") == "Ing3"
         assert inputs[3].get("value", "") == ""
 
-    @patch("meal_planner.main.generate_recipe_from_text")
+    @patch("meal_planner.routers.actions.generate_recipe_from_text")
     async def test_sortable_after_instruction_add(
         self, mock_llm_extract, client: AsyncClient
     ):

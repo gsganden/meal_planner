@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from meal_planner.main import extract_recipe_from_text
 from meal_planner.models import RecipeBase
+from meal_planner.routers.actions import extract_recipe_from_text
 from meal_planner.services.extract_webpage_text import clean_html_text
 
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"

@@ -10,10 +10,17 @@ from starlette.datastructures import FormData
 from meal_planner.form_processing import _parse_recipe_form_data
 from meal_planner.main import internal_client, rt  # Assuming internal_client is needed
 from meal_planner.models import RecipeBase
-from meal_planner.services.call_llm import generate_modified_recipe
+from meal_planner.services.call_llm import (
+    generate_modified_recipe,
+    generate_recipe_from_text,
+)
 from meal_planner.services.process_recipe import postprocess_recipe
 from meal_planner.ui.common import CSS_ERROR_CLASS, CSS_SUCCESS_CLASS
-from meal_planner.ui.edit_recipe import build_modify_form_response
+from meal_planner.ui.edit_recipe import (
+    build_edit_review_form,
+    build_modify_form_response,
+    build_recipe_display,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -238,4 +245,75 @@ async def post_modify_recipe(request: Request):
                 cls=CSS_ERROR_CLASS,
             ),
         )
+    return result
+
+
+async def extract_recipe_from_text(page_text: str) -> RecipeBase:
+    """Extracts a recipe from the given text and postprocesses it."""
+    logger.info("Attempting to extract recipe from provided text.")
+    try:
+        extracted_recipe: RecipeBase = await generate_recipe_from_text(text=page_text)
+    except Exception as e:
+        logger.error(
+            f"LLM service failed to generate recipe from text: {e!r}", exc_info=True
+        )
+        raise
+
+    result = postprocess_recipe(extracted_recipe)
+    logger.info(
+        "Extraction (via call_llm) and postprocessing successful. Recipe Name: %s",
+        result.name,
+    )
+    logger.debug("Processed Recipe Object: %r", result)
+    return result
+
+
+@rt("/recipes/extract/run")
+async def post_extract_recipe_run(
+    recipe_text: str | None = None,
+):  # Renamed from 'post' to avoid conflict
+    if not recipe_text:
+        logging.error("Recipe extraction called without text.")
+        return Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
+
+    try:
+        logger.info("Calling extraction logic")
+        processed_recipe = await extract_recipe_from_text(recipe_text)
+        logger.info("Extraction successful")
+        logger.info(
+            f"Instructions before building form: {processed_recipe.instructions}"
+        )
+    except Exception as e:
+        logger.error(
+            "Error during recipe extraction: %s",
+            e,
+            exc_info=True,
+        )
+        result = Div(
+            "Recipe extraction failed. An unexpected error occurred during processing.",
+            cls=CSS_ERROR_CLASS,
+        )
+    else:
+        rendered_recipe_html = Div(
+            H2("Extracted Recipe (Reference)"),
+            build_recipe_display(processed_recipe.model_dump()),
+            cls="mb-6 space-y-4",
+        )
+
+        edit_form_card, review_section_card = build_edit_review_form(
+            processed_recipe, processed_recipe
+        )
+
+        edit_oob_div = Div(
+            edit_form_card,
+            hx_swap_oob="innerHTML:#edit-form-target",
+        )
+
+        review_oob_div = Div(
+            review_section_card,
+            hx_swap_oob="innerHTML:#review-section-target",
+        )
+
+        result = Group(rendered_recipe_html, edit_oob_div, review_oob_div)
+
     return result

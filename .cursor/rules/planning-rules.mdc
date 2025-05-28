@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Unless I tell you otherwise, we should plan out any code changes before we make them by writing a checklist in a Markdown file in `dev_plans/`.
