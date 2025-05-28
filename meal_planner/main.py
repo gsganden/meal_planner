@@ -66,11 +66,8 @@ internal_api_client = httpx.AsyncClient(
     base_url="http://internal-api",  # arbitrary
 )
 
-
-@rt("/")
-def get():
-    """Get the home page."""
-    return with_layout("Meal Planner")
+# Import the pages router
+from meal_planner.routers import pages  # noqa: F401, E402
 
 
 @rt("/recipes/extract")

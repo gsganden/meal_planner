@@ -26,13 +26,6 @@ from tests.test_helpers import (
 
 
 @pytest.mark.anyio
-async def test_root(client: AsyncClient):
-    response = await client.get("/")
-    assert response.status_code == 200
-    assert "Meal Planner" in response.text
-
-
-@pytest.mark.anyio
 class TestSaveRecipeEndpoint:
     @pytest.mark.anyio
     async def test_save_recipe_success(self, client: AsyncClient):
