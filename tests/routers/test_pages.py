@@ -204,10 +204,6 @@ class TestGetSingleRecipePage:
         assert "An unexpected error occurred." in response.text
         mock_api_get.assert_awaited_once_with(self.API_URL)
 
-    RECIPE_ID = 456
-    API_URL = f"/v0/recipes/{RECIPE_ID}"
-    PAGE_URL = f"/recipes/{RECIPE_ID}"
-
     async def test_get_single_recipe_page_success(self, client: AsyncClient):
         recipe_payload = {
             "name": "Specific Recipe Page Test",
