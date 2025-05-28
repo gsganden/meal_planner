@@ -7,7 +7,7 @@ from fastapi import Request
 from fasthtml.common import *
 from monsterui.all import *
 
-from meal_planner.core import internal_api_client, internal_client, rt
+from meal_planner.core import internal_api_client, rt
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.edit_recipe import build_recipe_display
 from meal_planner.ui.extract_recipe import create_extraction_form
@@ -85,7 +85,7 @@ async def get_recipe_list_page(request: Request):
 async def get_single_recipe_page(recipe_id: int):
     """Displays a single recipe page."""
     try:
-        response = await internal_client.get(f"/api/v0/recipes/{recipe_id}")
+        response = await internal_api_client.get(f"/v0/recipes/{recipe_id}")
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:

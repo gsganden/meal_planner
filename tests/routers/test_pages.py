@@ -159,10 +159,10 @@ class TestGetRecipeListPage:
 @pytest.mark.anyio
 class TestGetSingleRecipePage:
     RECIPE_ID = 123
-    API_URL = f"/api/v0/recipes/{RECIPE_ID}"
+    API_URL = f"/v0/recipes/{RECIPE_ID}"
     PAGE_URL = f"/recipes/{RECIPE_ID}"
 
-    @patch("meal_planner.routers.pages.internal_client.get")
+    @patch("meal_planner.routers.pages.internal_api_client.get")
     async def test_get_single_recipe_page_api_404(
         self, mock_api_get, client: AsyncClient
     ):
@@ -177,7 +177,7 @@ class TestGetSingleRecipePage:
         assert "Recipe Not Found" in response.text
         mock_api_get.assert_awaited_once_with(self.API_URL)
 
-    @patch("meal_planner.routers.pages.internal_client.get")
+    @patch("meal_planner.routers.pages.internal_api_client.get")
     async def test_get_single_recipe_page_api_other_status_error(
         self, mock_api_get, client: AsyncClient
     ):
@@ -193,7 +193,7 @@ class TestGetSingleRecipePage:
         assert "Error" in response.text
         mock_api_get.assert_awaited_once_with(self.API_URL)
 
-    @patch("meal_planner.routers.pages.internal_client.get")
+    @patch("meal_planner.routers.pages.internal_api_client.get")
     async def test_get_single_recipe_page_api_generic_error(
         self, mock_api_get, client: AsyncClient
     ):
@@ -205,7 +205,7 @@ class TestGetSingleRecipePage:
         mock_api_get.assert_awaited_once_with(self.API_URL)
 
     RECIPE_ID = 456
-    API_URL = f"/api/v0/recipes/{RECIPE_ID}"
+    API_URL = f"/v0/recipes/{RECIPE_ID}"
     PAGE_URL = f"/recipes/{RECIPE_ID}"
 
     async def test_get_single_recipe_page_success(self, client: AsyncClient):
