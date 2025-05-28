@@ -66,7 +66,7 @@ internal_api_client = httpx.AsyncClient(
     base_url="http://internal-api",  # arbitrary
 )
 
-# Import the pages router
+
 from meal_planner.routers import pages  # noqa: F401, E402
 
 
