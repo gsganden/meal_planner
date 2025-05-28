@@ -7,11 +7,11 @@ from fasthtml.common import *
 from httpx import ASGITransport
 from monsterui.all import *
 from pydantic import ValidationError
-from starlette import status
 from starlette.datastructures import FormData
 from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
+from meal_planner.form_processing import _parse_recipe_form_data
 from meal_planner.models import RecipeBase
 from meal_planner.services.call_llm import (
     generate_modified_recipe,
@@ -23,7 +23,6 @@ from meal_planner.services.extract_webpage_text import (
 from meal_planner.services.process_recipe import postprocess_recipe
 from meal_planner.ui.common import (
     CSS_ERROR_CLASS,
-    CSS_SUCCESS_CLASS,
 )
 from meal_planner.ui.edit_recipe import (
     build_diff_content_children,
@@ -64,7 +63,10 @@ internal_api_client = httpx.AsyncClient(
 )
 
 
-from meal_planner.routers import pages  # noqa: F401, E402
+from meal_planner.routers import (  # noqa: E402
+    actions,  # noqa: F401
+    pages,  # noqa: F401
+)
 
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
@@ -85,28 +87,6 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
     )
     logger.debug("Processed Recipe Object: %r", result)
     return result
-
-
-def _parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
-    """Parses recipe form data into a dictionary, handling optional prefix."""
-    name_value = form_data.get(f"{prefix}name")
-    name = name_value if isinstance(name_value, str) else ""
-
-    ingredients_values = form_data.getlist(f"{prefix}ingredients")
-    ingredients = [
-        ing for ing in ingredients_values if isinstance(ing, str) and ing.strip()
-    ]
-
-    instructions_values = form_data.getlist(f"{prefix}instructions")
-    instructions = [
-        inst for inst in instructions_values if isinstance(inst, str) and inst.strip()
-    ]
-
-    return {
-        "name": name,
-        "ingredients": ingredients,
-        "instructions": instructions,
-    }
 
 
 @rt("/recipes/fetch-text")
@@ -232,78 +212,6 @@ async def post(recipe_text: str | None = None):
         )
 
         result = Group(rendered_recipe_html, edit_oob_div, review_oob_div)
-
-    return result
-
-
-@rt("/recipes/save")
-async def post_save_recipe(request: Request):
-    form_data: FormData = await request.form()
-    try:
-        parsed_data = _parse_recipe_form_data(form_data)
-        recipe_obj = RecipeBase(**parsed_data)
-    except ValidationError as e:
-        logger.warning("Validation error saving recipe: %s", e, exc_info=False)
-        result = Span(
-            "Invalid recipe data. Please check the fields.",
-            cls=CSS_ERROR_CLASS,
-            id="save-button-container",
-        )
-    except Exception as e:
-        logger.error("Error parsing form data during save: %s", e, exc_info=True)
-        result = Span(
-            "Error processing form data.",
-            cls=CSS_ERROR_CLASS,
-            id="save-button-container",
-        )
-    else:
-        try:
-            response = await internal_client.post(
-                "/api/v0/recipes", json=recipe_obj.model_dump()
-            )
-            response.raise_for_status()
-            logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "API error saving recipe: Status %s, Response: %s",
-                e.response.status_code,
-                e.response.text,
-                exc_info=True,
-            )
-            if e.response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
-                result = Span(
-                    "Could not save recipe: Invalid data for some fields.",
-                    cls=CSS_ERROR_CLASS,
-                    id="save-button-container",
-                )
-            else:
-                result = Span(
-                    "Could not save recipe. Please check input and try again.",
-                    cls=CSS_ERROR_CLASS,
-                    id="save-button-container",
-                )
-        except httpx.RequestError as e:
-            logger.error("Network error saving recipe: %s", e, exc_info=True)
-            result = Span(
-                "Could not save recipe due to a network issue. Please try again.",
-                cls=CSS_ERROR_CLASS,
-                id="save-button-container",
-            )
-
-        except Exception as e:
-            logger.error("Unexpected error saving recipe via API: %s", e, exc_info=True)
-            result = Span(
-                "An unexpected error occurred while saving the recipe.",
-                cls=CSS_ERROR_CLASS,
-                id="save-button-container",
-            )
-        else:
-            user_final_message = "Current Recipe Saved!"
-            css_class = CSS_SUCCESS_CLASS
-            result = FtResponse(
-                Span(user_final_message, id="save-button-container", cls=css_class),
-                headers={"HX-Trigger": "recipeListChanged"},
-            )
 
     return result
 

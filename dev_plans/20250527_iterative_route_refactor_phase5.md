@@ -171,3 +171,53 @@ This completes the full development loop for the home page route. The next route
     - [x] Run `uv run ruff format .`
     - [x] Run `uv run ruff check --fix .`
     - [x] Ask the user to confirm functionality and commit.
+
+## Dev Loop 5: Refactoring the Save Recipe Action Route (`post_save_recipe` at `/recipes/save`)
+
+- [ ] **1. Code Migration for the `/recipes/save` Route:**
+    - [ ] **In `meal_planner/routers/actions.py`:**
+        - [ ] Add necessary imports:
+            ```python
+            import logging
+            from fastapi import Request
+            from fasthtml.common import *
+            from pydantic import ValidationError
+            from starlette import status
+            from starlette.datastructures import FormData
+            
+            from meal_planner.main import rt, internal_client
+            from meal_planner.models import RecipeBase
+            from meal_planner.ui.common import CSS_ERROR_CLASS, CSS_SUCCESS_CLASS
+            ```
+        - [ ] Copy the `post_save_recipe()` function from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
+        - [ ] Copy the `_parse_recipe_form_data()` helper function from `meal_planner/main.py` to `meal_planner/routers/actions.py` (since it's used by the save route).
+    - [ ] **In `meal_planner/main.py`:**
+        - [ ] Delete the `post_save_recipe()` function definition.
+        - [ ] Review if `_parse_recipe_form_data()` can be removed (check if other routes in main.py still use it).
+        - [ ] Review if imports like `ValidationError`, `status`, `FormData`, `CSS_SUCCESS_CLASS` can be removed from `main.py` if no other functions use them.
+
+- [ ] **2. Update and Verify Existing Tests (likely in `tests/test_main/test_route_endpoints.py`):**
+    - [ ] Identify the test(s) for the `/recipes/save` endpoint (e.g., `TestSaveRecipeEndpoint` class and its methods).
+    - [ ] Run the test suite (e.g., `./run_fast_coverage.sh`).
+    - [ ] Verify the identified test(s) pass.
+    - [ ] Confirm test coverage for the save recipe route functionality (now in `meal_planner.routers.actions`) is maintained.
+
+- [ ] **3. Move Tests to `tests/routers/test_actions.py`:**
+    - [ ] Create the file `tests/routers/test_actions.py` if it doesn't exist.
+    - [ ] **In `tests/routers/test_actions.py`:**
+        - [ ] Add necessary imports for the moved tests.
+        - [ ] Move the specific test class/functions for the `/recipes/save` endpoint (e.g., `TestSaveRecipeEndpoint`) to this file.
+        - [ ] Update patch targets from `meal_planner.main.*` to `meal_planner.routers.actions.*` where applicable.
+    - [ ] **In the source test file (e.g., `tests/test_main/test_route_endpoints.py`):**
+        - [ ] Delete the test class/functions that were moved.
+
+- [ ] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [ ] Run the test suite again (`./run_fast_coverage.sh`).
+    - [ ] Verify all tests pass.
+    - [ ] Verify test coverage is maintained, with the functionality in `meal_planner/routers/actions.py` being tested by `tests/routers/test_actions.py`.
+
+- [ ] **5. Code Quality Checks & User Confirmation:**
+    - [ ] Run `uv run ruff format .`
+    - [ ] Run `uv run ruff check --fix .`
+    - [ ] Confirm that the net diff size is ~0-10 lines.
+    - [ ] Ask the user to confirm functionality and commit.
