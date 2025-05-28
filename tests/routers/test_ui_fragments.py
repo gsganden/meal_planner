@@ -1,8 +1,9 @@
 """Tests for route handlers defined in meal_planner.routers.ui_fragments."""
 
 from typing import cast
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import monsterui.all as mu
 import pytest
 from bs4 import BeautifulSoup, Tag
@@ -19,7 +20,9 @@ from tests.constants import (
     FIELD_ORIGINAL_INSTRUCTIONS,
     FIELD_ORIGINAL_NAME,
     FIELD_RECIPE_TEXT,  # For TestRecipeSortableListPersistence
+    FIELD_RECIPE_URL,
     RECIPES_EXTRACT_RUN_URL,  # For TestRecipeSortableListPersistence
+    RECIPES_FETCH_TEXT_URL,
 )
 from tests.test_helpers import extract_full_edit_form_data
 
@@ -1006,3 +1009,123 @@ class TestRecipeUIFragments:
 # Tests for generate_diff_html and build_edit_review_form are specific to ui.edit_recipe
 # and should remain in tests/test_ui/test_recipe_editor.py, not moved here.
 # This file is for testing the route handlers in ui_fragments.py.
+
+
+@pytest.mark.anyio
+class TestFetchTextEndpoint:
+    TEST_URL = "http://example.com/fetch-success"
+
+    async def test_success(self, client: AsyncClient):
+        mock_text = "Fetched and cleaned recipe text."
+
+        with patch(
+            "meal_planner.routers.ui_fragments.fetch_and_clean_text_from_url",
+            new_callable=AsyncMock,
+        ) as local_mock_fetch_clean:
+            local_mock_fetch_clean.return_value = mock_text
+
+            response = await client.post(
+                RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
+            )
+
+        assert response.status_code == 200
+        local_mock_fetch_clean.assert_called_once_with(self.TEST_URL)
+        assert "<textarea" in response.text
+        assert f'id="{FIELD_RECIPE_TEXT}"' in response.text
+        assert f'name="{FIELD_RECIPE_TEXT}"' in response.text
+        assert f">{mock_text}</textarea>" in response.text
+
+    async def test_missing_url(self, client: AsyncClient):
+        response = await client.post(RECIPES_FETCH_TEXT_URL, data={})
+        assert response.status_code == 200
+        assert "Please provide a Recipe URL to fetch." in response.text
+        assert f'class="{CSS_ERROR_CLASS}"' in response.text
+
+    @pytest.mark.parametrize(
+        "exception_type, exception_args, exception_kwargs, expected_message",
+        [
+            (
+                httpx.RequestError,
+                ("Network connection failed",),
+                {"request": httpx.Request("GET", "http://example.com/fetch-success")},
+                "Error fetching URL. Please check the URL and your connection.",
+            ),
+            (
+                httpx.HTTPStatusError,
+                ("404 Client Error",),
+                {
+                    "request": httpx.Request("GET", "http://example.com/fetch-success"),
+                    "response": httpx.Response(
+                        404,
+                        request=httpx.Request(
+                            "GET", "http://example.com/fetch-success"
+                        ),
+                    ),
+                },
+                "Error fetching URL: The server returned an error.",
+            ),
+            (
+                RuntimeError,
+                ("Processing failed",),
+                {},
+                "Failed to process the content from the URL.",
+            ),
+            (
+                Exception,
+                ("Unexpected error",),
+                {},
+                "An unexpected error occurred while fetching text.",
+            ),
+        ],
+    )
+    async def test_fetch_text_errors(
+        self,
+        client: AsyncClient,
+        exception_type,
+        exception_args,
+        exception_kwargs,
+        expected_message,
+    ):
+        """Test that various exceptions from the service are handled correctly."""
+        with patch(
+            "meal_planner.routers.ui_fragments.fetch_and_clean_text_from_url",
+            new_callable=AsyncMock,
+        ) as local_mock_fetch_clean:
+            local_mock_fetch_clean.side_effect = exception_type(
+                *exception_args, **exception_kwargs
+            )
+
+            response = await client.post(
+                RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
+            )
+
+            local_mock_fetch_clean.assert_called_once_with(self.TEST_URL)
+
+            assert response.status_code == 200
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        text_area_container = soup.find("div", id="recipe_text_container")
+        assert text_area_container is not None
+        text_area = text_area_container.find("textarea", id="recipe_text")
+        assert text_area is not None
+        assert text_area.get_text(strip=True) == ""
+
+        error_div = soup.find("div", id="fetch-url-error-display")
+        assert error_div is not None
+        assert error_div.text.strip() == expected_message
+        expected_classes = set(CSS_ERROR_CLASS.split())
+        actual_classes = set(error_div.get("class", []))
+        assert expected_classes.issubset(actual_classes)
+
+        parent_of_error_div = error_div.parent
+        assert parent_of_error_div is not None, "Parent of error_div not found"
+        assert isinstance(parent_of_error_div, BeautifulSoup) or hasattr(
+            parent_of_error_div, "get"
+        ), "Parent of error_div is not a Tag"
+        assert (
+            parent_of_error_div.get("hx-swap-oob")
+            == "outerHTML:#fetch-url-error-display"
+        ), (
+            f"hx-swap-oob attribute incorrect or missing on parent of error_div. "
+            f"Got: {parent_of_error_div.get('hx-swap-oob')}"
+        )

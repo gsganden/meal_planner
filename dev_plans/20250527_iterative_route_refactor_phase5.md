@@ -328,3 +328,39 @@ This completes the full development loop for the home page route. The next route
     - [x] Make sure we haven't added code comments, except docstrings that add information beyond the item name and type hints.
     - [x] Suggested a one-line commit message.
     - [x] User confirmed functionality and committed.
+
+## Dev Loop 8: Refactoring the Fetch Text UI Fragment Route (`post_fetch_text` at `/recipes/fetch-text`)
+
+- [x] **1. Code Migration for the `/recipes/fetch-text` Route:**
+    - [x] **In `meal_planner/routers/ui_fragments.py`:**
+        - [x] Add necessary new imports (e.g., `httpx`, `TextArea`, `Group` from `monsterui.all` if not already covered by `fasthtml.common.*`).
+        - [x] Copy the `post_fetch_text()` function from `meal_planner/main.py` to `meal_planner/routers/ui_fragments.py`.
+    - [x] **In `meal_planner/main.py`:**
+        - [x] Delete the `post_fetch_text()` function definition.
+        - [x] Review if imports exclusively used by this function can be removed from `main.py` (e.g., `fetch_and_clean_text_from_url` if no other main route uses it).
+
+- [x] **2. Update and Verify Existing Tests:**
+    - [x] Identify the test(s) for the `/recipes/fetch-text` endpoint. These are likely in `tests/test_main/test_route_endpoints.py` (e.g., a class like `TestPostFetchText` or similar).
+    - [x] Run the test suite (e.g., `./run_fast_coverage.sh`).
+    - [x] Verify the identified test(s) pass. The target URL `/recipes/fetch-text` remains the same.
+    - [x] Examine and update patch targets within these tests if necessary (e.g., if `fetch_and_clean_text_from_url` was mocked relative to `main`, it might now need to be mocked relative to `ui_fragments`).
+
+- [x] **3. Move Tests to `tests/routers/test_ui_fragments.py`:**
+    - [x] **In `tests/routers/test_ui_fragments.py`:**
+        - [x] Add necessary new imports for the moved tests.
+        - [x] Move the specific test class/functions for the `/recipes/fetch-text` endpoint to this file.
+    - [x] **In the source test file (e.g., `tests/test_main/test_route_endpoints.py`):**
+        - [x] Delete the test class/functions that were moved.
+
+- [x] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [x] Run the test suite again (`./run_fast_coverage.sh`).
+    - [x] Verify all tests pass.
+    - [x] Verify test coverage is maintained for the moved route.
+
+- [x] **5. Code Quality Checks & User Confirmation:**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Ensure no non-docstring comments were added.
+    - [x] Manually check `git diff --stat HEAD` to confirm minimal net change in application code.
+    - [x] Suggested a one-line commit message.
+    - [x] User confirmed functionality and will commit.

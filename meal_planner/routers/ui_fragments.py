@@ -1,12 +1,17 @@
 import logging
 
+import httpx
 from fastapi import Request
 from fasthtml.common import FT, Div, Group, P  # type: ignore
+from monsterui.all import TextArea
 from pydantic import ValidationError
 
 from meal_planner.form_processing import _parse_recipe_form_data
 from meal_planner.main import rt
 from meal_planner.models import RecipeBase
+from meal_planner.services.extract_webpage_text import (
+    fetch_and_clean_text_from_url,
+)
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.edit_recipe import (
     build_diff_content_children,
@@ -247,6 +252,84 @@ async def update_diff(request: Request) -> FT:
     except Exception as e:
         logger.error("Error updating diff: %s", e, exc_info=True)
         return Div("Error updating diff view.", cls=CSS_ERROR_CLASS)
+
+
+@rt("/recipes/fetch-text")
+async def post_fetch_text(input_url: str | None = None):
+    def _prepare_error_response(error_message_str: str):
+        error_div = Div(
+            error_message_str, cls=CSS_ERROR_CLASS, id="fetch-url-error-display"
+        )
+        error_oob = Div(error_div, hx_swap_oob="outerHTML:#fetch-url-error-display")
+        text_area = Div(
+            TextArea(
+                id="recipe_text",
+                name="recipe_text",
+                placeholder="Paste full recipe text here, or fetch from URL above.",
+                rows=15,
+                cls="mb-4",
+            ),
+            id="recipe_text_container",
+        )
+        return Group(text_area, error_oob)
+
+    if not input_url:
+        logger.error("Fetch text called without URL.")
+        return _prepare_error_response("Please provide a Recipe URL to fetch.")
+
+    try:
+        logger.info("Fetching and cleaning text from URL: %s", input_url)
+        cleaned_text = await fetch_and_clean_text_from_url(input_url)
+    except httpx.RequestError as e:
+        logger.error("Network error fetching URL %s: %s", input_url, e, exc_info=True)
+        result = _prepare_error_response(
+            "Error fetching URL. Please check the URL and your connection."
+        )
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "HTTP error fetching URL %s: %s. Response: %s",
+            input_url,
+            e,
+            e.response.text,
+            exc_info=True,
+        )
+        result = _prepare_error_response(
+            "Error fetching URL: The server returned an error."
+        )
+    except RuntimeError as e:
+        logger.error(
+            "RuntimeError processing URL content from %s: %s",
+            input_url,
+            e,
+            exc_info=True,
+        )
+        result = _prepare_error_response("Failed to process the content from the URL.")
+    except Exception as e:
+        logger.error(
+            "Unexpected error fetching text from %s: %s", input_url, e, exc_info=True
+        )
+        result = _prepare_error_response(
+            "An unexpected error occurred while fetching text."
+        )
+    else:
+        text_area = Div(
+            TextArea(
+                cleaned_text,
+                id="recipe_text",
+                name="recipe_text",
+                placeholder="Paste full recipe text here, or fetch from URL above.",
+                rows=15,
+                cls="mb-4",
+            ),
+            id="recipe_text_container",
+        )
+        clear_error_oob = Div(
+            Div(id="fetch-url-error-display"),
+            hx_swap_oob="outerHTML:#fetch-url-error-display",
+        )
+        result = Group(text_area, clear_error_oob)
+
+    return result
 
 
 def _build_sortable_list_with_oob_diff(

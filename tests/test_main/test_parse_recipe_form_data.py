@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 from starlette.datastructures import FormData
 
-from meal_planner.main import _parse_recipe_form_data
+from meal_planner.form_processing import _parse_recipe_form_data
 from meal_planner.models import RecipeBase
 
 
