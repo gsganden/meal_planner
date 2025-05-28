@@ -1,3 +1,5 @@
+"""Common UI components and constants used across the Meal Planner application."""
+
 from monsterui.all import *
 
 CSS_ERROR_CLASS = str(TextT.error)

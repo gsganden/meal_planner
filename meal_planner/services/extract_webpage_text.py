@@ -1,3 +1,5 @@
+"""Service functions for fetching and cleaning HTML content from webpages."""
+
 import logging
 
 import html2text

@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 from starlette.datastructures import FormData
 
-from meal_planner.main import _parse_recipe_form_data
+from meal_planner.form_processing import parse_recipe_form_data
 from meal_planner.models import RecipeBase
 
 
@@ -19,7 +19,7 @@ class TestParseRecipeFormData:
                 ("instructions", "Step 2"),
             ]
         )
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         assert parsed_data == {
             "name": "Test Recipe",
             "ingredients": ["Ing 1", "Ing 2"],
@@ -36,7 +36,7 @@ class TestParseRecipeFormData:
                 ("name", "Current Name"),
             ]
         )
-        parsed_data = _parse_recipe_form_data(form_data, prefix="original_")
+        parsed_data = parse_recipe_form_data(form_data, prefix="original_")
         assert parsed_data == {
             "name": "Original Name",
             "ingredients": ["Orig Ing 1"],
@@ -46,7 +46,7 @@ class TestParseRecipeFormData:
 
     def test_parse_missing_fields(self):
         form_data = FormData([("name", "Only Name")])
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         assert parsed_data == {
             "name": "Only Name",
             "ingredients": [],
@@ -65,7 +65,7 @@ class TestParseRecipeFormData:
                 ("instructions", ""),
             ]
         )
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         assert parsed_data == {
             "name": "  Spaced Name  ",
             "ingredients": ["Real Ing"],
@@ -75,7 +75,7 @@ class TestParseRecipeFormData:
 
     def test_parse_empty_form(self):
         form_data = FormData([])
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         assert parsed_data == {"name": "", "ingredients": [], "instructions": []}
         with pytest.raises(ValidationError):
             RecipeBase(**parsed_data)

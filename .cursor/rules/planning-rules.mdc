@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Do not start making code changes until I explicitly tell you to do so. In most cases I will want to review a Markdown checklist in `dev_plans/` first.

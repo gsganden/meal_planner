@@ -1,3 +1,5 @@
+"""Pydantic and SQLModel data models for the Meal Planner application."""
+
 from typing import Annotated, Optional
 
 from sqlalchemy import Column

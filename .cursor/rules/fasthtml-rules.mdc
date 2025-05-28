@@ -1,10 +1,8 @@
 ---
-description: 
+description: Follow these rules to write idiomatic FastHTML code.
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
-Follow these rules to write idiomatic FastHTML code.
-
 ### Contents
 
 2. Route Naming Conventions

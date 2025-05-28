@@ -17,10 +17,9 @@ graph LR
 
     subgraph "Meal Planner Application"
         direction LR
-        
 
         direction TB
-        Main_Routes["Route Handlers<br/>(main.py)<br/>FastHTML"]
+        Web_Routing_Layer["Web Request Routing<br/>(routers/)<br/>FastHTML"]
         
         UI_Components["UI Components<br/>(ui/)<br/>MonsterUI"]
 
@@ -28,31 +27,31 @@ graph LR
             direction TB
             Webpage_Text_Extractor_Service["Webpage text extraction<br/>(extract_webpage_text.py)<br/>URL fetching, HTML cleaning"]
             Recipe_Processing_Service["Recipe processing<br/>(process_recipe.py)<br/>Data cleaning & standardization"]
-            LLM_Service["LLM interactions<br/>(call_llm.py)<br/>OpenAI client, Instructor"]
+            LLM_Service["LLM interactions<br/>(call_llm.py)<br/>Google Gemini, Instructor"]
         end
 
-        API_Layer["Recipe CRUD operations<br/>(recipes.py)<br/>FastAPI"]
+        API_Layer["Recipe CRUD API<br/>(api/recipes.py)<br/>FastAPI"]
 
-        Main_Routes -- "Renders" --> UI_Components
+        Web_Routing_Layer -- "Renders" --> UI_Components
         
-        Main_Routes -- "Calls" --> Webpage_Text_Extractor_Service
-        Main_Routes -- "Calls" --> Recipe_Processing_Service
-        Main_Routes -- "Calls" --> LLM_Service
-        Main_Routes -- "Internal API Call" --> API_Layer
+        Web_Routing_Layer -- "Calls" --> Webpage_Text_Extractor_Service
+        Web_Routing_Layer -- "Calls" --> Recipe_Processing_Service
+        Web_Routing_Layer -- "Calls" --> LLM_Service
+        Web_Routing_Layer -- "Internal API Call" --> API_Layer
     end
 
     subgraph "External Resources"
         direction TB
         Database[("Database (SQLite)")]
         External_Web_Pages["External Web Pages/URLs"]
-        Gemini_AI["Google Gemini"]
+        Google_Gemini_Cloud["Google Gemini Cloud API"]
     end
 
     User --> Modal
-    Modal --> Main_Routes
+    Modal --> Web_Routing_Layer
 
     Webpage_Text_Extractor_Service -- "Fetches content" --> External_Web_Pages
-    LLM_Service -- "AI Tasks" --> Gemini_AI
+    LLM_Service -- "AI Tasks" --> Google_Gemini_Cloud
     API_Layer --> Database
 ```
 

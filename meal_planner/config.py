@@ -1,3 +1,5 @@
+"""Configuration settings and constants for the Meal Planner application."""
+
 from pathlib import Path
 
 DB_FILENAME = "meal_planner.db"
