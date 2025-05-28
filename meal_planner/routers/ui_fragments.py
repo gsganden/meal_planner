@@ -61,7 +61,8 @@ async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
 
     except ValidationError as e:
         logger.error(
-            f"Validation error processing {item_type[:-1]} deletion at index {index}: {e}",
+            f"Validation error processing {item_type[:-1]} deletion at index {index}: "
+            f"{e}",
             exc_info=True,
         )
         data_for_error_render = parse_recipe_form_data(form_data)
@@ -100,94 +101,60 @@ async def post_delete_instruction_row(request: Request, index: int):
     return await _delete_list_item(request, index, "instructions")
 
 
-@rt("/recipes/ui/add-ingredient")
-async def post_add_ingredient_row(request: Request):
+async def _add_list_item(request: Request, item_type: str) -> FT:
+    """Helper function to add an item to a list (ingredients or instructions)."""
     form_data = await request.form()
+    list_id = f"{item_type}-list"
+    render_func = (
+        render_ingredient_list_items
+        if item_type == "ingredients"
+        else render_instruction_list_items
+    )
+
     try:
         parsed_data = parse_recipe_form_data(form_data)
-        current_ingredients = parsed_data.get("ingredients", [])
-        current_ingredients.append("")
+        current_items = parsed_data.get(item_type, [])
+        current_items.append("")  # Add an empty item
 
-        parsed_data["ingredients"] = current_ingredients
+        parsed_data[item_type] = current_items
         new_current_recipe = RecipeBase(**parsed_data)
 
         original_data = parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
-        new_ingredient_item_components = render_ingredient_list_items(
-            new_current_recipe.ingredients
-        )
+        new_item_components = render_func(getattr(new_current_recipe, item_type))
         return _build_sortable_list_with_oob_diff(
-            list_id="ingredients-list",
-            rendered_list_items=new_ingredient_item_components,
+            list_id=list_id,
+            rendered_list_items=new_item_components,
             original_recipe=original_recipe,
             current_recipe=new_current_recipe,
         )
 
     except ValidationError as e:
         logger.error(
-            f"Validation error processing ingredient addition: {e}", exc_info=True
+            f"Validation error processing {item_type[:-1]} addition: {e}", exc_info=True
         )
-        current_ingredients_before_error = parse_recipe_form_data(form_data).get(
-            "ingredients", []
-        )
-        error_items = render_ingredient_list_items(current_ingredients_before_error)
+        items_before_error = parse_recipe_form_data(form_data).get(item_type, [])
+        error_items = render_func(items_before_error)
         return Div(
             P("Error updating list after add.", cls=CSS_ERROR_CLASS),
             *error_items,
-            id="ingredients-list",
+            id=list_id,
             cls="mb-4",
         )
     except Exception as e:
-        logger.error(f"Error adding ingredient: {e}", exc_info=True)
-        return Div(
-            "Error processing add request.", cls=CSS_ERROR_CLASS, id="ingredients-list"
-        )
+        logger.error(f"Error adding {item_type[:-1]}: {e}", exc_info=True)
+        return Div("Error processing add request.", cls=CSS_ERROR_CLASS, id=list_id)
+
+
+@rt("/recipes/ui/add-ingredient")
+async def post_add_ingredient_row(request: Request):
+    return await _add_list_item(request, "ingredients")
 
 
 @rt("/recipes/ui/add-instruction")
 async def post_add_instruction_row(request: Request):
-    form_data = await request.form()
-    try:
-        parsed_data = parse_recipe_form_data(form_data)
-        current_instructions = parsed_data.get("instructions", [])
-        current_instructions.append("")
-
-        parsed_data["instructions"] = current_instructions
-        new_current_recipe = RecipeBase(**parsed_data)
-
-        original_data = parse_recipe_form_data(form_data, prefix="original_")
-        original_recipe = RecipeBase(**original_data)
-
-        new_instruction_item_components = render_instruction_list_items(
-            new_current_recipe.instructions
-        )
-        return _build_sortable_list_with_oob_diff(
-            list_id="instructions-list",
-            rendered_list_items=new_instruction_item_components,
-            original_recipe=original_recipe,
-            current_recipe=new_current_recipe,
-        )
-
-    except ValidationError as e:
-        logger.error(
-            f"Validation error processing instruction addition: {e}", exc_info=True
-        )
-        current_instructions_before_error = parse_recipe_form_data(form_data).get(
-            "instructions", []
-        )
-        error_items = render_instruction_list_items(current_instructions_before_error)
-        return Div(
-            P("Error updating list after add.", cls=CSS_ERROR_CLASS),
-            *error_items,
-            id="instructions-list",
-            cls="mb-4",
-        )
-    except Exception as e:
-        logger.error(f"Error adding instruction: {e}", exc_info=True)
-        return Div(
-            "Error processing add request.", cls=CSS_ERROR_CLASS, id="instructions-list"
-        )
+    return await _add_list_item(request, "instructions")
 
 
 @rt("/recipes/ui/update-diff")
