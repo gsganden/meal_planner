@@ -24,118 +24,80 @@ from meal_planner.ui.edit_recipe import (
 logger = logging.getLogger(__name__)
 
 
-@rt("/recipes/ui/delete-ingredient/{index:int}")
-async def post_delete_ingredient_row(request: Request, index: int):
+async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
+    """Helper function to delete an item from a list (ingredients or instructions)."""
     form_data = await request.form()
+    list_id = f"{item_type}-list"
+    render_func = (
+        render_ingredient_list_items
+        if item_type == "ingredients"
+        else render_instruction_list_items
+    )
+
     try:
         parsed_data = parse_recipe_form_data(form_data)
-        current_ingredients = parsed_data.get("ingredients", [])
+        current_items = parsed_data.get(item_type, [])
 
-        if 0 <= index < len(current_ingredients):
-            del current_ingredients[index]
+        if 0 <= index < len(current_items):
+            del current_items[index]
         else:
-            logger.warning(f"Attempted to delete ingredient at invalid index {index}")
+            logger.warning(
+                f"Attempted to delete {item_type[:-1]} at invalid index {index}"
+            )
 
-        parsed_data["ingredients"] = current_ingredients
+        parsed_data[item_type] = current_items
         new_current_recipe = RecipeBase(**parsed_data)
 
         original_data = parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
-        new_ingredient_item_components = render_ingredient_list_items(
-            new_current_recipe.ingredients
-        )
+        new_item_components = render_func(getattr(new_current_recipe, item_type))
         return _build_sortable_list_with_oob_diff(
-            list_id="ingredients-list",
-            rendered_list_items=new_ingredient_item_components,
+            list_id=list_id,
+            rendered_list_items=new_item_components,
             original_recipe=original_recipe,
             current_recipe=new_current_recipe,
         )
 
     except ValidationError as e:
         logger.error(
-            f"Validation error processing ingredient deletion at index {index}: {e}",
+            f"Validation error processing {item_type[:-1]} deletion at index {index}: {e}",
             exc_info=True,
         )
         data_for_error_render = parse_recipe_form_data(form_data)
-        ingredients_for_error_render = data_for_error_render.get("ingredients", [])
+        items_for_error_render = data_for_error_render.get(item_type, [])
 
-        error_items_list = render_ingredient_list_items(ingredients_for_error_render)
-        ingredients_list_component = Div(
+        error_items_list = render_func(items_for_error_render)
+        items_list_component = Div(
             P(
                 "Error updating list after delete. Validation failed.",
                 cls=CSS_ERROR_CLASS,
             ),
             *error_items_list,
-            id="ingredients-list",
+            id=list_id,
             cls="mb-4",
         )
-        return ingredients_list_component
+        return items_list_component
 
     except Exception as e:
-        logger.error(f"Error deleting ingredient at index {index}: {e}", exc_info=True)
+        logger.error(
+            f"Error deleting {item_type[:-1]} at index {index}: {e}", exc_info=True
+        )
         return Div(
             "Error processing delete request.",
             cls=CSS_ERROR_CLASS,
-            id="ingredients-list",
+            id=list_id,
         )
+
+
+@rt("/recipes/ui/delete-ingredient/{index:int}")
+async def post_delete_ingredient_row(request: Request, index: int):
+    return await _delete_list_item(request, index, "ingredients")
 
 
 @rt("/recipes/ui/delete-instruction/{index:int}")
 async def post_delete_instruction_row(request: Request, index: int):
-    form_data = await request.form()
-    try:
-        parsed_data = parse_recipe_form_data(form_data)
-        current_instructions = parsed_data.get("instructions", [])
-
-        if 0 <= index < len(current_instructions):
-            del current_instructions[index]
-        else:
-            logger.warning(f"Attempted to delete instruction at invalid index {index}")
-
-        parsed_data["instructions"] = current_instructions
-        new_current_recipe = RecipeBase(**parsed_data)
-
-        original_data = parse_recipe_form_data(form_data, prefix="original_")
-        original_recipe = RecipeBase(**original_data)
-
-        new_instruction_item_components = render_instruction_list_items(
-            new_current_recipe.instructions
-        )
-        return _build_sortable_list_with_oob_diff(
-            list_id="instructions-list",
-            rendered_list_items=new_instruction_item_components,
-            original_recipe=original_recipe,
-            current_recipe=new_current_recipe,
-        )
-
-    except ValidationError as e:
-        logger.error(
-            f"Validation error processing instruction deletion at index {index}: {e}",
-            exc_info=True,
-        )
-        data_for_error_render = parse_recipe_form_data(form_data)
-        instructions_for_error_render = data_for_error_render.get("instructions", [])
-
-        error_items_list = render_instruction_list_items(instructions_for_error_render)
-        instructions_list_component = Div(
-            P(
-                "Error updating list after delete. Validation failed.",
-                cls=CSS_ERROR_CLASS,
-            ),
-            *error_items_list,
-            id="instructions-list",
-            cls="mb-4",
-        )
-        return instructions_list_component
-
-    except Exception as e:
-        logger.error(f"Error deleting instruction at index {index}: {e}", exc_info=True)
-        return Div(
-            "Error processing delete request.",
-            cls=CSS_ERROR_CLASS,
-            id="instructions-list",
-        )
+    return await _delete_list_item(request, index, "instructions")
 
 
 @rt("/recipes/ui/add-ingredient")
