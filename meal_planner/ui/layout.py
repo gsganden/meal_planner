@@ -1,4 +1,6 @@
-"""Layout components for the Meal Planner application, including sidebar and main content area."""
+"""Layout components for the Meal Planner application, including sidebar and main
+content area.
+"""
 
 from fasthtml.common import *
 from monsterui.all import *

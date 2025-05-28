@@ -12,7 +12,6 @@ from starlette.staticfiles import StaticFiles
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
 
-
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 logging.basicConfig(
