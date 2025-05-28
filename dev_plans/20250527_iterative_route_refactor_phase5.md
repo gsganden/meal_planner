@@ -216,7 +216,7 @@ This completes the full development loop for the home page route. The next route
     - [x] Suggested a one-line commit message.
     - [x] User confirmed functionality and will commit.
 
-## Dev Loop 6: Refactoring the Recipe Modification Route (`post_modify_recipe` at `/recipes/modify`)
+## Dev Loop 6: Refactoring Recipe Modification Route (`post_modify_recipe` at `/recipes/modify`)
 
 - [x] **1. Code Migration for the `/recipes/modify` Route:**
     - [x] **In `meal_planner/routers/actions.py`:**
@@ -435,6 +435,71 @@ This completes the full development loop for the home page route. The next route
     - [x] Run `uv run ruff format .`
     - [x] Run `uv run ruff check --fix .`
     - [x] Run `./run_fast_coverage.sh` to ensure no regressions.
-- [x] **6. User Confirmation:**
-    - [x] Suggest a one-line commit message.
+- [x] **6. Final review of `meal_planner/routers/actions.py` for overall consistency and adherence to project guidelines.**
+- [x] **7. Code Quality Checks & User Confirmation for Dev Loop 10.**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Run `./run_fast_coverage.sh` and ensure 100% coverage and all tests pass.
+    - [x] Suggest a commit message for all changes in Dev Loop 10.
+    - [x] Ask the user to confirm functionality and commit.
+
+## Dev Loop 11: Refactor Delete Recipe Action Route (`post_delete_recipe` at `/recipes/delete`)
+
+- [x] **1. Code Migration for the `/recipes/delete` Route:**
+    - [x] **In `meal_planner/routers/actions.py`:**
+        - [x] Add necessary new imports (e.g., `Response` from `fastapi` or `starlette.responses`, `httpx` if not already there).
+        - [x] Copy the `post_delete_recipe()` function from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
+    - [x] **In `meal_planner/main.py`:**
+        - [x] Delete the `post_delete_recipe()` function definition.
+        - [x] Review if any imports can now be removed from `main.py` if `post_delete_recipe` was the last user.
+
+- [x] **2. Update and Verify Existing Tests (likely in `tests/test_main/test_route_endpoints.py`):**
+    - [x] Identify the test class/functions for the `/recipes/delete` endpoint (e.g., `TestDeleteRecipeEndpoint`).
+    - [x] Run the test suite.
+    - [x] Verify the identified test(s) pass (the target URL `/recipes/delete` remains the same).
+    - [x] Examine and update patch targets within these tests. For example, `meal_planner.main.internal_api_client` will likely need to be patched at `meal_planner.routers.actions.internal_api_client` if `internal_api_client` is imported into `actions.py`.
+    - [x] Confirm test coverage for the `/recipes/delete` route functionality (now in `meal_planner.routers.actions`) is maintained.
+
+- [x] **3. Move Tests to `tests/routers/test_actions.py`:**
+    - [x] **In `tests/routers/test_actions.py`:**
+        - [x] Add necessary new imports for the moved tests.
+        - [x] Move the specific test class/functions for the `/recipes/delete` endpoint (e.g., `TestDeleteRecipeEndpoint`) to this file.
+    - [x] **In the source test file (e.g., `tests/test_main/test_route_endpoints.py`):**
+        - [x] Delete the test class/functions that were moved.
+
+- [x] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [x] Run the test suite again (`./run_fast_coverage.sh`).
+    - [x] Verify all tests pass.
+    - [x] Verify test coverage is maintained.
+
+- [x] **5. Code Quality Checks & User Confirmation for Dev Loop 11:**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Suggest a one-line commit message for this refactor.
+    - [x] Ask the user to confirm functionality and commit.
+
+## Dev Loop 12: Code Polish for `post_delete_recipe` in `actions.py`
+
+- [x] **1. Review `post_delete_recipe` function (now in `meal_planner/routers/actions.py`):**
+    - [x] Review existing docstring (or add/improve one if missing/insufficient).
+    - [x] Review logging calls for clarity, appropriate level, and inclusion of contextual information.
+    - [x] Review error handling:
+        - [x] Ensure specific exceptions from `httpx` (like `HTTPStatusError`) are caught.
+        - [x] Ensure a general `Exception` catch-all is present for unexpected errors.
+        - [x] Ensure appropriate HTTP responses (e.g., 404, 500) are returned to the client based on the error.
+        - [x] Ensure `HX-Trigger` is correctly sent on success.
+- [x] **2. Code Quality Checks & User Confirmation for Dev Loop 12.**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Run `./run_fast_coverage.sh` and ensure 100% coverage and all tests pass.
+    - [x] Suggest a commit message for the polishing changes.
+    - [x] Ask the user to confirm functionality and commit.
+
+This concludes the planned iterative refactoring for Phase 5. Additional loops can be added if further fine-grained tasks are identified.
+
+- [x] **2. Code Quality Checks & User Confirmation for Dev Loop 12.**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Run `./run_fast_coverage.sh` and ensure 100% coverage and all tests pass.
+    - [x] Suggest a commit message for the polishing changes.
     - [x] Ask the user to confirm functionality and commit.

@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, Response
+from fastapi import FastAPI
 from fasthtml.common import *
 from httpx import ASGITransport
 from monsterui.all import *
@@ -47,29 +47,3 @@ from meal_planner.routers import (  # noqa: E402
     pages,  # noqa: F401
     ui_fragments,  # noqa: F401
 )
-
-
-@rt("/recipes/delete")
-async def post_delete_recipe(id: int):
-    """Delete a recipe via POST request."""
-    try:
-        response = await internal_api_client.delete(f"/v0/recipes/{id}")
-        response.raise_for_status()
-        logger.info("Successfully deleted recipe ID %s", id)
-        return Response(headers={"HX-Trigger": "recipeListChanged"})
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            logger.warning("Recipe ID %s not found for deletion", id)
-            return Response(status_code=404)
-        else:
-            logger.error(
-                "API error deleting recipe ID %s: Status %s, Response: %s",
-                id,
-                e.response.status_code,
-                e.response.text,
-                exc_info=True,
-            )
-            return Response(status_code=500)
-    except Exception as e:
-        logger.error("Error deleting recipe ID %s: %s", id, e, exc_info=True)
-        return Response(status_code=500)

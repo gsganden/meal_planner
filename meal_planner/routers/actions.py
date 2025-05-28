@@ -3,14 +3,17 @@
 import logging
 
 import httpx  # Added based on post_save_recipe
-from fastapi import Request
+from fastapi import Request, Response
 from fasthtml.common import *  # type: ignore
 from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
 
 from meal_planner.form_processing import _parse_recipe_form_data
-from meal_planner.main import internal_client, rt  # Assuming internal_client is needed
+from meal_planner.main import (
+    internal_api_client,
+    rt,
+)  # Changed internal_client to internal_api_client
 from meal_planner.models import RecipeBase
 from meal_planner.services.call_llm import (
     generate_modified_recipe,
@@ -66,8 +69,8 @@ async def post_save_recipe(request: Request):
         )
     else:
         try:
-            response = await internal_client.post(
-                "/api/v0/recipes", json=recipe_obj.model_dump()
+            response = await internal_api_client.post(
+                "/v0/recipes", json=recipe_obj.model_dump()
             )
             response.raise_for_status()
             logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
@@ -356,3 +359,44 @@ async def post_extract_recipe_run(
         result = Group(rendered_recipe_html, edit_oob_div, review_oob_div)
 
     return result
+
+
+@rt("/recipes/delete")
+async def post_delete_recipe(id: int):
+    """
+    Handles recipe deletion requests, typically initiated from the UI.
+
+    This endpoint attempts to delete a recipe by its ID using an internal API call.
+    On successful deletion, it returns an empty response with an HX-Trigger header
+    to signal a change in the recipe list for UI updates.
+
+    Args:
+        id: The integer ID of the recipe to be deleted.
+
+    Returns:
+        A FastAPI `Response` object.
+        - On success: HTTP 200 with `HX-Trigger: recipeListChanged` header.
+        - On failure (recipe not found): HTTP 404.
+        - On other API or unexpected errors: HTTP 500.
+    """
+    try:
+        response = await internal_api_client.delete(f"/v0/recipes/{id}")
+        response.raise_for_status()
+        logger.info("Successfully deleted recipe ID %s", id)
+        return Response(headers={"HX-Trigger": "recipeListChanged"})
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            logger.warning("Recipe ID %s not found for deletion", id)
+            return Response(status_code=404)
+        else:
+            logger.error(
+                "API error deleting recipe ID %s: Status %s, Response: %s",
+                id,
+                e.response.status_code,
+                e.response.text,
+                exc_info=True,
+            )
+            return Response(status_code=500)
+    except Exception as e:
+        logger.error("Error deleting recipe ID %s: %s", id, e, exc_info=True)
+        return Response(status_code=500)
