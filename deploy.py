@@ -31,10 +31,11 @@ def create_base_image() -> modal.Image:
     )
 
 
-def create_google_api_key_secret() -> modal.Secret | None:
-    if "GOOGLE_API_KEY" in os.environ:
-        return modal.Secret.from_dict({"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"]})
-    return None
+def create_google_api_key_secret() -> modal.Secret:
+    google_api_key = os.environ.get("GOOGLE_API_KEY")
+    if not google_api_key:
+        raise ValueError("GOOGLE_API_KEY environment variable not found.")
+    return modal.Secret.from_dict({"GOOGLE_API_KEY": google_api_key})
 
 
 base_image = create_base_image()
@@ -66,8 +67,5 @@ def migrate_db():
 def web():
     """Deploy the web application."""
     from meal_planner.main import app as fasthtml_app
-
-    if not os.environ.get("GOOGLE_API_KEY"):
-        raise ValueError("GOOGLE_API_KEY is not set")
 
     return fasthtml_app
