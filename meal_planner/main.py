@@ -33,7 +33,6 @@ from meal_planner.ui.edit_recipe import (
     render_ingredient_list_items,
     render_instruction_list_items,
 )
-from meal_planner.ui.extract_recipe import create_extraction_form
 from meal_planner.ui.layout import is_htmx, with_layout
 from meal_planner.ui.list_recipes import format_recipe_list
 
@@ -68,19 +67,6 @@ internal_api_client = httpx.AsyncClient(
 
 
 from meal_planner.routers import pages  # noqa: F401, E402
-
-
-@rt("/recipes/extract")
-def get_recipe_extraction_page():
-    return with_layout(
-        "Create Recipe",
-        Div(
-            Div(create_extraction_form()),
-            Div(id="edit-form-target"),
-            Div(id="review-section-target"),
-            cls="space-y-4",
-        ),
-    )
 
 
 @rt("/recipes")
