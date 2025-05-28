@@ -1,10 +1,8 @@
 ---
-description: 
+description: How to create new UI components or design with MonsterUI leverage the following resources.
 globs: 
 alwaysApply: false
 ---
-When you want to create new UI components or design with MonsterUI leverage the following resources.
-
 When creating UI elements create idiomatic MonsterUI as shown in any of the examples provided that minimizes code duplication and vertical space.
 
 Common cases:

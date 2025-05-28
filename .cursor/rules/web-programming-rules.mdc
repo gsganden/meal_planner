@@ -3,14 +3,6 @@ description:
 globs: 
 alwaysApply: true
 ---
-# Key documentation files:
-
-These are relevant documents that should be referenced while building a FastHTML App.
-
-- [htmx.md](mdc:project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/MonsterUI/ref_docs/htmx.md): Minimal HTMX integration exaples to show how HTMX can be used with fasthtml
-- [db.md](mdc:project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/ref_docs/db.md): MiniDataAPI Spec for database operations
-- [monsterui-llms-ctx.txt](mdc:project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/project-templates/MonsterUI/ref_docs/monsterui-llms-ctx.txt): MonsterUI full API list and idiomatic examples for UI components
-
 # FastHTML examples
 
 Reference these examples when constructing new FastHTML applications.
@@ -116,44 +108,6 @@ def SemanticText():
         footer=Small("Released February 2025"),)
 ```
 
-## Creating Tables
-
-```python
-class Book: isbn: str; title: str; pages: int; userid: int
-# The transform arg instructs fastlite to change the db schema when fields change.
-# Create only creates a table if the table doesn't exist.
-books = db.create(Book, pk='isbn', transform=True)
-                
-class User: id: int; name: str; active: bool = True
-# If no pk is provided, id is used as the primary key.
-users = db.create(User, transform=True)
-```
-
-## Crud operations
-
-```python
-# creating records
-user = users.insert(name='Alex',active=False)
-# List all records
-users()
-# Limit, offset, and order results:
-users(order_by='name', limit=2, offset=1)
-# Filter on the results
-users(where="name='Alex'")
-# Placeholder for avoiding injection attacks
-users("name=?", where_args=('Alex',))
-# fetch by primary key
-users[user.id]
-# Record exists check based on primary key
-1 in users
-# Updates
-user.name='Lauren'
-user.active=True
-users.update(user)
-# Deleting records
-users.delete(user.id)
-```
-
 # Interactivity
 
 JS can be added via a `Script` tag.  Small scripts should be inline, where larger ones should use a seperate `.js` file.
@@ -248,11 +202,10 @@ serve()
  ```
 
 
- ```
  Real-Time Chat App
-Let’s put our new websocket knowledge to use by building a simple chat app. We will create a chat app where multiple users can send and receive messages in real time.
+Let's put our new websocket knowledge to use by building a simple chat app. We will create a chat app where multiple users can send and receive messages in real time.
 
-Let’s start by defining the app and the home page:
+Let's start by defining the app and the home page:
 
 from fasthtml.common import *
 
@@ -266,7 +219,7 @@ def home(): return Div(
     Form(Input(id='msg'), id='form', ws_send=True),
     hx_ext='ws', ws_connect='/ws')
 
-Now, let’s handle the websocket connection. We’ll add a new route for this along with an on_conn and on_disconn function to keep track of the users currently connected to the websocket. Finally, we will handle the logic for sending messages to all connected users.
+Now, let's handle the websocket connection. We'll add a new route for this along with an on_conn and on_disconn function to keep track of the users currently connected to the websocket. Finally, we will handle the logic for sending messages to all connected users.
 
 users = {}
 def on_conn(ws, send): users[str(id(ws))] = send
