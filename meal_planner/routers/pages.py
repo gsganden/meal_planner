@@ -7,7 +7,7 @@ from fastapi import Request
 from fasthtml.common import *
 from monsterui.all import *
 
-from meal_planner.main import internal_api_client, internal_client, rt
+from meal_planner.core import internal_api_client, internal_client, rt
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.edit_recipe import build_recipe_display
 from meal_planner.ui.extract_recipe import create_extraction_form

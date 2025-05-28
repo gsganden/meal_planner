@@ -9,11 +9,11 @@ from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
 
-from meal_planner.form_processing import _parse_recipe_form_data
-from meal_planner.main import (
+from meal_planner.core import (
     internal_api_client,
     rt,
 )  # Changed internal_client to internal_api_client
+from meal_planner.form_processing import parse_recipe_form_data
 from meal_planner.models import RecipeBase
 from meal_planner.services.call_llm import (
     generate_modified_recipe,
@@ -51,7 +51,7 @@ async def post_save_recipe(request: Request):
     """
     form_data: FormData = await request.form()
     try:
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         recipe_obj = RecipeBase(**parsed_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
@@ -179,8 +179,8 @@ async def post_modify_recipe(request: Request):
     """
     form_data: FormData = await request.form()
     modification_prompt = str(form_data.get("modification_prompt", ""))
-    current_recipe_data = _parse_recipe_form_data(form_data)
-    original_recipe_data = _parse_recipe_form_data(form_data, prefix="original_")
+    current_recipe_data = parse_recipe_form_data(form_data)
+    original_recipe_data = parse_recipe_form_data(form_data, prefix="original_")
 
     try:
         current_recipe = RecipeBase(**current_recipe_data)

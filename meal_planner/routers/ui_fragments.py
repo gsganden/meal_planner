@@ -8,8 +8,8 @@ from fasthtml.common import FT, Div, Group, P  # type: ignore
 from monsterui.all import TextArea
 from pydantic import ValidationError
 
-from meal_planner.form_processing import _parse_recipe_form_data
-from meal_planner.main import rt
+from meal_planner.core import rt
+from meal_planner.form_processing import parse_recipe_form_data
 from meal_planner.models import RecipeBase
 from meal_planner.services.extract_webpage_text import (
     fetch_and_clean_text_from_url,
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def post_delete_ingredient_row(request: Request, index: int):
     form_data = await request.form()
     try:
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         current_ingredients = parsed_data.get("ingredients", [])
 
         if 0 <= index < len(current_ingredients):
@@ -39,7 +39,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
         parsed_data["ingredients"] = current_ingredients
         new_current_recipe = RecipeBase(**parsed_data)
 
-        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        original_data = parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
         new_ingredient_item_components = render_ingredient_list_items(
@@ -57,7 +57,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
             f"Validation error processing ingredient deletion at index {index}: {e}",
             exc_info=True,
         )
-        data_for_error_render = _parse_recipe_form_data(form_data)
+        data_for_error_render = parse_recipe_form_data(form_data)
         ingredients_for_error_render = data_for_error_render.get("ingredients", [])
 
         error_items_list = render_ingredient_list_items(ingredients_for_error_render)
@@ -85,7 +85,7 @@ async def post_delete_ingredient_row(request: Request, index: int):
 async def post_delete_instruction_row(request: Request, index: int):
     form_data = await request.form()
     try:
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         current_instructions = parsed_data.get("instructions", [])
 
         if 0 <= index < len(current_instructions):
@@ -96,7 +96,7 @@ async def post_delete_instruction_row(request: Request, index: int):
         parsed_data["instructions"] = current_instructions
         new_current_recipe = RecipeBase(**parsed_data)
 
-        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        original_data = parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
         new_instruction_item_components = render_instruction_list_items(
@@ -114,7 +114,7 @@ async def post_delete_instruction_row(request: Request, index: int):
             f"Validation error processing instruction deletion at index {index}: {e}",
             exc_info=True,
         )
-        data_for_error_render = _parse_recipe_form_data(form_data)
+        data_for_error_render = parse_recipe_form_data(form_data)
         instructions_for_error_render = data_for_error_render.get("instructions", [])
 
         error_items_list = render_instruction_list_items(instructions_for_error_render)
@@ -142,14 +142,14 @@ async def post_delete_instruction_row(request: Request, index: int):
 async def post_add_ingredient_row(request: Request):
     form_data = await request.form()
     try:
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         current_ingredients = parsed_data.get("ingredients", [])
         current_ingredients.append("")
 
         parsed_data["ingredients"] = current_ingredients
         new_current_recipe = RecipeBase(**parsed_data)
 
-        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        original_data = parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
         new_ingredient_item_components = render_ingredient_list_items(
@@ -166,7 +166,7 @@ async def post_add_ingredient_row(request: Request):
         logger.error(
             f"Validation error processing ingredient addition: {e}", exc_info=True
         )
-        current_ingredients_before_error = _parse_recipe_form_data(form_data).get(
+        current_ingredients_before_error = parse_recipe_form_data(form_data).get(
             "ingredients", []
         )
         error_items = render_ingredient_list_items(current_ingredients_before_error)
@@ -187,14 +187,14 @@ async def post_add_ingredient_row(request: Request):
 async def post_add_instruction_row(request: Request):
     form_data = await request.form()
     try:
-        parsed_data = _parse_recipe_form_data(form_data)
+        parsed_data = parse_recipe_form_data(form_data)
         current_instructions = parsed_data.get("instructions", [])
         current_instructions.append("")
 
         parsed_data["instructions"] = current_instructions
         new_current_recipe = RecipeBase(**parsed_data)
 
-        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        original_data = parse_recipe_form_data(form_data, prefix="original_")
         original_recipe = RecipeBase(**original_data)
 
         new_instruction_item_components = render_instruction_list_items(
@@ -211,7 +211,7 @@ async def post_add_instruction_row(request: Request):
         logger.error(
             f"Validation error processing instruction addition: {e}", exc_info=True
         )
-        current_instructions_before_error = _parse_recipe_form_data(form_data).get(
+        current_instructions_before_error = parse_recipe_form_data(form_data).get(
             "instructions", []
         )
         error_items = render_instruction_list_items(current_instructions_before_error)
@@ -233,8 +233,8 @@ async def update_diff(request: Request) -> FT:
     """Updates the diff view based on current form data."""
     form_data = await request.form()
     try:
-        current_data = _parse_recipe_form_data(form_data)
-        original_data = _parse_recipe_form_data(form_data, prefix="original_")
+        current_data = parse_recipe_form_data(form_data)
+        original_data = parse_recipe_form_data(form_data, prefix="original_")
         current_recipe = RecipeBase(**current_data)
         original_recipe = RecipeBase(**original_data)
 
