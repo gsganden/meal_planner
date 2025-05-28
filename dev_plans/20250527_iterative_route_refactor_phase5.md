@@ -218,9 +218,9 @@ This completes the full development loop for the home page route. The next route
 
 ## Dev Loop 6: Refactoring the Recipe Modification Route (`post_modify_recipe` at `/recipes/modify`)
 
-- [ ] **1. Code Migration for the `/recipes/modify` Route:**
-    - [ ] **In `meal_planner/routers/actions.py`:**
-        - [ ] Add necessary new imports:
+- [x] **1. Code Migration for the `/recipes/modify` Route:**
+    - [x] **In `meal_planner/routers/actions.py`:**
+        - [x] Add necessary new imports:
             ```python
             # from meal_planner.models import RecipeBase (already there)
             from meal_planner.services.call_llm import generate_modified_recipe
@@ -229,39 +229,39 @@ This completes the full development loop for the home page route. The next route
             # Already has: Request, FormData, rt, logger, CSS_ERROR_CLASS
             # Already imports _parse_recipe_form_data via form_processing
             ```
-        - [ ] Copy the `post_modify_recipe()` function from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
-    - [ ] **In `meal_planner/main.py`:**
-        - [ ] Delete the `post_modify_recipe()` function definition.
-        - [ ] Review if imports like `generate_modified_recipe`, `postprocess_recipe`, `build_modify_form_response` can now be removed from `main.py` if no other functions in `main.py` use them.
+        - [x] Copy the `post_modify_recipe()` function from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
+    - [x] **In `meal_planner/main.py`:**
+        - [x] Delete the `post_modify_recipe()` function definition.
+        - [x] Review if imports like `generate_modified_recipe`, `postprocess_recipe`, `build_modify_form_response` can now be removed from `main.py` if no other functions in `main.py` use them.
 
-- [ ] **2. Update and Verify Existing Tests (likely in `tests/test_main/test_modify_recipe_endpoint.py`):**
-    - [ ] Identify the test class/functions for the `/recipes/modify` endpoint (e.g., `TestModifyRecipeEndpoint` in `tests/test_main/test_modify_recipe_endpoint.py`).
-    - [ ] Run the test suite (e.g., `./run_fast_coverage.sh`).
-    - [ ] Verify the identified test(s) pass. The target URL `/recipes/modify` remains the same.
-    - [ ] Examine and update patch targets within these tests. For example:
+- [x] **2. Update and Verify Existing Tests (likely in `tests/test_main/test_modify_recipe_endpoint.py`):**
+    - [x] Identify the test class/functions for the `/recipes/modify` endpoint (e.g., `TestModifyRecipeEndpoint` in `tests/test_main/test_modify_recipe_endpoint.py`).
+    - [x] Run the test suite (e.g., `./run_fast_coverage.sh`).
+    - [x] Verify the identified test(s) pass. The target URL `/recipes/modify` remains the same.
+    - [x] Examine and update patch targets within these tests. For example:
         - `meal_planner.main.generate_modified_recipe` -> `meal_planner.routers.actions.generate_modified_recipe` (if imported directly into actions) or `meal_planner.services.call_llm.generate_modified_recipe` (if patching at source). Prefer patching where it's looked up in the module under test.
         - `meal_planner.main._parse_recipe_form_data` (if used by `post_modify_recipe` directly, which it is) -> `meal_planner.routers.actions._parse_recipe_form_data` (as it's imported from `form_processing` into `actions.py`).
         - `meal_planner.main.build_modify_form_response` -> `meal_planner.routers.actions.build_modify_form_response` or source.
-    - [ ] Confirm test coverage for the `/recipes/modify` route functionality (now in `meal_planner.routers.actions`) is maintained after patch target adjustments.
+    - [x] Confirm test coverage for the `/recipes/modify` route functionality (now in `meal_planner.routers.actions`) is maintained after patch target adjustments.
 
-- [ ] **3. Move Tests to `tests/routers/test_actions.py`:**
-    - [ ] **In `tests/routers/test_actions.py`:**
-        - [ ] Add necessary new imports for the moved tests.
-        - [ ] Move the specific test class/functions for the `/recipes/modify` endpoint (e.g., `TestModifyRecipeEndpoint`) to this file.
-    - [ ] **In the source test file (e.g., `tests/test_main/test_modify_recipe_endpoint.py`):**
-        - [ ] Delete the test class/functions that were moved. (If `test_modify_recipe_endpoint.py` becomes empty, consider deleting it or its import if it's a separate file).
+- [x] **3. Move Tests to `tests/routers/test_actions.py`:**
+    - [x] **In `tests/routers/test_actions.py`:**
+        - [x] Add necessary new imports for the moved tests.
+        - [x] Move the specific test class/functions for the `/recipes/modify` endpoint (e.g., `TestModifyRecipeEndpoint`) to this file.
+    - [x] **In the source test file (e.g., `tests/test_main/test_modify_recipe_endpoint.py`):**
+        - [x] Delete the test class/functions that were moved. (If `test_modify_recipe_endpoint.py` becomes empty, consider deleting it or its import if it's a separate file).
 
-- [ ] **4. Confirm Tests and Coverage Post-Test-Move:**
-    - [ ] Run the test suite again (`./run_fast_coverage.sh`).
-    - [ ] Verify all tests pass.
-    - [ ] Verify test coverage is maintained.
+- [x] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [x] Run the test suite again (`./run_fast_coverage.sh`).
+    - [x] Verify all tests pass.
+    - [x] Verify test coverage is maintained.
 
-- [ ] **5. Code Quality Checks & User Confirmation:**
-    - [ ] Run `uv run ruff format .`
-    - [ ] Run `uv run ruff check --fix .`
-    - [ ] Run `./scripts/check_refactor_diff.sh` and review its output to confirm minimal net change in application code.
-    - [ ] Suggest a one-line commit message.
-    - [ ] Ask the user to confirm functionality and commit.
+- [x] **5. Code Quality Checks & User Confirmation:**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Run `./scripts/check_refactor_diff.sh` and review its output to confirm minimal net change in application code.
+    - [x] Suggest a one-line commit message.
+    - [x] Ask the user to confirm functionality and commit.
 
 ## Dev Loop 7: Refactoring Recipe Editor UI Fragment Routes
 
@@ -364,3 +364,44 @@ This completes the full development loop for the home page route. The next route
     - [x] Manually check `git diff --stat HEAD` to confirm minimal net change in application code.
     - [x] Suggested a one-line commit message.
     - [x] User confirmed functionality and will commit.
+
+## Dev Loop 9: Refactoring the Recipe Extraction Action Route (`post` at `/recipes/extract/run`)
+
+- [ ] **1. Code Migration for the `/recipes/extract/run` Route and Helper:**
+    - [ ] **In `meal_planner/routers/actions.py`:**
+        - [ ] Add necessary new imports (e.g., `RecipeBase` from `meal_planner.models`, `generate_recipe_from_text` from `meal_planner.services.call_llm`, `postprocess_recipe` from `meal_planner.services.process_recipe`, `build_edit_review_form`, `build_recipe_display` from `meal_planner.ui.edit_recipe`, `H2`, `Group` if not already covered).
+        - [ ] Copy the `extract_recipe_from_text()` helper function from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
+        - [ ] Copy the `post()` function (the one decorated with `@rt("/recipes/extract/run")`) from `meal_planner/main.py` to `meal_planner/routers/actions.py`.
+    - [ ] **In `meal_planner/main.py`:**
+        - [ ] Delete the `extract_recipe_from_text()` function definition.
+        - [ ] Delete the `post()` function definition (for `/recipes/extract/run`).
+        - [ ] Review if imports exclusively used by these moved functions can be removed from `main.py` (e.g., `generate_recipe_from_text`, `postprocess_recipe`, `build_edit_review_form`, `build_recipe_display`).
+
+- [ ] **2. Update and Verify Existing Tests:**
+    - [ ] Identify the test(s) for the `/recipes/extract/run` endpoint. These are likely in `tests/test_main/test_extract_recipe_endpoints.py` (e.g., `TestExtractRecipeEndpoint` class).
+    - [ ] Run the test suite (e.g., `./run_fast_coverage.sh`).
+    - [ ] Verify the identified test(s) pass. The target URL `/recipes/extract/run` remains the same.
+    - [ ] Examine and update patch targets within these tests. For example:
+        - `meal_planner.main.generate_recipe_from_text` -> `meal_planner.routers.actions.generate_recipe_from_text`
+        - `meal_planner.main.postprocess_recipe` -> `meal_planner.routers.actions.postprocess_recipe` (or to their original service locations if that's preferred, but patching where it's looked up in `actions.py` is consistent).
+        - `meal_planner.main.logger.error` (if used in the context of these moved functions' tests) -> `meal_planner.routers.actions.logger.error`.
+
+- [ ] **3. Move Tests to `tests/routers/test_actions.py`:**
+    - [ ] **In `tests/routers/test_actions.py`:**
+        - [ ] Add necessary new imports for the moved tests (e.g., `RecipeBase`, any specific constants like `FIELD_RECIPE_TEXT`, `RECIPES_EXTRACT_RUN_URL`, `CSS_ERROR_CLASS`).
+        - [ ] Move the specific test class/functions (e.g., `TestExtractRecipeEndpoint` and any related fixtures like `mock_recipe_data_fixture`) to this file.
+    - [ ] **In the source test file (e.g., `tests/test_main/test_extract_recipe_endpoints.py`):**
+        - [ ] Delete the test class/functions and fixtures that were moved. If the file becomes empty or only contains unused imports, consider deleting it.
+
+- [ ] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [ ] Run the test suite again (`./run_fast_coverage.sh`).
+    - [ ] Verify all tests pass.
+    - [ ] Verify test coverage is maintained for the moved route and helper.
+
+- [ ] **5. Code Quality Checks & User Confirmation:**
+    - [ ] Run `uv run ruff format .`
+    - [ ] Run `uv run ruff check --fix .`
+    - [ ] Ensure no non-docstring comments were added.
+    - [ ] Manually check `git diff --stat HEAD` to confirm minimal net change in application code.
+    - [ ] Suggest a one-line commit message.
+    - [ ] Ask the user to confirm functionality and commit.
