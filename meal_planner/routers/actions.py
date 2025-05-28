@@ -27,6 +27,23 @@ logger = logging.getLogger(__name__)
 
 @rt("/recipes/save")
 async def post_save_recipe(request: Request):
+    """
+    Handles saving a new recipe submitted from the recipe editing UI.
+
+    Parses recipe data from the form, validates it, and attempts to save it
+    by making a POST request to the internal `/api/v0/recipes` endpoint.
+
+    Args:
+        request: The FastAPI request object, containing the form data for
+                 'name', 'ingredients', and 'instructions'.
+
+    Returns:
+        An `FtResponse` containing a `Span` with a success message and an
+        `HX-Trigger: recipeListChanged` header on successful save.
+        Otherwise, returns a `Span` with an appropriate error message.
+        All responses are targeted to the `save-button-container` an an
+        `innerHTML` swap.
+    """
     form_data: FormData = await request.form()
     try:
         parsed_data = _parse_recipe_form_data(form_data)
@@ -272,8 +289,28 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
 async def post_extract_recipe_run(
     recipe_text: str | None = None,
 ):  # Renamed from 'post' to avoid conflict
+    """
+    Handles the extraction of a recipe from raw text input.
+
+    This route is typically called via HTMX from the recipe extraction page.
+    It takes raw text, attempts to extract a structured recipe from it using
+    an LLM service (via the `extract_recipe_from_text` helper), and then
+    returns HTML components to display the extracted recipe and populate
+    an edit/review form.
+
+    Args:
+        recipe_text: The raw text string from which to extract a recipe.
+                     Passed as a query parameter by FastHTML from form data.
+
+    Returns:
+        A `Group` of `Div` components containing the rendered extracted recipe
+        for reference, and OOB-swapped `Div`s for the recipe edit form and
+        review section.
+        Returns a single `Div` with an error message if no text is provided
+        or if extraction fails.
+    """
     if not recipe_text:
-        logging.error("Recipe extraction called without text.")
+        logger.error("Recipe extraction called without text.")
         return Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
 
     try:

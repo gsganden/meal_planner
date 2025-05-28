@@ -405,3 +405,36 @@ This completes the full development loop for the home page route. The next route
     - [x] Manually check `git diff --stat HEAD` to confirm minimal net change in application code.
     - [x] Suggest a one-line commit message.
     - [x] Ask the user to confirm functionality and commit.
+
+## Dev Loop 10: Code Polish for `meal_planner/routers/actions.py`
+
+- [x] **1. Review `post_save_recipe` function:**
+    - [x] Check docstring for clarity, accuracy, and completeness (args, return, side effects).
+    - [x] Review logging messages: ensure appropriate levels, context, and no sensitive data.
+    - [x] Review error handling:
+        - [x] Can `except Exception as e:` for parsing be more specific?
+        - [x] Are user-facing error messages in `Span` clear and non-technical?
+        - [x] Are API error handling (`httpx.HTTPStatusError`, `httpx.RequestError`, generic `Exception`) specific enough?
+- [x] **2. Review `post_modify_recipe` function:**
+    - [x] Docstring is good (as noted previously). Verify it fully matches current implementation.
+    - [x] Review logging messages throughout the function.
+    - [x] Review error handling:
+        - [x] Specifically examine `except ValidationError as ve:`, `except FileNotFoundError as fnf_e:`, `except RuntimeError as llm_e:`, and the final `except Exception as e:`.
+        - [x] Ensure error messages in `build_modify_form_response` are user-friendly.
+- [x] **3. Review `extract_recipe_from_text` helper function:**
+    - [x] Check docstring for clarity.
+    - [x] Review logging messages.
+    - [x] Review `except Exception as e:` - can it be more specific if certain errors from `generate_recipe_from_text` are common/expected? (Might be okay as is, since it re-raises).
+- [x] **4. Review `post_extract_recipe_run` function:**
+    - [x] Check docstring.
+    - [x] Review logging.
+    - [x] Review error handling for the `if not recipe_text:` case and the `try...except Exception as e:` block around the extraction logic.
+- [x] **5. General Review & Code Quality Checks:**
+    - [x] Scan the entire `meal_planner/routers/actions.py` file for any complex logic that could be clarified with better variable names.
+    - [x] Ensure no non-docstring comments were added during refactoring that should be removed.
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Run `./run_fast_coverage.sh` to ensure no regressions.
+- [x] **6. User Confirmation:**
+    - [x] Suggest a one-line commit message.
+    - [x] Ask the user to confirm functionality and commit.
