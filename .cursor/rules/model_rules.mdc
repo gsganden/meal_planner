@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- Use Pydantic v2 models for input validation and response schemas.
+- Implement sqlite3 and properly escaped SQL for CRUD operations
