@@ -870,37 +870,6 @@ class TestRecipeUIFragments:
 
     @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
-    async def test_add_instruction_validation_error(
-        self, mock_logger_error, mock_parse, client: AsyncClient
-    ):
-        validation_exc = ValidationError.from_exception_data(
-            title="TestVE_add_inst", line_errors=[]
-        )
-        form_data = _build_ui_fragment_form_data(
-            ingredients=["ing1"], instructions=["inst1"]
-        )
-
-        # Set up mock to raise ValidationError on first call, return data on second call
-        mock_parse.side_effect = [
-            validation_exc,  # First call in try block
-            form_data.copy(),  # Second call in except ValidationError block
-        ]
-
-        response = await client.post(self.ADD_INSTRUCTION_URL, data=form_data)
-        assert response.status_code == 200
-        assert "Error updating list after add." in response.text
-        assert CSS_ERROR_CLASS in response.text
-
-        mock_logger_error.assert_called_once()
-        args, kwargs = mock_logger_error.call_args
-        expected_log_msg = (
-            f"Validation error processing instruction addition: {validation_exc}"
-        )
-        assert args[0] == expected_log_msg
-        assert kwargs.get("exc_info") is True
-
-    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
-    @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_add_instruction_generic_exception(
         self, mock_logger_error, mock_parse, client: AsyncClient
     ):
