@@ -66,7 +66,7 @@ This completes the full development loop for the home page route. The next route
         - [x] Copy the `get_recipe_extraction_page()` function from `meal_planner/main.py` to `meal_planner/routers/pages.py`.
     - [x] **In `meal_planner/main.py`:**
         - [x] Delete the `get_recipe_extraction_page()` function definition.
-        - [x] Review if imports like `create_extraction_form` from `meal_planner.ui.extract_recipe` or `Div` from `fasthtml.common` can be removed from `main.py` if no other routes in `main.py` use them. (Outcome: `create_extraction_form` removed, `Div` via `fasthtml.common.*` kept)
+        - [x] Review if imports like `create_extraction_form` from `meal_planner.ui.extract_recipe` or `Div` from `fasthtml.common.*` can be removed from `main.py` if no other routes in `main.py` use them. (Outcome: `create_extraction_form` removed, `Div` via `fasthtml.common.*` kept)
 
 - [x] **2. Update and Verify Existing Tests (likely in `tests/test_main/test_route_endpoints.py`):**
     - [x] Identify the test(s) for the `/recipes/extract` endpoint (e.g., `test_get_recipe_extraction_page()`). (Outcome: No specific, isolated unit test found in the primary test file for this GET page route)
@@ -85,6 +85,48 @@ This completes the full development loop for the home page route. The next route
     - [x] Run the test suite again (`./run_fast_coverage.sh`).
     - [x] Verify all tests pass.
     - [x] Verify test coverage is maintained, with the new functionality in `meal_planner/routers/pages.py` being tested by `tests/routers/test_pages.py`. (N/A for specific test move, overall coverage maintained)
+
+- [x] **5. Code Quality Checks & User Confirmation:**
+    - [x] Run `uv run ruff format .`
+    - [x] Run `uv run ruff check --fix .`
+    - [x] Ask the user to confirm functionality and commit.
+
+## Dev Loop 3: Refactoring the Recipe List Page Route (`get_recipe_list_page` at `/recipes`)
+
+- [x] **1. Code Migration for the `/recipes` Route:**
+    - [x] **In `meal_planner/routers/pages.py`:**
+        - [x] Add necessary new imports:
+            ```python
+            from fastapi import Request
+            import httpx
+            from monsterui.all import TextT
+            from meal_planner.main import internal_api_client
+            from meal_planner.ui.list_recipes import format_recipe_list
+            from meal_planner.ui.layout import is_htmx
+            ```
+        - [x] Copy the `get_recipe_list_page()` function from `meal_planner/main.py` to `meal_planner/routers/pages.py`.
+    - [x] **In `meal_planner/main.py`:**
+        - [x] Delete the `get_recipe_list_page()` function definition.
+        - [x] Review if imports like `Request` (fastapi), `httpx`, `TextT` (monsterui), `format_recipe_list`, `is_htmx` can be removed from `main.py` if no other functions in `main.py` use them. `internal_api_client` will still be defined in `main.py`. (Outcome: Removed `format_recipe_list` and `is_htmx`, kept others as they're still used)
+
+- [x] **2. Update and Verify Existing Tests (likely in `tests/test_main/test_route_endpoints.py`):**
+    - [x] Identify the test(s) for the `/recipes` GET endpoint (e.g., `TestGetRecipeListPage` class and its methods).
+    - [x] Run the test suite (e.g., `./run_fast_coverage.sh`).
+    - [x] Verify the identified test(s) pass.
+    - [x] Confirm test coverage for the `/recipes` GET route functionality (now in `meal_planner.routers.pages`) is maintained.
+
+- [x] **3. Move Tests to `tests/routers/test_pages.py`:**
+    - [x] **In `tests/routers/test_pages.py`:**
+        - [x] Add necessary imports for the moved tests (e.g., `Request`, `AsyncClient`, `patch`, mocks, `format_recipe_list` related helpers/constants if any).
+        - [x] Move the specific test class/functions for the `/recipes` GET endpoint (e.g., `TestGetRecipeListPage`) to this file.
+        - [x] Update patch targets from `meal_planner.main.internal_api_client` to `meal_planner.routers.pages.internal_api_client`.
+    - [x] **In the source test file (e.g., `tests/test_main/test_route_endpoints.py`):**
+        - [x] Delete the test class/functions that were moved.
+
+- [x] **4. Confirm Tests and Coverage Post-Test-Move:**
+    - [x] Run the test suite again (`./run_fast_coverage.sh`).
+    - [x] Verify all tests pass.
+    - [x] Verify test coverage is maintained, with the functionality in `meal_planner/routers/pages.py` being tested by `tests/routers/test_pages.py`.
 
 - [x] **5. Code Quality Checks & User Confirmation:**
     - [x] Run `uv run ruff format .`

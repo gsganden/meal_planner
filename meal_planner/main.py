@@ -33,8 +33,7 @@ from meal_planner.ui.edit_recipe import (
     render_ingredient_list_items,
     render_instruction_list_items,
 )
-from meal_planner.ui.layout import is_htmx, with_layout
-from meal_planner.ui.list_recipes import format_recipe_list
+from meal_planner.ui.layout import with_layout
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -67,51 +66,6 @@ internal_api_client = httpx.AsyncClient(
 
 
 from meal_planner.routers import pages  # noqa: F401, E402
-
-
-@rt("/recipes")
-async def get_recipe_list_page(request: Request):
-    """Get the recipes list page."""
-    try:
-        response = await internal_api_client.get("/v0/recipes")
-        response.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "API error fetching recipes: %s Response: %s",
-            e,
-            e.response.text,
-            exc_info=True,
-        )
-        title = "Error"
-        content = Div("Error fetching recipes from API.", cls=f"{TextT.error} mb-4")
-    except Exception as e:
-        logger.error("Error fetching recipes: %s", e, exc_info=True)
-        title = "Error"
-        content = Div(
-            "An unexpected error occurred while fetching recipes.",
-            cls=f"{TextT.error} mb-4",
-        )
-    else:
-        title = "All Recipes"
-        content = (
-            format_recipe_list(response.json())
-            if response.json()
-            else Div("No recipes found.")
-        )
-
-    content_with_attrs = Div(
-        content,
-        id="recipe-list-area",
-        hx_trigger="recipeListChanged from:body",
-        hx_get="/recipes",
-        hx_swap="outerHTML",
-    )
-
-    return (
-        with_layout(title, content_with_attrs)
-        if not is_htmx(request)
-        else content_with_attrs
-    )
 
 
 @rt("/recipes/{recipe_id:int}")
