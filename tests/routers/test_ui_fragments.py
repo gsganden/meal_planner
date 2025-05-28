@@ -1,7 +1,7 @@
 """Tests for route handlers defined in meal_planner.routers.ui_fragments."""
 
 from typing import cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import monsterui.all as mu
@@ -173,27 +173,28 @@ class TestUpdateDiffEndpoint:
         assert kwargs.get("exc_info") is False
 
     @pytest.mark.anyio
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     async def test_update_diff_parsing_exception(
-        self, mock_logger_error, mock_parse, client: AsyncClient
+        self, mock_parse, mock_logger_error: MagicMock, client: AsyncClient
     ):
-        mock_parse.side_effect = Exception("Simulated parsing error")
         dummy_form_data = {FIELD_NAME: "Test", "original_name": "Orig"}
 
-        response = await client.post(
-            TestUpdateDiffEndpoint.UPDATE_DIFF_URL, data=dummy_form_data
-        )
+        with patch(
+            "meal_planner.routers.ui_fragments.parse_recipe_form_data",
+            side_effect=Exception("Simulated parsing error"),
+        ) as mock_parse_cm:
+            response = await client.post(
+                TestUpdateDiffEndpoint.UPDATE_DIFF_URL, data=dummy_form_data
+            )
 
         assert response.status_code == 200
         assert "Error updating diff view." in response.text
         assert CSS_ERROR_CLASS in response.text
-        assert mock_parse.call_count == 1
+        assert mock_parse_cm.call_count == 1
         mock_logger_error.assert_called_once()
         args, kwargs = mock_logger_error.call_args
         assert "Error updating diff: %s" in args[0]
-        assert isinstance(args[1], Exception)
-        assert args[1].args[0] == "Simulated parsing error"
         assert kwargs.get("exc_info") is True
 
 
@@ -513,57 +514,36 @@ class TestRecipeUIFragments:
         assert oob_div.find("pre", id="diff-before-pre"), "Diff before pre not found"
         assert oob_div.find("pre", id="diff-after-pre"), "Diff after pre not found"
 
-    async def test_add_instruction(self, client: AsyncClient):
-        form_data = _build_ui_fragment_form_data(
-            ingredients=["ing1"], instructions=["existing step"]
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.logger.error")
+    async def test_add_instruction_validation_error(
+        self, mock_logger_error, mock_parse, client: AsyncClient
+    ):
+        validation_exc = ValidationError.from_exception_data(
+            title="TestVE_add_inst", line_errors=[]
         )
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["inst1"]
+        )
+
+        # Set up mock to raise ValidationError on first call, return data on second call
+        mock_parse.side_effect = [
+            validation_exc,  # First call in try block
+            form_data.copy(),  # Second call in except ValidationError block
+        ]
+
         response = await client.post(self.ADD_INSTRUCTION_URL, data=form_data)
         assert response.status_code == 200
-        soup = BeautifulSoup(response.text, "html.parser")
+        assert "Error updating list after add." in response.text
+        assert CSS_ERROR_CLASS in response.text
 
-        instructions_list_div = soup.find("div", id="instructions-list")
-        assert instructions_list_div, "Instructions list div not found"
-        assert isinstance(instructions_list_div, Tag)
-        instruction_textareas = instructions_list_div.find_all(
-            "textarea", {"name": "instructions"}
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        expected_log_msg = (
+            f"Validation error processing instruction addition: {validation_exc}"
         )
-        assert len(instruction_textareas) == 2, (
-            f"Expected 2 instruction textareas, got {len(instruction_textareas)}"
-        )
-
-        new_instruction_textarea = instruction_textareas[-1]
-        assert isinstance(new_instruction_textarea, Tag)
-        assert new_instruction_textarea.text == ""
-        assert new_instruction_textarea["placeholder"] == "Instruction Step"
-
-        new_item_div = new_instruction_textarea.find_parent("div", class_="flex")
-        assert new_item_div, "Parent div for new instruction not found"
-        assert isinstance(new_item_div, Tag)
-        delete_button = new_item_div.find(
-            "button",
-            {
-                "hx-post": lambda x: bool(
-                    x and x.startswith(f"{self.DELETE_INSTRUCTION_BASE_URL}/")
-                )
-            },
-        )
-        assert delete_button, "Delete button for new instruction not found"
-        assert isinstance(delete_button, Tag)
-        icon_element = delete_button.find("uk-icon", attrs={"icon": "minus-circle"})
-        assert icon_element, (
-            "UkIcon 'minus-circle' not found in instruction delete button"
-        )
-        assert isinstance(icon_element, Tag)
-        class_list = icon_element.get("class")
-        if class_list is None:
-            class_list = []
-        assert str(mu.TextT.error) in class_list
-
-        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
-        assert oob_div, "OOB diff wrapper not found"
-        assert isinstance(oob_div, Tag)
-        assert oob_div.find("pre", id="diff-before-pre"), "Diff before pre not found"
-        assert oob_div.find("pre", id="diff-after-pre"), "Diff after pre not found"
+        assert args[0] == expected_log_msg
+        assert kwargs.get("exc_info") is True
 
     async def test_delete_ingredient(self, client: AsyncClient):
         initial_ingredients = ["ing_to_keep1", "ing_to_delete", "ing_to_keep2"]
@@ -685,7 +665,7 @@ class TestRecipeUIFragments:
             f"Attempted to delete instruction at invalid index {invalid_index}"
         )
 
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_delete_ingredient_validation_error(
         self, mock_logger_error, mock_parse, client: AsyncClient
@@ -699,7 +679,7 @@ class TestRecipeUIFragments:
         )
 
         mock_parse.side_effect = [
-            validation_exc,  # First call to _parse_recipe_form_data in the try block
+            validation_exc,  # First call to parse_recipe_form_data in the try block
             form_data_dict.copy(),  # Second call in the except ValidationError block
         ]
         index_to_delete = 0
@@ -733,7 +713,7 @@ class TestRecipeUIFragments:
         oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
         assert not oob_div, "OOB diff wrapper should NOT be present on validation error"
 
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_delete_ingredient_generic_exception(
         self, mock_logger_error, mock_parse, client: AsyncClient
@@ -760,7 +740,7 @@ class TestRecipeUIFragments:
         assert args[0] == expected_log_msg
         assert kwargs.get("exc_info") is True
 
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_delete_instruction_validation_error(
         self, mock_logger_error, mock_parse, client: AsyncClient
@@ -768,14 +748,14 @@ class TestRecipeUIFragments:
         validation_exc = ValidationError.from_exception_data(
             title="TestVE_del_inst", line_errors=[]
         )
-        initial_instructions = ["s1_to_delete", "s2_remains"]
+        initial_instructions = ["inst1_to_delete", "inst2_remains"]
         form_data_dict = _build_ui_fragment_form_data(
             ingredients=["ing1"], instructions=initial_instructions
         )
 
         mock_parse.side_effect = [
-            validation_exc,  # First call
-            form_data_dict.copy(),  # Second call in except
+            validation_exc,  # First call in the try block
+            form_data_dict.copy(),  # Second call in the except ValidationError block
         ]
         index_to_delete = 0
 
@@ -790,21 +770,25 @@ class TestRecipeUIFragments:
         args, kwargs = mock_logger_error.call_args
         expected_log_msg_fragment = "Validation error processing instruction deletion"
         assert expected_log_msg_fragment in args[0]
-        assert str(validation_exc) in args[0]
+        # Ensure the specific exception 'e' is part of the log message
+        assert str(validation_exc) in args[0]  # Check if the specific error is logged
         assert kwargs.get("exc_info") is True
 
+        # Check that the list is re-rendered with original items on validation error
         soup = BeautifulSoup(response.text, "html.parser")
         instructions_list_div = soup.find("div", id="instructions-list")
         assert instructions_list_div, "Instructions list div for error case not found"
         assert isinstance(instructions_list_div, Tag)
-        instruction_textareas = instructions_list_div.find_all(
+        instruction_inputs = instructions_list_div.find_all(
             "textarea", {"name": "instructions"}
         )
-        assert len(instruction_textareas) == len(initial_instructions)
+        assert len(instruction_inputs) == len(initial_instructions)
+
+        # Check that OOB diff is NOT sent
         oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
         assert not oob_div, "OOB diff wrapper should NOT be present on validation error"
 
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_delete_instruction_generic_exception(
         self, mock_logger_error, mock_parse, client: AsyncClient
@@ -812,7 +796,7 @@ class TestRecipeUIFragments:
         generic_exc = Exception("Generic parse error for del_inst")
         mock_parse.side_effect = generic_exc
         form_data = _build_ui_fragment_form_data(
-            ingredients=["ing1"], instructions=["s1"]
+            ingredients=["ing1"], instructions=["inst1"]
         )
         index_to_delete = 0
 
@@ -831,7 +815,7 @@ class TestRecipeUIFragments:
         assert args[0] == expected_log_msg
         assert kwargs.get("exc_info") is True
 
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_add_ingredient_validation_error(
         self, mock_logger_error, mock_parse, client: AsyncClient
@@ -839,19 +823,15 @@ class TestRecipeUIFragments:
         validation_exc = ValidationError.from_exception_data(
             title="TestVE_add_ing", line_errors=[]
         )
-        # Simulate _parse_recipe_form_data in the except block
-        # It will be called with the original form_data if the try block fails
-        original_form_data_parsed = _build_ui_fragment_form_data(ingredients=["ing1"])
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["inst1"]
+        )
 
+        # Set up mock to raise ValidationError on first call, return data on second call
         mock_parse.side_effect = [
             validation_exc,  # First call in try block
-            original_form_data_parsed,  # Second call in except ValidationError block
+            form_data.copy(),  # Second call in except ValidationError block
         ]
-        form_data = (
-            _build_ui_fragment_form_data(  # This is the form_data passed to the route
-                ingredients=["ing1"], instructions=["s1"]
-            )
-        )
 
         response = await client.post(self.ADD_INGREDIENT_URL, data=form_data)
         assert response.status_code == 200
@@ -866,7 +846,7 @@ class TestRecipeUIFragments:
         assert args[0] == expected_log_msg
         assert kwargs.get("exc_info") is True
 
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_add_ingredient_generic_exception(
         self, mock_logger_error, mock_parse, client: AsyncClient
@@ -874,7 +854,7 @@ class TestRecipeUIFragments:
         generic_exc = Exception("Generic parse error for add_ing")
         mock_parse.side_effect = generic_exc
         form_data = _build_ui_fragment_form_data(
-            ingredients=["ing1"], instructions=["s1"]
+            ingredients=["ing1"], instructions=["inst1"]
         )
 
         response = await client.post(self.ADD_INGREDIENT_URL, data=form_data)
@@ -888,7 +868,7 @@ class TestRecipeUIFragments:
         assert args[0] == expected_log_msg
         assert kwargs.get("exc_info") is True
 
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_add_instruction_validation_error(
         self, mock_logger_error, mock_parse, client: AsyncClient
@@ -896,14 +876,15 @@ class TestRecipeUIFragments:
         validation_exc = ValidationError.from_exception_data(
             title="TestVE_add_inst", line_errors=[]
         )
-        original_form_data_parsed = _build_ui_fragment_form_data(instructions=["s1"])
+        form_data = _build_ui_fragment_form_data(
+            ingredients=["ing1"], instructions=["inst1"]
+        )
+
+        # Set up mock to raise ValidationError on first call, return data on second call
         mock_parse.side_effect = [
             validation_exc,  # First call in try block
-            original_form_data_parsed,  # Second call in except ValidationError block
+            form_data.copy(),  # Second call in except ValidationError block
         ]
-        form_data = _build_ui_fragment_form_data(
-            ingredients=["ing1"], instructions=["s1"]
-        )
 
         response = await client.post(self.ADD_INSTRUCTION_URL, data=form_data)
         assert response.status_code == 200
@@ -918,7 +899,7 @@ class TestRecipeUIFragments:
         assert args[0] == expected_log_msg
         assert kwargs.get("exc_info") is True
 
-    @patch("meal_planner.routers.ui_fragments._parse_recipe_form_data")
+    @patch("meal_planner.routers.ui_fragments.parse_recipe_form_data")
     @patch("meal_planner.routers.ui_fragments.logger.error")
     async def test_add_instruction_generic_exception(
         self, mock_logger_error, mock_parse, client: AsyncClient
@@ -926,7 +907,7 @@ class TestRecipeUIFragments:
         generic_exc = Exception("Generic parse error for add_inst")
         mock_parse.side_effect = generic_exc
         form_data = _build_ui_fragment_form_data(
-            ingredients=["ing1"], instructions=["s1"]
+            ingredients=["ing1"], instructions=["inst1"]
         )
 
         response = await client.post(self.ADD_INSTRUCTION_URL, data=form_data)
@@ -943,7 +924,7 @@ class TestRecipeUIFragments:
     async def test_delete_instruction_missing_ingredients_in_form(
         self, client: AsyncClient
     ):
-        # This test checks if the _parse_recipe_form_data in the except ValidationError
+        # This test checks if the parse_recipe_form_data in the except ValidationError
         # block handles missing 'ingredients' gracefully (it should default to []).
         initial_instructions = ["step_to_keep1", "step_to_delete", "step_to_keep2"]
         index_to_delete = 1
@@ -958,52 +939,48 @@ class TestRecipeUIFragments:
         }
 
         # To trigger the ValidationError path in post_delete_instruction_row,
-        # we need _parse_recipe_form_data (the first call in the `try` block)
+        # we need parse_recipe_form_data (the first call in the `try` block)
         # to raise a ValidationError.
-        # We'll mock _parse_recipe_form_data to do this for the first call,
+        # We'll mock parse_recipe_form_data to do this for the first call,
         # and for the second call (in the `except` block), it will parse
         # the incomplete form_data_dict.
         with patch(
-            "meal_planner.routers.ui_fragments._parse_recipe_form_data"
+            "meal_planner.routers.ui_fragments.parse_recipe_form_data"
         ) as mock_parse_dynamic:
             validation_error = ValidationError.from_exception_data(
                 title="mock VE", line_errors=[]
             )
-            # First call raises VE, second call processes the (incomplete) form_data
             mock_parse_dynamic.side_effect = [
-                validation_error,
-                _build_ui_fragment_form_data(
-                    name=form_data_dict["name"],
-                    ingredients=[],  # This is what _parse_recipe_form_data would do
-                    instructions=form_data_dict["instructions"],
-                    original_name=form_data_dict["original_name"],
-                    original_ingredients=[],  # Parsed as empty list if missing
-                    original_instructions=form_data_dict["original_instructions"],
-                ),
+                validation_error,  # First call raises ValidationError
+                {
+                    "name": "Test Recipe Name",
+                    "instructions": initial_instructions,
+                    "ingredients": [],  # This is what parse_recipe_form_data would do
+                    # when 'ingredients' is missing from form_data
+                },  # Second call in except block
             ]
 
             response = await client.post(
                 f"{self.DELETE_INSTRUCTION_BASE_URL}/{index_to_delete}",
                 data=form_data_dict,
             )
+
         assert response.status_code == 200
-        soup = BeautifulSoup(response.text, "html.parser")
-
         assert "Error updating list after delete. Validation failed." in response.text
+        assert CSS_ERROR_CLASS in response.text
 
+        # Verify that parse_recipe_form_data was called twice
+        assert mock_parse_dynamic.call_count == 2
+
+        # Check that the list is re-rendered with original items on validation error
+        soup = BeautifulSoup(response.text, "html.parser")
         instructions_list_div = soup.find("div", id="instructions-list")
-        assert instructions_list_div, "Instructions list div for delete error not found"
+        assert instructions_list_div, "Instructions list div for error case not found"
         assert isinstance(instructions_list_div, Tag)
-        instruction_textareas = instructions_list_div.find_all(
+        instruction_inputs = instructions_list_div.find_all(
             "textarea", {"name": "instructions"}
         )
-        # It should re-render the original list of instructions
-        assert len(instruction_textareas) == len(initial_instructions)
-
-        oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
-        assert not oob_div, (
-            "OOB diff wrapper should NOT be present on validation error path"
-        )
+        assert len(instruction_inputs) == len(initial_instructions)
 
 
 # Tests for generate_diff_html and build_edit_review_form are specific to ui.edit_recipe

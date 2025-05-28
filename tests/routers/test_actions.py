@@ -175,10 +175,15 @@ class TestSaveRecipeEndpoint:
         assert error_span.get_text(strip=True) == expected_error_message
 
     @pytest.mark.anyio
-    @patch("meal_planner.routers.actions._parse_recipe_form_data")
-    async def test_save_recipe_parsing_exception(self, mock_parse, client: AsyncClient):
+    @patch("meal_planner.routers.actions.parse_recipe_form_data")
+    async def test_save_recipe_parsing_exception(
+        self,
+        mock_form_processing: MagicMock,
+        client: AsyncClient,
+    ):
         "Test generic exception during form parsing in post_save_recipe."
-        mock_parse.side_effect = Exception("Simulated parsing error")
+        mock_form_processing.side_effect = Exception("Simulated parsing error")
+
         dummy_form_data = {
             FIELD_NAME: "Test",
             FIELD_INGREDIENTS: ["i"],
@@ -190,7 +195,7 @@ class TestSaveRecipeEndpoint:
         assert response.status_code == 200
         assert "Error processing form data." in response.text
         assert CSS_ERROR_CLASS in response.text
-        mock_parse.assert_called_once()
+        mock_form_processing.assert_called_once()
 
     @pytest.mark.anyio
     async def test_save_recipe_api_call_generic_error(
