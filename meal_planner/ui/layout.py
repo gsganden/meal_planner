@@ -38,13 +38,6 @@ def sidebar():
                 parent=False,
             ),
         ),
-        Li(
-            UkIconLink(
-                "github",
-                href="https://github.com/gsganden/meal_planner",
-                target="_blank",
-            )
-        ),
         uk_nav=True,
         cls=NavT.primary,
         uk_sticky="offset: 20",
@@ -76,6 +69,16 @@ def with_layout(title: str, *content):
         hidden=True,
     )
 
+    github_link = Div(
+        UkIconLink(
+            "github",
+            href="https://github.com/gsganden/meal_planner",
+            target="_blank",
+            cls="text-gray-500 hover:text-gray-700",
+        ),
+        cls="fixed bottom-4 right-4",
+    )
+
     return (
         Title(title),
         indicator_style,
@@ -90,6 +93,7 @@ def with_layout(title: str, *content):
                 id="content",
             ),
         ),
+        github_link,
         Script(src="/static/recipe-editor.js"),
     )
 
