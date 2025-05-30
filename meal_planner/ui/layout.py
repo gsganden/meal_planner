@@ -75,6 +75,9 @@ def with_layout(title: str, *content):
             href="https://github.com/gsganden/meal_planner",
             target="_blank",
             cls="text-gray-500 hover:text-gray-700",
+            rel="noopener",
+            title="View source code on GitHub",
+            **{"aria-label": "View source code on GitHub"},
         ),
         cls="fixed bottom-4 right-4",
     )
