@@ -38,6 +38,13 @@ def sidebar():
                 parent=False,
             ),
         ),
+        Li(
+            UkIconLink(
+                "github",
+                href="https://github.com/gsganden/meal_planner",
+                target="_blank",
+            )
+        ),
         uk_nav=True,
         cls=NavT.primary,
         uk_sticky="offset: 20",
