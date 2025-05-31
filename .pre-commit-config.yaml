@@ -24,6 +24,14 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+    -   id: ruff-docstrings
+        name: Check docstring coverage
+        entry: uv run ruff check --select D --output-format concise
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
     -   id: pytest
         name: Check tests and test coverage
         entry: ./run_fast_coverage.sh

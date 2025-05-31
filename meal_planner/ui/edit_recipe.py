@@ -1,4 +1,10 @@
-"""UI components for recipe editing and display."""
+"""UI components for recipe editing and display.
+
+This module provides rich UI components for the recipe editing workflow,
+including diff visualization, drag-and-drop list editing, AI modification
+controls, and form validation. It handles both manual editing and AI-assisted
+recipe modifications with real-time preview.
+"""
 
 import difflib
 import html
@@ -18,7 +24,20 @@ from meal_planner.ui.common import (
 def generate_diff_html(
     before_text: str, after_text: str
 ) -> tuple[list[str | FT], list[str | FT]]:
-    """Generates two lists of fasthtml components/strings for diff display."""
+    """Generate HTML-safe diff components for before/after text comparison.
+    
+    Uses Python's difflib to create a line-by-line comparison, with proper
+    HTML escaping to prevent XSS attacks. Differences are marked with Del/Ins
+    FastHTML components for styling.
+    
+    Args:
+        before_text: Original text for comparison.
+        after_text: Modified text to compare against original.
+        
+    Returns:
+        Tuple of (before_items, after_items) where each is a list of
+        FastHTML components and strings representing the diff view.
+    """
     before_lines = before_text.splitlines()
     after_lines = after_text.splitlines()
     matcher = difflib.SequenceMatcher(None, before_lines, after_lines)
@@ -55,7 +74,19 @@ def generate_diff_html(
 def build_diff_content_children(
     original_recipe: RecipeBase, current_markdown: str
 ) -> tuple[FT, FT]:
-    """Builds fasthtml.Div components for 'before' and 'after' diff areas."""
+    """Build styled diff view cards showing recipe changes.
+    
+    Creates two card components showing the before/after state of a recipe
+    with visual highlighting of additions, deletions, and modifications.
+    
+    Args:
+        original_recipe: The baseline recipe to compare against.
+        current_markdown: Markdown representation of the current recipe state.
+        
+    Returns:
+        Tuple of (before_card, after_card) MonsterUI Card components
+        styled for diff display.
+    """
     before_items, after_items = generate_diff_html(
         original_recipe.markdown, current_markdown
     )
@@ -91,13 +122,17 @@ def build_diff_content_children(
 
 
 def build_recipe_display(recipe_data: dict) -> FT:
-    """Builds a Card containing the formatted recipe details.
+    """Build a formatted display card for a recipe.
+
+    Creates a read-only view of recipe data with proper formatting
+    for ingredients and instructions in bulleted lists.
 
     Args:
-        recipe_data: A dictionary containing 'name', 'ingredients', 'instructions'.
+        recipe_data: Dictionary containing 'name', 'ingredients', 'instructions'
+            fields from a recipe.
 
     Returns:
-        A monsterui.Card component ready for display.
+        MonsterUI Card component with formatted recipe display.
     """
     components = [
         H3(recipe_data["name"]),
@@ -131,30 +166,27 @@ def build_edit_review_form(
     modification_prompt_value: str | None = None,
     error_message_content: FT | None = None,
 ):
-    """Builds the primary recipe editing interface components.
+    """Build the complete recipe editing interface with review section.
 
-    This function constructs the main card containing the editable recipe form
-    (manual edits and AI modification controls) and the separate review card
-    containing the diff view and save button.
+    Constructs the main editing interface including AI modification controls,
+    manual edit fields, diff view, and save functionality. This is the primary
+    UI component for the recipe editing workflow.
 
     Args:
         current_recipe: The RecipeBase object representing the current state
             of the recipe being edited.
-        original_recipe: An optional RecipeBase object representing the initial
-            state of the recipe before any edits (or modifications). This is used
-            as the baseline for the diff view. If None, `current_recipe` is used
-            as the baseline.
-        modification_prompt_value: An optional string containing the user's
+        original_recipe: Optional RecipeBase object representing the initial
+            state before any edits. Used as baseline for diff view. If None,
+            current_recipe is used as baseline.
+        modification_prompt_value: Optional string containing the user's
             previous AI modification request, used to pre-fill the input.
-        error_message_content: Optional FastHTML content (e.g., a Div with an
-            error message) to display within the modification controls section.
+        error_message_content: Optional FastHTML content (e.g., Div with error
+            message) to display within the modification controls section.
 
     Returns:
-        A tuple containing two components:
-        1. main_edit_card (Card): The card containing the modification
-           controls and the editable fields (name, ingredients, instructions).
-        2. review_section_card (Card): The card containing the diff view
-           and the save button.
+        Tuple containing:
+        1. main_edit_card: Card with modification controls and editable fields
+        2. review_section_card: Card with diff view and save button
     """
     diff_baseline_recipe = original_recipe
     if diff_baseline_recipe is None:
@@ -281,7 +313,17 @@ def _build_name_input(name_value: str):
 
 
 def render_ingredient_list_items(ingredients: list[str]) -> list[FT]:
-    """Render ingredient input divs as a list of FastHTML components."""
+    """Render draggable ingredient input fields as FastHTML components.
+    
+    Creates a list of ingredient input fields with drag handles for reordering
+    and delete buttons. Each input triggers diff updates on change.
+    
+    Args:
+        ingredients: List of ingredient strings to render.
+        
+    Returns:
+        List of Div components, each containing an ingredient input with controls.
+    """
     items_list = []
     for i, ing_value in enumerate(ingredients):
         drag_handle_component = DRAG_HANDLE_ICON
@@ -350,7 +392,17 @@ def _build_ingredients_section(ingredients: list[str]):
 
 
 def render_instruction_list_items(instructions: list[str]) -> list[FT]:
-    """Render instruction textarea divs as a list of FastHTML components."""
+    """Render draggable instruction textarea fields as FastHTML components.
+    
+    Creates a list of instruction textareas with drag handles for reordering
+    and delete buttons. Each textarea triggers diff updates on change.
+    
+    Args:
+        instructions: List of instruction strings to render.
+        
+    Returns:
+        List of Div components, each containing an instruction textarea with controls.
+    """
     items_list = []
     for i, inst_value in enumerate(instructions):
         drag_handle_component = DRAG_HANDLE_ICON
@@ -464,7 +516,21 @@ def build_modify_form_response(
     modification_prompt_value: str,
     error_message_content: FT | None,
 ) -> Div:
-    """Builds the common HTML response for the recipe modification form."""
+    """Build the complete form response for recipe modification requests.
+    
+    Wraps the edit form and review section with proper HTMX attributes
+    for out-of-band swaps. Used as the standard response format for
+    modification endpoints.
+    
+    Args:
+        current_recipe: Current state of the recipe after modifications.
+        original_recipe: Original recipe state for diff comparison.
+        modification_prompt_value: AI modification prompt to display.
+        error_message_content: Optional error message to show.
+        
+    Returns:
+        Div containing the edit form and OOB review section update.
+    """
     edit_form_card, review_section_card = build_edit_review_form(
         current_recipe=current_recipe,
         original_recipe=original_recipe,

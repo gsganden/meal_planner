@@ -1,4 +1,10 @@
-"""Routers for actions that process data or perform operations, often via POST."""
+"""Routers for actions that process data or perform operations, often via POST.
+
+This module contains FastHTML route handlers for form submissions and AJAX
+operations triggered by user interactions. These endpoints handle recipe
+extraction, modification, saving, and deletion operations. Most routes return
+HTML fragments for HTMX updates rather than full pages.
+"""
 
 import logging
 
@@ -271,7 +277,21 @@ async def post_modify_recipe(request: Request):
 
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
-    """Extracts a recipe from the given text and postprocesses it."""
+    """Extract and post-process a recipe from raw text content.
+    
+    Coordinates the LLM extraction and post-processing steps to convert
+    unstructured text into a validated recipe object.
+    
+    Args:
+        page_text: Raw text content containing recipe information.
+        
+    Returns:
+        Validated and post-processed RecipeBase object.
+        
+    Raises:
+        Exception: If LLM extraction fails.
+        ValueError: If post-processing finds no valid ingredients.
+    """
     logger.info("Attempting to extract recipe from provided text.")
     try:
         extracted_recipe: RecipeBase = await generate_recipe_from_text(text=page_text)

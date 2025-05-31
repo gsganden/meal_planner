@@ -1,4 +1,9 @@
-"""Routers for generating and returning HTML UI fragments, often for HTMX swaps."""
+"""Routers for generating and returning HTML UI fragments, often for HTMX swaps.
+
+This module provides endpoints that return partial HTML components for dynamic
+UI updates via HTMX. These fragments handle list item manipulation (add/delete),
+diff updates, and URL content fetching for the recipe editing interface.
+"""
 
 import logging
 
@@ -25,7 +30,20 @@ logger = logging.getLogger(__name__)
 
 
 async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
-    """Helper function to delete an item from a list (ingredients or instructions)."""
+    """Delete an item from a recipe list and return updated UI components.
+    
+    Handles deletion of ingredients or instructions from the recipe form,
+    maintaining form state and updating the diff view.
+    
+    Args:
+        request: FastAPI request containing form data.
+        index: Zero-based index of the item to delete.
+        item_type: Either "ingredients" or "instructions".
+        
+    Returns:
+        Updated list component with diff view via OOB swap.
+        On error, returns an error message in place of the list.
+    """
     form_data = await request.form()
     list_id = f"{item_type}-list"
     render_func = (
@@ -93,16 +111,52 @@ async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
 
 @rt("/recipes/ui/delete-ingredient/{index:int}")
 async def post_delete_ingredient_row(request: Request, index: int):
+    """Delete a specific ingredient from the recipe form.
+    
+    HTMX endpoint for removing an ingredient at the specified index.
+    Updates both the ingredient list and the diff view.
+    
+    Args:
+        request: FastAPI request with current form state.
+        index: Zero-based position of ingredient to delete.
+        
+    Returns:
+        Updated ingredient list HTML with OOB diff update.
+    """
     return await _delete_list_item(request, index, "ingredients")
 
 
 @rt("/recipes/ui/delete-instruction/{index:int}")
 async def post_delete_instruction_row(request: Request, index: int):
+    """Delete a specific instruction from the recipe form.
+    
+    HTMX endpoint for removing an instruction at the specified index.
+    Updates both the instruction list and the diff view.
+    
+    Args:
+        request: FastAPI request with current form state.
+        index: Zero-based position of instruction to delete.
+        
+    Returns:
+        Updated instruction list HTML with OOB diff update.
+    """
     return await _delete_list_item(request, index, "instructions")
 
 
 async def _add_list_item(request: Request, item_type: str) -> FT:
-    """Helper function to add an item to a list (ingredients or instructions)."""
+    """Add a new empty item to a recipe list and return updated UI components.
+    
+    Handles addition of new ingredients or instructions to the recipe form,
+    adding an empty field that the user can populate.
+    
+    Args:
+        request: FastAPI request containing form data.
+        item_type: Either "ingredients" or "instructions".
+        
+    Returns:
+        Updated list component with a new empty item and diff view update.
+        On error, returns an error message in place of the list.
+    """
     form_data = await request.form()
     list_id = f"{item_type}-list"
     render_func = (
@@ -149,17 +203,49 @@ async def _add_list_item(request: Request, item_type: str) -> FT:
 
 @rt("/recipes/ui/add-ingredient")
 async def post_add_ingredient_row(request: Request):
+    """Add a new empty ingredient field to the recipe form.
+    
+    HTMX endpoint that appends a blank ingredient input to the list,
+    allowing users to add more ingredients to their recipe.
+    
+    Args:
+        request: FastAPI request with current form state.
+        
+    Returns:
+        Updated ingredient list HTML with new field and OOB diff update.
+    """
     return await _add_list_item(request, "ingredients")
 
 
 @rt("/recipes/ui/add-instruction")
 async def post_add_instruction_row(request: Request):
+    """Add a new empty instruction field to the recipe form.
+    
+    HTMX endpoint that appends a blank instruction textarea to the list,
+    allowing users to add more steps to their recipe.
+    
+    Args:
+        request: FastAPI request with current form state.
+        
+    Returns:
+        Updated instruction list HTML with new field and OOB diff update.
+    """
     return await _add_list_item(request, "instructions")
 
 
 @rt("/recipes/ui/update-diff")
 async def update_diff(request: Request) -> FT:
-    """Updates the diff view based on current form data."""
+    """Update the diff view based on current form data.
+    
+    Recalculates the before/after comparison between the original recipe
+    and current edits. Called when form fields change or items are reordered.
+    
+    Args:
+        request: FastAPI request containing both current and original recipe data.
+        
+    Returns:
+        Updated diff view showing changes, or error message on validation failure.
+    """
     form_data = await request.form()
     try:
         current_data = parse_recipe_form_data(form_data)
@@ -187,7 +273,20 @@ async def update_diff(request: Request) -> FT:
 
 @rt("/recipes/fetch-text")
 async def post_fetch_text(input_url: str | None = None):
+    """Fetch and clean text content from a recipe URL.
+    
+    HTMX endpoint that retrieves webpage content, cleans it, and populates
+    the recipe text area. Handles various error cases with appropriate messages.
+    
+    Args:
+        input_url: URL to fetch recipe content from.
+        
+    Returns:
+        Group containing updated textarea with fetched content and
+        error/success messages via OOB swap.
+    """
     def _prepare_error_response(error_message_str: str):
+        """Prepare error response with textarea and error message."""
         error_div = Div(
             error_message_str, cls=CSS_ERROR_CLASS, id="fetch-url-error-display"
         )
@@ -269,17 +368,20 @@ def _build_sortable_list_with_oob_diff(
     original_recipe: RecipeBase,
     current_recipe: RecipeBase,
 ) -> FT:
-    """
-    Builds a sortable list component and an OOB diff component.
+    """Build a sortable list component with an out-of-band diff update.
+    
+    Creates a draggable/sortable list of recipe items that triggers diff
+    updates when reordered. Includes OOB swap for updating the diff view
+    without replacing the list itself.
 
     Args:
         list_id: The HTML ID for the list container (e.g., "ingredients-list").
-        rendered_list_items: A list of FastHTML components representing the items.
-        original_recipe: The baseline recipe for the diff.
+        rendered_list_items: List of FastHTML components representing the items.
+        original_recipe: The baseline recipe for the diff comparison.
         current_recipe: The current state of the recipe for the diff.
 
     Returns:
-        A tuple containing the list component Div and the OOB diff component Div.
+        Group containing the sortable list and OOB diff update components.
     """
     list_component = Div(
         *rendered_list_items,

@@ -1,4 +1,9 @@
-"""Routers for user-facing HTML pages that render full page layouts."""
+"""Routers for user-facing HTML pages that render full page layouts.
+
+This module contains FastHTML route handlers that return complete HTML pages
+with layout wrappers. These routes handle the main navigation pages of the
+application and support both full page loads and HTMX partial updates.
+"""
 
 import logging
 
@@ -19,12 +24,29 @@ logger = logging.getLogger(__name__)
 
 @rt("/")
 def get():
-    """Get the home page."""
+    """Render the application home page.
+    
+    Displays the main landing page with navigation to recipe features.
+    This is the entry point for users accessing the application.
+    
+    Returns:
+        HTML page with site layout and home content.
+    """
     return with_layout("Meal Planner")
 
 
 @rt("/recipes/extract")
 def get_recipe_extraction_page():
+    """Render the recipe extraction page for creating new recipes.
+    
+    Provides forms for extracting recipes from URLs and editing the
+    extracted content. The page includes multiple sections that are
+    progressively populated via HTMX as the user proceeds.
+    
+    Returns:
+        HTML page with extraction form and placeholder divs for
+        dynamic content loading.
+    """
     return with_layout(
         "Create Recipe",
         Div(
@@ -38,7 +60,23 @@ def get_recipe_extraction_page():
 
 @rt("/recipes")
 async def get_recipe_list_page(request: Request):
-    """Get the recipes list page."""
+    """Display all recipes in a paginated list view.
+    
+    Fetches recipes from the API and renders them in a list format.
+    Supports both full page loads and HTMX partial updates when the
+    recipe list changes (via HX-Trigger events).
+    
+    Args:
+        request: FastAPI request object to detect HTMX requests.
+        
+    Returns:
+        Full HTML page for standard requests, or just the recipe
+        list div for HTMX requests.
+        
+    Note:
+        The response includes HTMX attributes for automatic refresh
+        when recipes are added, updated, or deleted.
+    """
     try:
         response = await internal_api_client.get("/v0/recipes")
         response.raise_for_status()
@@ -83,7 +121,19 @@ async def get_recipe_list_page(request: Request):
 
 @rt("/recipes/{recipe_id:int}")
 async def get_single_recipe_page(recipe_id: int):
-    """Displays a single recipe page."""
+    """Display a single recipe's details page.
+    
+    Fetches a specific recipe by ID and renders its full details
+    including ingredients, instructions, and action buttons for
+    editing or deletion.
+    
+    Args:
+        recipe_id: Database ID of the recipe to display.
+        
+    Returns:
+        HTML page with recipe details or appropriate error message
+        if the recipe is not found or an error occurs.
+    """
     try:
         response = await internal_api_client.get(f"/v0/recipes/{recipe_id}")
         response.raise_for_status()
