@@ -94,3 +94,21 @@ To check test coverage with minimal LLM calls:
 ```bash
 ./run_fast_coverage.sh
 ```
+
+## Code Quality Standards
+
+### Docstring Requirements
+
+This project enforces 100% docstring coverage for all public APIs. All public modules, classes, functions, and methods must have meaningful docstrings that follow the Google style guide.
+
+- **Style Guide**: See [DOCSTRING_STYLE_GUIDE.md](./DOCSTRING_STYLE_GUIDE.md) for detailed examples and requirements
+- **Enforcement**: Docstrings are checked by `ruff` with the `D` rules enabled
+- **Pre-commit**: Docstring checks run automatically before push via pre-commit hooks
+- **CI/CD**: GitHub Actions enforces docstring coverage on all PRs
+
+To check docstring coverage locally:
+```bash
+uv run ruff check --select D .
+```
+
+All new code must include appropriate docstrings before merging. Magic methods (`__init__`, `__str__`, etc.) are exempt unless they have non-obvious behavior.

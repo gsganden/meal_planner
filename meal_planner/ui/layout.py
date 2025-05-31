@@ -1,5 +1,8 @@
-"""Layout components for the Meal Planner application, including sidebar and main
-content area.
+"""Layout components and utilities for the Meal Planner application.
+
+This module provides the main page layout structure including sidebar navigation,
+header, and content wrappers. It also includes utilities for detecting HTMX
+requests to support partial page updates.
 """
 
 from fasthtml.common import *
@@ -7,6 +10,15 @@ from monsterui.all import *
 
 
 def sidebar():
+    """Generate the application sidebar with navigation links.
+    
+    Creates a responsive sidebar component with navigation menu items
+    for all main application sections. Uses MonsterUI components with
+    proper styling and hover effects.
+    
+    Returns:
+        Sidebar component containing navigation links and branding.
+    """
     nav = NavContainer(
         Li(
             A(
@@ -46,7 +58,20 @@ def sidebar():
 
 
 def with_layout(title: str, *content):
-    """Create a complete page with layout for full-page loads."""
+    """Wrap content in the standard application layout.
+    
+    Provides consistent page structure with sidebar navigation, header,
+    and content area. Sets the page title and wraps all content in the
+    application's standard layout components.
+    
+    Args:
+        title: Page title to display in browser tab and header.
+        *content: Variable number of FastHTML components to render
+            in the main content area.
+            
+    Returns:
+        Complete HTML page with layout wrapper and provided content.
+    """
     indicator_style = Style(
         """
         .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
@@ -102,4 +127,16 @@ def with_layout(title: str, *content):
 
 
 def is_htmx(request: Request) -> bool:
-    return "HX-Request" in request.headers
+    """Check if the current request is from HTMX.
+    
+    Examines request headers to determine if the request was initiated
+    by HTMX, which is used to decide whether to return a full page
+    or just a content fragment.
+    
+    Args:
+        request: FastAPI/Starlette request object.
+        
+    Returns:
+        True if the request includes the HX-Request header, False otherwise.
+    """
+    return request.headers.get("HX-Request") == "true"

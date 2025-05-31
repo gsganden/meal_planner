@@ -47,6 +47,11 @@ jobs:
           source .venv/bin/activate
           ruff check .
 
+      - name: Check Docstring Coverage
+        run: |
+          source .venv/bin/activate
+          ruff check --select D .
+
       - name: Run Pytest with Coverage
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
