@@ -25,15 +25,15 @@ def generate_diff_html(
     before_text: str, after_text: str
 ) -> tuple[list[str | FT], list[str | FT]]:
     """Generate HTML-safe diff components for before/after text comparison.
-    
+
     Uses Python's difflib to create a line-by-line comparison, with proper
     HTML escaping to prevent XSS attacks. Differences are marked with Del/Ins
     FastHTML components for styling.
-    
+
     Args:
         before_text: Original text for comparison.
         after_text: Modified text to compare against original.
-        
+
     Returns:
         Tuple of (before_items, after_items) where each is a list of
         FastHTML components and strings representing the diff view.
@@ -75,14 +75,14 @@ def build_diff_content_children(
     original_recipe: RecipeBase, current_markdown: str
 ) -> tuple[FT, FT]:
     """Build styled diff view cards showing recipe changes.
-    
+
     Creates two card components showing the before/after state of a recipe
     with visual highlighting of additions, deletions, and modifications.
-    
+
     Args:
         original_recipe: The baseline recipe to compare against.
         current_markdown: Markdown representation of the current recipe state.
-        
+
     Returns:
         Tuple of (before_card, after_card) MonsterUI Card components
         styled for diff display.
@@ -282,8 +282,10 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
 
 
 def _build_editable_section(current_recipe: RecipeBase):
-    """Builds the 'Edit Manually' section with inputs for name, ingredients,
-    and instructions."""
+    """Builds the 'Edit Manually' section with inputs for name, ingredients.
+
+    and instructions.
+    """
     name_input = _build_name_input(current_recipe.name)
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
@@ -314,13 +316,13 @@ def _build_name_input(name_value: str):
 
 def render_ingredient_list_items(ingredients: list[str]) -> list[FT]:
     """Render draggable ingredient input fields as FastHTML components.
-    
+
     Creates a list of ingredient input fields with drag handles for reordering
     and delete buttons. Each input triggers diff updates on change.
-    
+
     Args:
         ingredients: List of ingredient strings to render.
-        
+
     Returns:
         List of Div components, each containing an ingredient input with controls.
     """
@@ -393,13 +395,13 @@ def _build_ingredients_section(ingredients: list[str]):
 
 def render_instruction_list_items(instructions: list[str]) -> list[FT]:
     """Render draggable instruction textarea fields as FastHTML components.
-    
+
     Creates a list of instruction textareas with drag handles for reordering
     and delete buttons. Each textarea triggers diff updates on change.
-    
+
     Args:
         instructions: List of instruction strings to render.
-        
+
     Returns:
         List of Div components, each containing an instruction textarea with controls.
     """
@@ -517,17 +519,17 @@ def build_modify_form_response(
     error_message_content: FT | None,
 ) -> Div:
     """Build the complete form response for recipe modification requests.
-    
+
     Wraps the edit form and review section with proper HTMX attributes
     for out-of-band swaps. Used as the standard response format for
     modification endpoints.
-    
+
     Args:
         current_recipe: Current state of the recipe after modifications.
         original_recipe: Original recipe state for diff comparison.
         modification_prompt_value: AI modification prompt to display.
         error_message_content: Optional error message to show.
-        
+
     Returns:
         Div containing the edit form and OOB review section update.
     """

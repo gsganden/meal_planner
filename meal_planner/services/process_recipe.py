@@ -13,20 +13,20 @@ from meal_planner.models import RecipeBase
 
 def postprocess_recipe(recipe: RecipeBase) -> RecipeBase:
     """Clean and standardize all fields of an extracted recipe.
-    
+
     Applies post-processing to recipe name, ingredients, and instructions
     to ensure consistent formatting and remove common extraction artifacts.
     This includes HTML unescaping, punctuation fixes, and text normalization.
-    
+
     Args:
         recipe: Raw recipe data extracted from a webpage.
-        
+
     Returns:
         Recipe with all fields cleaned and standardized.
-        
+
     Raises:
         ValueError: If the recipe has no valid ingredients after processing.
-        
+
     Note:
         This function modifies the recipe in-place and returns it.
     """
@@ -55,14 +55,14 @@ def postprocess_recipe(recipe: RecipeBase) -> RecipeBase:
 
 def _postprocess_recipe_name(name: str) -> str:
     """Clean and format a recipe name for display.
-    
+
     Removes common suffixes like "recipe" or "Recipe", applies title case,
     and ensures balanced parentheses. Handles edge cases from various
     recipe websites.
-    
+
     Args:
         name: Raw recipe name from extraction.
-        
+
     Returns:
         Cleaned recipe name with proper capitalization and formatting.
     """
@@ -73,13 +73,13 @@ def _postprocess_recipe_name(name: str) -> str:
 
 def _postprocess_ingredient(ingredient: str) -> str:
     """Normalize an ingredient string for consistent display.
-    
+
     Removes extra whitespace, fixes comma spacing, and ensures balanced
     parentheses. Filters out empty or whitespace-only ingredients.
-    
+
     Args:
         ingredient: Raw ingredient text from extraction.
-        
+
     Returns:
         Cleaned ingredient string, or empty string if invalid.
     """
@@ -88,14 +88,14 @@ def _postprocess_ingredient(ingredient: str) -> str:
 
 def _postprocess_instruction(instruction: str) -> str:
     """Clean and format a cooking instruction step.
-    
+
     Removes step numbering, unescapes HTML entities, fixes punctuation
     spacing, and ensures proper ending punctuation. Maintains readability
     while standardizing format.
-    
+
     Args:
         instruction: Raw instruction text from extraction.
-        
+
     Returns:
         Cleaned instruction with proper formatting and punctuation.
     """
@@ -109,13 +109,13 @@ def _postprocess_instruction(instruction: str) -> str:
 
 def _remove_leading_step_numbers(instruction: str) -> str:
     """Remove step numbering prefixes from instruction text.
-    
+
     Handles various formats like "Step 1:", "1.", "1 " to create clean
     instruction text without redundant numbering.
-    
+
     Args:
         instruction: Instruction text potentially with step numbers.
-        
+
     Returns:
         Instruction text with leading step indicators removed.
     """
@@ -127,13 +127,13 @@ def _remove_leading_step_numbers(instruction: str) -> str:
 
 def _close_parenthesis(text: str) -> str:
     """Ensure balanced parentheses in text by adding closing parenthesis if needed.
-    
+
     Some extraction processes leave unclosed parentheses. This ensures
     all opening parentheses have matching closing ones.
-    
+
     Args:
         text: Text that may have unbalanced parentheses.
-        
+
     Returns:
         Text with balanced parentheses.
     """
@@ -148,10 +148,10 @@ def _ensure_ending_punctuation(text: str) -> str:
     Ensures instructions end with proper punctuation for readability.
     Special handling for text ending with parentheses to place periods
     correctly.
-    
+
     Args:
         text: Text that may lack ending punctuation.
-        
+
     Returns:
         Text with appropriate ending punctuation (period if none exists).
     """

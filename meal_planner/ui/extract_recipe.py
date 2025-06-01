@@ -13,14 +13,14 @@ from meal_planner.ui.common import create_loading_indicator
 
 def create_extraction_form() -> Card:
     """Create the main recipe extraction form interface.
-    
+
     Builds a comprehensive form allowing users to either:
     1. Enter a URL to fetch recipe content automatically
     2. Paste recipe text directly into a textarea
-    
+
     The form includes loading indicators, error message placeholders,
     and HTMX attributes for dynamic content updates without page refresh.
-    
+
     Returns:
         Card component containing the complete extraction form with all
         necessary inputs, buttons, and placeholder elements for dynamic

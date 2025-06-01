@@ -12,15 +12,15 @@ from meal_planner.ui.common import ICON_DELETE
 
 def format_recipe_list(recipes_data: list[dict]) -> FT:
     """Format a list of recipes as an interactive HTML list.
-    
+
     Creates a styled list of recipe items, each with a clickable name
     that navigates to the recipe detail page and a delete button with
     confirmation dialog.
-    
+
     Args:
         recipes_data: List of recipe dictionaries, each containing at least
             'id' and 'name' fields.
-            
+
     Returns:
         MonsterUI List component containing all recipe items with actions,
         or a message if the list is empty.

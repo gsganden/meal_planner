@@ -14,13 +14,13 @@ DRAG_HANDLE_ICON = UkIcon(
 
 def create_loading_indicator(indicator_id: str) -> Loading:
     """Create a standard loading spinner for HTMX requests.
-    
+
     Generates a MonsterUI Loading component configured as an HTMX indicator
     that shows/hides automatically during async operations.
-    
+
     Args:
         indicator_id: HTML ID for the loading indicator element.
-        
+
     Returns:
         Loading component with HTMX indicator class and styling.
     """

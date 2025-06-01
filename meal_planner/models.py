@@ -26,16 +26,17 @@ RecipeName = Annotated[
 
 class RecipeBase(SQLModel):
     """Base recipe model with core fields shared across all recipe types.
-    
+
     This model serves as the foundation for both database models and
     API request/response models. It includes validation for required
     fields and provides utility methods for recipe formatting.
-    
+
     Attributes:
         name: The recipe name, must be non-empty.
         ingredients: List of ingredient strings, must contain at least one item.
         instructions: List of cooking instruction steps.
     """
+
     name: RecipeName
     ingredients: RecipeIngredients
     instructions: RecipeInstructions
@@ -43,11 +44,11 @@ class RecipeBase(SQLModel):
     @property
     def markdown(self) -> str:
         """Generate a markdown-formatted representation of the recipe.
-        
+
         Creates a structured markdown document with the recipe name as a
         header, followed by ingredients and instructions in bulleted lists.
         This format is used for display and for LLM prompts.
-        
+
         Returns:
             A markdown string with H1 title, H2 sections for ingredients
             and instructions, each item as a bullet point.
@@ -63,15 +64,16 @@ class RecipeBase(SQLModel):
 
 class Recipe(RecipeBase, table=True):
     """Database model for storing recipes with persistence.
-    
+
     Extends RecipeBase to add database-specific fields and configuration.
     This model is used by SQLModel/SQLAlchemy for database operations.
-    
+
     Attributes:
         id: Primary key, auto-generated on insert.
         name: Inherited from RecipeBase.
         ingredients: Inherited from RecipeBase, stored as JSON.
         instructions: Inherited from RecipeBase, stored as JSON.
     """
+
     __tablename__ = "recipes"  # type: ignore[assignment]
     id: Optional[int] = Field(default=None, primary_key=True)

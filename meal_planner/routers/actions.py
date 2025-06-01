@@ -38,8 +38,7 @@ logger = logging.getLogger(__name__)
 
 @rt("/recipes/save")
 async def post_save_recipe(request: Request):
-    """
-    Handles saving a new recipe submitted from the recipe editing UI.
+    """Handles saving a new recipe submitted from the recipe editing UI.
 
     Parses recipe data from the form, validates it, and attempts to save it
     by making a POST request to the internal `/api/v0/recipes` endpoint.
@@ -127,8 +126,7 @@ async def post_save_recipe(request: Request):
 
 @rt("/recipes/modify")
 async def post_modify_recipe(request: Request):
-    """
-    Handles recipe modification requests from the recipe editing UI.
+    """Handles recipe modification requests from the recipe editing UI.
 
     This endpoint processes form data containing a current recipe, an original
     recipe (for diffing and reference), and an optional user-provided modification
@@ -278,16 +276,16 @@ async def post_modify_recipe(request: Request):
 
 async def extract_recipe_from_text(page_text: str) -> RecipeBase:
     """Extract and post-process a recipe from raw text content.
-    
+
     Coordinates the LLM extraction and post-processing steps to convert
     unstructured text into a validated recipe object.
-    
+
     Args:
         page_text: Raw text content containing recipe information.
-        
+
     Returns:
         Validated and post-processed RecipeBase object.
-        
+
     Raises:
         Exception: If LLM extraction fails.
         ValueError: If post-processing finds no valid ingredients.
@@ -314,8 +312,7 @@ async def extract_recipe_from_text(page_text: str) -> RecipeBase:
 async def post_extract_recipe_run(
     recipe_text: str | None = None,
 ):  # Renamed from 'post' to avoid conflict
-    """
-    Handles the extraction of a recipe from raw text input.
+    """Handles the extraction of a recipe from raw text input.
 
     This route is typically called via HTMX from the recipe extraction page.
     It takes raw text, attempts to extract a structured recipe from it using
@@ -383,8 +380,7 @@ async def post_extract_recipe_run(
 
 @rt("/recipes/delete")
 async def post_delete_recipe(id: int):
-    """
-    Handles recipe deletion requests, typically initiated from the UI.
+    """Handles recipe deletion requests, typically initiated from the UI.
 
     This endpoint attempts to delete a recipe by its ID using an internal API call.
     On successful deletion, it returns an empty response with an HX-Trigger header

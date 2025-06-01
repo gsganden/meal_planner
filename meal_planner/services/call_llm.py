@@ -1,5 +1,7 @@
-"""Provides functions to interact with a Large Language Model (LLM)
-for recipe extraction and modification, using structured Pydantic models."""
+"""Provides functions to interact with a Large Language Model (LLM).
+
+for recipe extraction and modification, using structured Pydantic models.
+"""
 
 import asyncio
 import logging
@@ -88,8 +90,8 @@ def _get_llm_prompt_path(category: str, filename: str) -> Path:
 
 
 async def generate_recipe_from_text(text: str) -> RecipeBase:
-    """
-    Formats a prompt to extract a recipe from text, calls the LLM,
+    """Formats a prompt to extract a recipe from text, calls the LLM.
+
     and returns the structured recipe.
     """
     logger.info("Starting recipe generation from text.")
@@ -124,8 +126,8 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
 async def generate_modified_recipe(
     current_recipe: RecipeBase, modification_request: str
 ) -> RecipeBase:
-    """
-    Formats a prompt to modify an existing recipe based on a request,
+    """Formats a prompt to modify an existing recipe based on a request.
+
     calls the LLM, and returns the structured modified recipe.
     """
     logger.info(

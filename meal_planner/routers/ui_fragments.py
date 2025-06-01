@@ -31,15 +31,15 @@ logger = logging.getLogger(__name__)
 
 async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
     """Delete an item from a recipe list and return updated UI components.
-    
+
     Handles deletion of ingredients or instructions from the recipe form,
     maintaining form state and updating the diff view.
-    
+
     Args:
         request: FastAPI request containing form data.
         index: Zero-based index of the item to delete.
         item_type: Either "ingredients" or "instructions".
-        
+
     Returns:
         Updated list component with diff view via OOB swap.
         On error, returns an error message in place of the list.
@@ -112,14 +112,14 @@ async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
 @rt("/recipes/ui/delete-ingredient/{index:int}")
 async def post_delete_ingredient_row(request: Request, index: int):
     """Delete a specific ingredient from the recipe form.
-    
+
     HTMX endpoint for removing an ingredient at the specified index.
     Updates both the ingredient list and the diff view.
-    
+
     Args:
         request: FastAPI request with current form state.
         index: Zero-based position of ingredient to delete.
-        
+
     Returns:
         Updated ingredient list HTML with OOB diff update.
     """
@@ -129,14 +129,14 @@ async def post_delete_ingredient_row(request: Request, index: int):
 @rt("/recipes/ui/delete-instruction/{index:int}")
 async def post_delete_instruction_row(request: Request, index: int):
     """Delete a specific instruction from the recipe form.
-    
+
     HTMX endpoint for removing an instruction at the specified index.
     Updates both the instruction list and the diff view.
-    
+
     Args:
         request: FastAPI request with current form state.
         index: Zero-based position of instruction to delete.
-        
+
     Returns:
         Updated instruction list HTML with OOB diff update.
     """
@@ -145,14 +145,14 @@ async def post_delete_instruction_row(request: Request, index: int):
 
 async def _add_list_item(request: Request, item_type: str) -> FT:
     """Add a new empty item to a recipe list and return updated UI components.
-    
+
     Handles addition of new ingredients or instructions to the recipe form,
     adding an empty field that the user can populate.
-    
+
     Args:
         request: FastAPI request containing form data.
         item_type: Either "ingredients" or "instructions".
-        
+
     Returns:
         Updated list component with a new empty item and diff view update.
         On error, returns an error message in place of the list.
@@ -204,13 +204,13 @@ async def _add_list_item(request: Request, item_type: str) -> FT:
 @rt("/recipes/ui/add-ingredient")
 async def post_add_ingredient_row(request: Request):
     """Add a new empty ingredient field to the recipe form.
-    
+
     HTMX endpoint that appends a blank ingredient input to the list,
     allowing users to add more ingredients to their recipe.
-    
+
     Args:
         request: FastAPI request with current form state.
-        
+
     Returns:
         Updated ingredient list HTML with new field and OOB diff update.
     """
@@ -220,13 +220,13 @@ async def post_add_ingredient_row(request: Request):
 @rt("/recipes/ui/add-instruction")
 async def post_add_instruction_row(request: Request):
     """Add a new empty instruction field to the recipe form.
-    
+
     HTMX endpoint that appends a blank instruction textarea to the list,
     allowing users to add more steps to their recipe.
-    
+
     Args:
         request: FastAPI request with current form state.
-        
+
     Returns:
         Updated instruction list HTML with new field and OOB diff update.
     """
@@ -236,13 +236,13 @@ async def post_add_instruction_row(request: Request):
 @rt("/recipes/ui/update-diff")
 async def update_diff(request: Request) -> FT:
     """Update the diff view based on current form data.
-    
+
     Recalculates the before/after comparison between the original recipe
     and current edits. Called when form fields change or items are reordered.
-    
+
     Args:
         request: FastAPI request containing both current and original recipe data.
-        
+
     Returns:
         Updated diff view showing changes, or error message on validation failure.
     """
@@ -274,17 +274,18 @@ async def update_diff(request: Request) -> FT:
 @rt("/recipes/fetch-text")
 async def post_fetch_text(input_url: str | None = None):
     """Fetch and clean text content from a recipe URL.
-    
+
     HTMX endpoint that retrieves webpage content, cleans it, and populates
     the recipe text area. Handles various error cases with appropriate messages.
-    
+
     Args:
         input_url: URL to fetch recipe content from.
-        
+
     Returns:
         Group containing updated textarea with fetched content and
         error/success messages via OOB swap.
     """
+
     def _prepare_error_response(error_message_str: str):
         """Prepare error response with textarea and error message."""
         error_div = Div(
@@ -369,7 +370,7 @@ def _build_sortable_list_with_oob_diff(
     current_recipe: RecipeBase,
 ) -> FT:
     """Build a sortable list component with an out-of-band diff update.
-    
+
     Creates a draggable/sortable list of recipe items that triggers diff
     updates when reordered. Includes OOB swap for updating the diff view
     without replacing the list itself.
