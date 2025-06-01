@@ -32,10 +32,14 @@ def create_base_image() -> modal.Image:
 
 
 def create_google_api_key_secret() -> modal.Secret:
-    google_api_key = os.environ.get("GOOGLE_API_KEY")
-    if not google_api_key:
-        raise ValueError("GOOGLE_API_KEY environment variable not found.")
-    return modal.Secret.from_dict({"GOOGLE_API_KEY": google_api_key})
+    deploying = modal.is_local()
+    if deploying and "GOOGLE_API_KEY" not in os.environ:
+        raise ValueError(
+            "GOOGLE_API_KEY environment variable not found in the local environment "
+            "where 'modal deploy' is being run. This is required to create the Modal "
+            "Secret."
+        )
+    return modal.Secret.from_local_environ(["GOOGLE_API_KEY"])
 
 
 base_image = create_base_image()
@@ -46,7 +50,6 @@ volume = create_volume()
     image=base_image.add_local_file(
         "alembic.ini", remote_path=str(ALEMBIC_INI_PATH_IN_CONTAINER)
     ).add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER)),
-    secrets=[create_google_api_key_secret()],
     volumes={str(CONTAINER_DATA_DIR): volume},
 )
 def migrate_db():
