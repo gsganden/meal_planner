@@ -46,6 +46,7 @@ volume = create_volume()
     image=base_image.add_local_file(
         "alembic.ini", remote_path=str(ALEMBIC_INI_PATH_IN_CONTAINER)
     ).add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER)),
+    secrets=[create_google_api_key_secret()],
     volumes={str(CONTAINER_DATA_DIR): volume},
 )
 def migrate_db():
