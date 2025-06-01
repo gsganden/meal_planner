@@ -1,17 +1,4 @@
-"""Core application components for Meal Planner.
-
-This module initializes the main FastHTML and FastAPI applications,
-configures HTTP clients for internal communication, and sets up the
-base application structure with theming and live reload capabilities.
-
-Attributes:
-    app: Main FastHTML application instance with live reload and theming.
-    rt: Route decorator for FastHTML endpoints.
-    api_app: FastAPI instance for RESTful API endpoints.
-    internal_client: HTTP client for internal FastHTML routes.
-    internal_api_client: HTTP client for internal API routes.
-    STATIC_DIR: Path to static assets directory.
-"""
+"""Core application components for Meal Planner."""
 
 import logging
 from pathlib import Path
