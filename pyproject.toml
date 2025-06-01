@@ -60,3 +60,6 @@ known-first-party = ["meal_planner"]
 exclude_lines = [
     "pragma: no cover",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
