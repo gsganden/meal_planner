@@ -206,7 +206,7 @@ class TestRecipeSortableListPersistence:
         "Instructions: Step1, Step2"
     )
     MOCK_INITIAL_RECIPE = RecipeBase(
-        name="Sortable Test Recipe",
+        name="Sortable Test",
         ingredients=["Ing1", "Ing2", "Ing3"],
         instructions=["First instruction details", "Second instruction details"],
     )
