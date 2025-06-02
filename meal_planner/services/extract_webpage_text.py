@@ -1,9 +1,4 @@
-"""Web page content extraction service for the Meal Planner application.
-
-This module provides functionality to fetch and extract readable text content
-from web pages, particularly recipe websites. It handles HTML parsing,
-content extraction, and text formatting for further processing by the LLM.
-"""
+"""Web page content extraction service for the Meal Planner application."""
 
 import logging
 
@@ -11,84 +6,6 @@ import html2text
 import httpx
 
 logger = logging.getLogger(__name__)
-
-
-def create_html_cleaner() -> html2text.HTML2Text:
-    """Create a configured HTML2Text converter for recipe content extraction.
-
-    Returns a converter that strips links, images, and preserves text layout
-    without wrapping. This configuration is optimized for extracting recipe
-    content while removing navigation and visual elements.
-
-    Returns:
-        Configured HTML2Text instance ready for HTML to text conversion.
-    """
-    h = html2text.HTML2Text()
-    h.ignore_links = True
-    h.ignore_images = True
-    h.body_width = 0  # Prevents wrapping
-    return h
-
-
-def clean_html_text(html_text: str) -> str:
-    """Convert raw HTML to clean plain text format.
-
-    Processes HTML content through the configured HTML2Text converter,
-    removing formatting, links, and images while preserving text structure
-    and readability.
-
-    Args:
-        html_text: Raw HTML string to clean.
-
-    Returns:
-        Plain text representation of the HTML content suitable for
-        recipe extraction by the LLM.
-    """
-    cleaner = create_html_cleaner()
-    return cleaner.handle(html_text)
-
-
-async def fetch_page_text(recipe_url: str) -> str:
-    """Fetch the raw HTML content from a recipe URL.
-
-    Makes an HTTP GET request with browser-like headers to avoid blocking
-    by recipe websites. Handles redirects and enforces reasonable timeouts.
-
-    Args:
-        recipe_url: URL of the recipe webpage to fetch.
-
-    Returns:
-        Raw HTML text of the webpage.
-
-    Raises:
-        httpx.RequestError: For network-related errors.
-        httpx.HTTPStatusError: For non-2xx HTTP responses.
-        Exception: For other unexpected errors during fetching.
-    """
-    try:
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            ),
-            "Accept": (
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
-                "image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
-            ),
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-        }
-        async with httpx.AsyncClient(
-            follow_redirects=True, timeout=15.0, headers=headers
-        ) as client:
-            response = await client.get(recipe_url)
-        response.raise_for_status()
-        return response.text
-    except Exception as e:
-        logger.error(
-            f"Error fetching page text from {recipe_url}: {e!r}", exc_info=True
-        )
-        raise
 
 
 async def fetch_and_clean_text_from_url(url: str) -> str:
@@ -141,16 +58,70 @@ async def fetch_and_clean_text_from_url(url: str) -> str:
         raise RuntimeError(f"Failed to process URL content: {url}") from e
 
 
-def should_skip_tag(tag) -> bool:
-    """Determine if an HTML tag should be skipped during text extraction.
+async def fetch_page_text(recipe_url: str) -> str:
+    """Fetch the raw HTML content from a recipe URL.
 
-    Filters out non-content elements like scripts, styles, navigation,
-    and other UI elements that don't contain recipe information.
+    Makes an HTTP GET request with browser-like headers to avoid blocking
+    by recipe websites. Handles redirects and enforces reasonable timeouts.
 
     Args:
-        tag: BeautifulSoup tag object to evaluate.
+        recipe_url: URL of the recipe webpage to fetch.
 
     Returns:
-        True if the tag should be skipped, False if it should be processed.
+        Raw HTML text of the webpage.
+
+    Raises:
+        httpx.RequestError: For network-related errors.
+        httpx.HTTPStatusError: For non-2xx HTTP responses.
+        Exception: For other unexpected errors during fetching.
     """
-    # Skip script and style tags
+    try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
+                "image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+        }
+        async with httpx.AsyncClient(
+            follow_redirects=True, timeout=15.0, headers=headers
+        ) as client:
+            response = await client.get(recipe_url)
+        response.raise_for_status()
+        return response.text
+    except Exception as e:
+        logger.error(
+            f"Error fetching page text from {recipe_url}: {e!r}", exc_info=True
+        )
+        raise
+
+
+def clean_html_text(html_text: str) -> str:
+    """Convert raw HTML to clean plain text format.
+
+    Processes HTML content through the configured HTML2Text converter,
+    removing formatting, links, and images while preserving text structure
+    and readability.
+
+    Args:
+        html_text: Raw HTML string to clean.
+
+    Returns:
+        Plain text representation of the HTML content suitable for
+        recipe extraction by the LLM.
+    """
+
+    def _create_html_cleaner() -> html2text.HTML2Text:
+        h = html2text.HTML2Text()
+        h.ignore_links = True
+        h.ignore_images = True
+        h.body_width = 0  # Prevents wrapping
+        return h
+
+    cleaner = _create_html_cleaner()
+    return cleaner.handle(html_text)
