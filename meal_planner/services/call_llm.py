@@ -1,7 +1,4 @@
-"""Provides functions to interact with a Large Language Model (LLM).
-
-for recipe extraction and modification, using structured Pydantic models.
-"""
+"""Provides functions to interact with a Large Language Model (LLM)."""
 
 import asyncio
 import logging
