@@ -20,9 +20,8 @@ def generate_diff_html(
 ) -> tuple[list[str | FT], list[str | FT]]:
     """Generate HTML-safe diff components for before/after text comparison.
 
-    Uses Python's difflib to create a line-by-line comparison, with proper
-    HTML escaping to prevent XSS attacks. Differences are marked with Del/Ins
-    FastHTML components for styling.
+    Create a line-by-line comparison, with proper HTML escaping to prevent XSS attacks.
+    Differences are marked with Del/Ins FastHTML components for styling.
 
     Args:
         before_text: Original text for comparison.
