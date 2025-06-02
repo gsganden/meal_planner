@@ -96,7 +96,7 @@ async def fetch_page_text(recipe_url: str) -> str:
         return response.text
     except Exception as e:
         logger.error(
-            f"Error fetching page text from {recipe_url}: {e!r}", exc_info=True
+            "Error fetching page text from %s: %r", recipe_url, e, exc_info=True
         )
         raise
 
