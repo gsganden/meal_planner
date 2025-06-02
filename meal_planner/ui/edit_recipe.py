@@ -92,7 +92,8 @@ def build_diff_content_children(
             Pre(
                 *diff_items,
                 id=pre_id,
-                cls="border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs",
+                cls="border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto"
+                "text-xs",
                 style="white-space: pre-wrap; overflow-wrap: break-word;",
             ),
             cls=CardT.secondary,
