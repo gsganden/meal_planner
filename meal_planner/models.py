@@ -2,7 +2,6 @@
 
 This module defines the core data models used throughout the application,
 including both database models (SQLModel) and API request/response models.
-The models handle recipe data with proper validation and type annotations.
 """
 
 from typing import Annotated, Optional
