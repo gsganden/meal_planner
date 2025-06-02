@@ -11,41 +11,39 @@ def postprocess_recipe(recipe: RecipeBase) -> RecipeBase:
 
     Applies post-processing to recipe name, ingredients, and instructions
     to ensure consistent formatting and remove common extraction artifacts.
-    This includes HTML unescaping, punctuation fixes, and text normalization.
 
     Args:
         recipe: Raw recipe data extracted from a webpage.
 
     Returns:
-        Recipe with all fields cleaned and standardized.
+        A new RecipeBase instance with all fields cleaned and standardized.
 
     Raises:
         ValueError: If the recipe has no valid ingredients after processing.
-
-    Note:
-        This function modifies the recipe in-place and returns it.
     """
-    if recipe.name:
-        recipe.name = _postprocess_recipe_name(recipe.name)
+    result = recipe.model_copy(deep=True)
 
-    recipe.ingredients = [
+    if result.name:
+        result.name = _postprocess_recipe_name(result.name)
+
+    result.ingredients = [
         processed_ing
-        for ing_str in recipe.ingredients
+        for ing_str in result.ingredients
         if (processed_ing := _postprocess_ingredient(ing_str))
     ]
 
-    if not recipe.ingredients:
+    if not result.ingredients:
         raise ValueError(
             "Recipe must have at least one valid ingredient after processing."
         )
 
-    recipe.instructions = [
+    result.instructions = [
         processed_inst
-        for i in recipe.instructions
+        for i in result.instructions
         if (processed_inst := _postprocess_instruction(i))
     ]
 
-    return recipe
+    return result
 
 
 def _postprocess_recipe_name(name: str) -> str:
