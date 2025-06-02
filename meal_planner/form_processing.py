@@ -1,13 +1,9 @@
 """Form data processing utilities for the Meal Planner application.
 
-This module provides functions for processing and validating form data
-from FastHTML forms, particularly for recipe creation and modification.
-It handles the conversion of form data to Pydantic models with validation.
+Converts form data to Pydantic models with validation.
 """
 
 from starlette.datastructures import FormData
-
-from meal_planner.models import RecipeBase
 
 
 def parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
@@ -51,40 +47,3 @@ def parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
         "ingredients": ingredients,
         "instructions": instructions,
     }
-
-
-def process_recipe_form(form_data: dict) -> RecipeBase:
-    """Convert form data to a validated RecipeBase model.
-
-    Processes raw form data from recipe creation/edit forms, handling
-    the special encoding of list fields (ingredients and instructions)
-    and performing validation through Pydantic.
-
-    Args:
-        form_data: Dictionary of form field names to values. Expected keys:
-            - "name": Recipe name (string)
-            - "ingredients": Comma-separated ingredients (string)
-            - "instructions": Newline-separated instructions (string)
-
-    Returns:
-        A validated RecipeBase instance with properly parsed lists.
-
-    Raises:
-        ValueError: If required fields are missing or validation fails.
-    """
-    name = form_data["name"]
-    processed_ingredients = [
-        i.strip() for i in form_data["ingredients"].split(",") if i.strip()
-    ]
-    processed_instructions = [
-        s.strip() for s in form_data["instructions"].split("\n") if s.strip()
-    ]
-
-    if not processed_ingredients:
-        raise ValueError("Ingredients list cannot be empty after processing.")
-
-    return RecipeBase(
-        name=name,
-        ingredients=processed_ingredients,
-        instructions=processed_instructions,
-    )
