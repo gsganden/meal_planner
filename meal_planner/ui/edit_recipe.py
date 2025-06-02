@@ -80,38 +80,40 @@ def build_diff_content_children(
         Tuple of (before_card, after_card) MonsterUI Card components
         styled for diff display.
     """
+
+    def _build_single_diff_pane(
+        title: str,
+        diff_items: list[str | FT],
+        pre_id: str,
+    ) -> Card:
+        """Build a single pane (before or after) for the recipe diff view."""
+        return Card(
+            Strong(title),
+            Pre(
+                *diff_items,
+                id=pre_id,
+                cls="border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs",
+                style="white-space: pre-wrap; overflow-wrap: break-word;",
+            ),
+            cls=CardT.secondary,
+        )
+
     before_items, after_items = generate_diff_html(
         original_recipe.markdown, current_markdown
     )
 
-    pre_style = "white-space: pre-wrap; overflow-wrap: break-word;"
-    base_classes = (
-        "border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto text-xs"
-    )
-
-    before_div_component = Card(
-        Strong("Initial Extracted Recipe (Reference)"),
-        Pre(
-            *before_items,
-            id="diff-before-pre",
-            cls=base_classes,
-            style=pre_style,
+    return (
+        _build_single_diff_pane(
+            title="Initial Extracted Recipe (Reference)",
+            diff_items=before_items,
+            pre_id="diff-before-pre",
         ),
-        cls=CardT.secondary,
-    )
-
-    after_div_component = Card(
-        Strong("Current Edited Recipe"),
-        Pre(
-            *after_items,
-            id="diff-after-pre",
-            cls=base_classes,
-            style=pre_style,
+        _build_single_diff_pane(
+            title="Current Edited Recipe",
+            diff_items=after_items,
+            pre_id="diff-after-pre",
         ),
-        cls=CardT.secondary,
     )
-
-    return before_div_component, after_div_component
 
 
 def build_recipe_display(recipe_data: dict) -> FT:
