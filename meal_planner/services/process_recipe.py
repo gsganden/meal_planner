@@ -1,9 +1,4 @@
-"""Recipe post-processing and data cleaning service.
-
-This module provides functions to clean, standardize, and validate recipe
-data after extraction from web pages. It handles common formatting issues,
-normalizes text, and ensures data consistency across recipes.
-"""
+"""Recipe post-processing and data cleaning service."""
 
 import html
 import re
