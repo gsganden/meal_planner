@@ -1,14 +1,8 @@
-"""Routers for actions that process data or perform operations, often via POST.
-
-This module contains FastHTML route handlers for form submissions and AJAX
-operations triggered by user interactions. These endpoints handle recipe
-extraction, modification, saving, and deletion operations. Most routes return
-HTML fragments for HTMX updates rather than full pages.
-"""
+"""Routers for actions that process data or perform operations, often via POST."""
 
 import logging
 
-import httpx  # Added based on post_save_recipe
+import httpx
 from fastapi import Request, Response
 from fasthtml.common import *  # type: ignore
 from pydantic import ValidationError
@@ -18,7 +12,7 @@ from starlette.datastructures import FormData
 from meal_planner.core import (
     internal_api_client,
     rt,
-)  # Changed internal_client to internal_api_client
+)
 from meal_planner.form_processing import parse_recipe_form_data
 from meal_planner.models import RecipeBase
 from meal_planner.services.call_llm import (
@@ -38,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 @rt("/recipes/save")
 async def post_save_recipe(request: Request):
-    """Handles saving a new recipe submitted from the recipe editing UI.
+    """Handles saving a new recipe.
 
     Parses recipe data from the form, validates it, and attempts to save it
     by making a POST request to the internal `/api/v0/recipes` endpoint.
