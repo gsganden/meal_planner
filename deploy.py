@@ -19,7 +19,7 @@ from meal_planner.config import (
 app = modal.App("meal-planner")
 
 
-def create_volume() -> modal.Volume:
+def get_volume() -> modal.Volume:
     """Creates or retrieves a Modal Volume for persistent data storage."""
     return modal.Volume.from_name("meal-planner-data", create_if_missing=True)
 
@@ -44,7 +44,7 @@ def create_google_api_key_secret() -> modal.Secret:
 
 
 base_image = create_base_image()
-volume = create_volume()
+volume = get_volume()
 
 
 @app.function(
