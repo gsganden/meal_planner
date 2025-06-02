@@ -1,10 +1,4 @@
-"""UI components for recipe editing and display.
-
-This module provides rich UI components for the recipe editing workflow,
-including diff visualization, drag-and-drop list editing, AI modification
-controls, and form validation. It handles both manual editing and AI-assisted
-recipe modifications with real-time preview.
-"""
+"""UI components for recipe editing and display."""
 
 import difflib
 import html
