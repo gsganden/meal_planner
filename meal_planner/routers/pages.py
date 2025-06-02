@@ -1,9 +1,4 @@
-"""Routers for user-facing HTML pages that render full page layouts.
-
-This module contains FastHTML route handlers that return complete HTML pages
-with layout wrappers. These routes handle the main navigation pages of the
-application and support both full page loads and HTMX partial updates.
-"""
+"""Routers for user-facing HTML pages that render full page layouts."""
 
 import logging
 

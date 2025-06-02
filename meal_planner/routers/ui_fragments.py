@@ -1,9 +1,4 @@
-"""Routers for generating and returning HTML UI fragments, often for HTMX swaps.
-
-This module provides endpoints that return partial HTML components for dynamic
-UI updates via HTMX. These fragments handle list item manipulation (add/delete),
-diff updates, and URL content fetching for the recipe editing interface.
-"""
+"""Routers for generating and returning HTML UI fragments, often for HTMX swaps."""
 
 import logging
 
