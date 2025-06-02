@@ -90,9 +90,26 @@ def _get_llm_prompt_path(category: str, filename: str) -> Path:
 
 
 async def generate_recipe_from_text(text: str) -> RecipeBase:
-    """Formats a prompt to extract a recipe from text, calls the LLM.
+    """Extracts a structured recipe from a given block of text using an LLM.
 
-    and returns the structured recipe.
+    This function takes unstructured text, presumably containing a recipe,
+    formats it into a prompt using a predefined template, and then queries
+    an LLM to parse this text into a structured `RecipeBase` object.
+
+    Args:
+        text: A string containing the raw text of the recipe to be extracted.
+
+    Returns:
+        A `RecipeBase` Pydantic model instance populated with the extracted
+        recipe data (name, ingredients, instructions).
+
+    Raises:
+        FileNotFoundError: If the configured prompt template file for recipe
+            extraction cannot be found at the expected path.
+        RuntimeError: If any other error occurs during the LLM call or
+            response processing, wrapping the original exception. This typically
+            indicates an issue with the LLM service itself or an unexpected
+            problem formatting the prompt or parsing the response.
     """
     logger.info("Starting recipe generation from text.")
     try:
@@ -126,9 +143,31 @@ async def generate_recipe_from_text(text: str) -> RecipeBase:
 async def generate_modified_recipe(
     current_recipe: RecipeBase, modification_request: str
 ) -> RecipeBase:
-    """Formats a prompt to modify an existing recipe based on a request.
+    """Modifies an existing recipe based on a textual request using an LLM.
 
-    calls the LLM, and returns the structured modified recipe.
+    This function takes a current `RecipeBase` object and a natural language
+    modification request. It formats these into a prompt using a predefined
+    template, then queries an LLM to generate a new `RecipeBase` object
+    reflecting the requested modifications.
+
+    Args:
+        current_recipe: The `RecipeBase` Pydantic model instance representing
+            the recipe to be modified. Its markdown representation is used in
+            the prompt.
+        modification_request: A string containing the user's instructions
+            on how to modify the `current_recipe`.
+
+    Returns:
+        A new `RecipeBase` Pydantic model instance representing the recipe
+        after the LLM has applied the requested modifications.
+
+    Raises:
+        FileNotFoundError: If the configured prompt template file for recipe
+            modification cannot be found at the expected path.
+        RuntimeError: If any other error occurs during the LLM call or
+            response processing, wrapping the original exception. This typically
+            indicates an issue with the LLM service itself or an unexpected
+            problem formatting the prompt or parsing the response.
     """
     logger.info(
         "Starting recipe modification. Original: %s, Request: %s",
