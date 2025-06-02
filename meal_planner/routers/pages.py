@@ -98,11 +98,7 @@ async def get_recipe_list_page(request: Request):
         )
     else:
         title = "All Recipes"
-        content = (
-            format_recipe_list(response.json())
-            if response.json()
-            else Div("No recipes found.")
-        )
+        content = format_recipe_list(response.json())
 
     content_with_attrs = Div(
         content,

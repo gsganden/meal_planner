@@ -72,8 +72,19 @@ def process_recipe_form(form_data: dict) -> RecipeBase:
     Raises:
         ValueError: If required fields are missing or validation fails.
     """
+    name = form_data["name"]
+    processed_ingredients = [
+        i.strip() for i in form_data["ingredients"].split(",") if i.strip()
+    ]
+    processed_instructions = [
+        s.strip() for s in form_data["instructions"].split("\n") if s.strip()
+    ]
+
+    if not processed_ingredients:
+        raise ValueError("Ingredients list cannot be empty after processing.")
+
     return RecipeBase(
-        name=form_data["name"],
-        ingredients=[i.strip() for i in form_data["ingredients"].split(",")],
-        instructions=form_data["instructions"].strip().split("\n"),
+        name=name,
+        ingredients=processed_ingredients,
+        instructions=processed_instructions,
     )

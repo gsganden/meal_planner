@@ -26,7 +26,7 @@ def format_recipe_list(recipes_data: list[dict]) -> FT:
         or a message if the list is empty.
     """
     if not recipes_data:
-        return FT("No recipes found.")
+        return P("No recipes found.")
     return Ul(
         *[
             Li(

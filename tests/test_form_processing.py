@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 from starlette.datastructures import FormData
 
-from meal_planner.form_processing import parse_recipe_form_data
+from meal_planner.form_processing import parse_recipe_form_data, process_recipe_form
 from meal_planner.models import RecipeBase
 
 
@@ -79,3 +79,62 @@ class TestParseRecipeFormData:
         assert parsed_data == {"name": "", "ingredients": [], "instructions": []}
         with pytest.raises(ValidationError):
             RecipeBase(**parsed_data)
+
+
+class TestProcessRecipeForm:
+    def test_process_basic_strings(self):
+        form_dict = {
+            "name": "String Test Recipe",
+            "ingredients": "Ingredient A, Ingredient B ,  Ingredient C",
+            "instructions": "Step 1\nStep 2\n  Step 3  ",
+        }
+        recipe = process_recipe_form(form_dict)
+        assert recipe.name == "String Test Recipe"
+        assert recipe.ingredients == ["Ingredient A", "Ingredient B", "Ingredient C"]
+        assert recipe.instructions == ["Step 1", "Step 2", "Step 3"]
+
+    def test_process_empty_fields(self):
+        form_dict = {"name": "Empty Fields", "ingredients": "", "instructions": ""}
+        with pytest.raises(ValueError) as excinfo:
+            process_recipe_form(form_dict)
+        assert "Ingredients list cannot be empty after processing." in str(
+            excinfo.value
+        )
+
+    def test_process_only_whitespace_fields(self):
+        form_dict = {
+            "name": "Whitespace Fields",
+            "ingredients": " ,,  ",
+            "instructions": " \n \n  ",
+        }
+        with pytest.raises(ValueError) as excinfo:
+            process_recipe_form(form_dict)
+        assert "Ingredients list cannot be empty after processing." in str(
+            excinfo.value
+        )
+
+    def test_process_instructions_can_be_empty(self):
+        form_dict = {
+            "name": "Test Recipe Instructions Empty",
+            "ingredients": "Ingredient A, Ingredient B",
+            "instructions": "",
+        }
+        recipe = process_recipe_form(form_dict)
+        assert recipe.name == "Test Recipe Instructions Empty"
+        assert recipe.ingredients == ["Ingredient A", "Ingredient B"]
+        assert recipe.instructions == []
+
+    def test_process_missing_name_raises_keyerror(self):
+        form_dict = {"ingredients": "i1,i2", "instructions": "s1\ns2"}
+        with pytest.raises(KeyError):
+            process_recipe_form(form_dict)
+
+    def test_process_missing_ingredients_raises_keyerror(self):
+        form_dict = {"name": "No Ingredients", "instructions": "s1\ns2"}
+        with pytest.raises(KeyError):
+            process_recipe_form(form_dict)
+
+    def test_process_missing_instructions_raises_keyerror(self):
+        form_dict = {"name": "No Instructions", "ingredients": "i1,i2"}
+        with pytest.raises(KeyError):
+            process_recipe_form(form_dict)
