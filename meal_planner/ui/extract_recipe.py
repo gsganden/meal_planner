@@ -1,9 +1,4 @@
-"""Recipe extraction form components for the Meal Planner application.
-
-This module provides UI components for the recipe extraction workflow,
-including URL input, text input, and form submission handling with
-proper validation and user feedback.
-"""
+"""Recipe extraction form components for the Meal Planner application."""
 
 from fasthtml.common import *
 from monsterui.all import *

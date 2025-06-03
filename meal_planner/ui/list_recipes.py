@@ -1,8 +1,4 @@
-"""Recipe list display components for the Meal Planner application.
-
-This module provides UI components for displaying collections of recipes
-in list format with action buttons for viewing and deleting recipes.
-"""
+"""Recipe list display components for the Meal Planner application."""
 
 from fasthtml.common import *
 from monsterui.all import *
