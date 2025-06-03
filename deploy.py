@@ -36,11 +36,14 @@ def create_base_image() -> modal.Image:
 
 
 def create_google_api_key_secret() -> modal.Secret:
-    """Creates a Modal Secret for the Google API Key."""
-    google_api_key = os.environ.get("GOOGLE_API_KEY")
-    if not google_api_key:
-        raise ValueError("GOOGLE_API_KEY environment variable not found.")
-    return modal.Secret.from_dict({"GOOGLE_API_KEY": google_api_key})
+    deploying = modal.is_local()
+    if deploying and "GOOGLE_API_KEY" not in os.environ:
+        raise ValueError(
+            "GOOGLE_API_KEY environment variable not found in the local environment "
+            "where 'modal deploy' is being run. This is required to create the Modal "
+            "Secret."
+        )
+    return modal.Secret.from_local_environ(["GOOGLE_API_KEY"])
 
 
 base_image = create_base_image()
