@@ -338,18 +338,18 @@ class TestSaveRecipeEndpoint:
 @pytest.fixture
 def mock_original_recipe_fixture() -> RecipeBase:
     return RecipeBase(
-        name="Original Recipe",
-        ingredients=["orig ing 1"],
-        instructions=["orig inst 1"],
+        name="Original",
+        ingredients=["orig ing 1."],
+        instructions=["orig inst 1."],
     )
 
 
 @pytest.fixture
 def mock_current_recipe_before_modify_fixture() -> RecipeBase:
     return RecipeBase(
-        name="Current Recipe",
-        ingredients=["curr ing 1"],
-        instructions=["curr inst 1"],
+        name="Current",
+        ingredients=["curr ing 1."],
+        instructions=["curr inst 1."],
     )
 
 
@@ -357,8 +357,8 @@ def mock_current_recipe_before_modify_fixture() -> RecipeBase:
 def mock_llm_modified_recipe_fixture() -> RecipeBase:
     return RecipeBase(
         name="Modified",
-        ingredients=["mod ing 1"],
-        instructions=["mod inst 1"],
+        ingredients=["mod ing 1."],
+        instructions=["mod inst 1."],
     )
 
 
@@ -406,10 +406,7 @@ class TestModifyRecipeEndpoint:
             current_data_from_html["ingredients"]
             == mock_llm_modified_recipe_fixture.ingredients
         )
-        assert (
-            current_data_from_html["instructions"]
-            == mock_llm_modified_recipe_fixture.instructions
-        )
+        assert current_data_from_html["instructions"] == ["mod inst 1."]
 
         full_form_data_from_html = extract_full_edit_form_data(html_content)
         assert (
@@ -799,7 +796,7 @@ class TestExtractRecipeEndpoint:
     )
     async def test_success(self, mock_llm_generate_recipe, client: AsyncClient):
         expected_recipe = RecipeBase(
-            name="Test Recipe",
+            name="Test",
             ingredients=["ingredient1"],
             instructions=["Mix the ingredients well."],
         )
@@ -811,10 +808,10 @@ class TestExtractRecipeEndpoint:
         assert response.status_code == 200
         mock_llm_generate_recipe.assert_called_once_with(text="Some recipe text")
 
-        assert expected_recipe.name in response.text
+        assert "Test" in response.text
         assert expected_recipe.ingredients[0] in response.text
         if expected_recipe.instructions:
-            assert expected_recipe.instructions[0] in response.text
+            assert "Mix the ingredients well." in response.text
 
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -831,7 +828,7 @@ class TestExtractRecipeEndpoint:
 
         name_input = edit_oob_div.find("input", {"name": "name"})
         assert name_input is not None
-        assert name_input.get("value") == expected_recipe.name
+        assert name_input.get("value") == "Test"
 
         ingredient_inputs = edit_oob_div.find_all("input", {"name": "ingredients"})
         assert len(ingredient_inputs) >= 1

@@ -26,8 +26,14 @@ class TestPostprocessRecipeName:
             ingredients=self.DUMMY_INGREDIENTS,
             instructions=self.DUMMY_INSTRUCTIONS,
         )
+        original_recipe_copy = input_recipe.model_copy(deep=True)
         processed_recipe = postprocess_recipe(input_recipe)
+
         assert processed_recipe.name == expected_name
+        # Verify original recipe is unchanged
+        assert input_recipe.name == original_recipe_copy.name
+        assert input_recipe.ingredients == original_recipe_copy.ingredients
+        assert input_recipe.instructions == original_recipe_copy.instructions
 
 
 class TestPostprocessRecipe:
@@ -44,6 +50,7 @@ class TestPostprocessRecipe:
             ],
             instructions=["Step 1"],
         )
+        original_recipe_copy = recipe.model_copy(deep=True)
         processed = postprocess_recipe(recipe)
         assert processed.ingredients == [
             "Ingredient 1",
@@ -52,6 +59,10 @@ class TestPostprocessRecipe:
             "Multiple spaces",
             "Ends with comma,",
         ]
+        # Verify original recipe is unchanged
+        assert recipe.name == original_recipe_copy.name
+        assert recipe.ingredients == original_recipe_copy.ingredients
+        assert recipe.instructions == original_recipe_copy.instructions
 
     def test_postprocess_ingredients_empty_result(self):
         recipe = RecipeBase(
@@ -63,12 +74,18 @@ class TestPostprocessRecipe:
             ],
             instructions=["Step 1"],
         )
+        original_recipe_copy = recipe.model_copy(deep=True)
+
         with pytest.raises(ValueError) as excinfo:
             postprocess_recipe(recipe)
         assert (
             "Recipe must have at least one valid ingredient after processing."
             in str(excinfo.value)
         )
+        # Verify original recipe is unchanged even if exception occurs
+        assert recipe.name == original_recipe_copy.name
+        assert recipe.ingredients == original_recipe_copy.ingredients
+        assert recipe.instructions == original_recipe_copy.instructions
 
     def test_postprocess_instructions(self):
         recipe = RecipeBase(
@@ -84,6 +101,7 @@ class TestPostprocessRecipe:
                 " Has comma , in middle",
             ],
         )
+        original_recipe_copy = recipe.model_copy(deep=True)
         processed = postprocess_recipe(recipe)
         assert processed.instructions == [
             "Basic step.",
@@ -93,6 +111,10 @@ class TestPostprocessRecipe:
             "Ends with semicolon;",
             "Has comma, in middle.",
         ]
+        # Verify original recipe is unchanged
+        assert recipe.name == original_recipe_copy.name
+        assert recipe.ingredients == original_recipe_copy.ingredients
+        assert recipe.instructions == original_recipe_copy.instructions
 
 
 class TestEnsureEndingPunctuation:

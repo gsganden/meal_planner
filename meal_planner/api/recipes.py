@@ -1,4 +1,4 @@
-"""API endpoints for recipe CRUD operations."""
+"""REST API endpoints for recipe CRUD operations."""
 
 import logging
 from typing import Annotated
@@ -27,6 +27,25 @@ async def create_recipe(
     recipe_data: RecipeBase,
     session: Annotated[Session, Depends(get_session)],
 ):
+    """Create a new recipe in the database.
+
+    Validates the recipe data and persists it to the database. Returns
+    the created recipe with its assigned ID and sets the Location header
+    for the new resource.
+
+    Args:
+        recipe_data: Recipe information to create (name, ingredients, instructions).
+        session: Database session from dependency injection.
+
+    Returns:
+        The created recipe with database-assigned ID.
+
+    Raises:
+        HTTPException: 500 if database operation fails.
+
+    Response Headers:
+        Location: URL path to the newly created recipe resource.
+    """
     db_recipe = Recipe.model_validate(recipe_data)
 
     try:
@@ -58,6 +77,20 @@ async def create_recipe(
 
 @API_ROUTER.get("/v0/recipes", response_model=list[Recipe])
 async def get_all_recipes(session: Annotated[Session, Depends(get_session)]):
+    """Retrieve all recipes from the database.
+
+    Fetches the complete list of recipes without pagination. For production
+    use with large datasets, pagination should be implemented.
+
+    Args:
+        session: Database session from dependency injection.
+
+    Returns:
+        List of all recipes in the database, empty list if none exist.
+
+    Raises:
+        HTTPException: 500 if database query fails.
+    """
     try:
         statement = select(Recipe)
         all_recipes = session.exec(statement).all()
@@ -74,6 +107,21 @@ async def get_all_recipes(session: Annotated[Session, Depends(get_session)]):
 async def get_recipe_by_id(
     recipe_id: int, session: Annotated[Session, Depends(get_session)]
 ):
+    """Retrieve a specific recipe by its ID.
+
+    Fetches a single recipe from the database using its primary key.
+    Returns 404 if the recipe doesn't exist.
+
+    Args:
+        recipe_id: Unique identifier of the recipe to retrieve.
+        session: Database session from dependency injection.
+
+    Returns:
+        The requested recipe if found.
+
+    Raises:
+        HTTPException: 404 if recipe not found, 500 if database error.
+    """
     try:
         recipe = session.get(Recipe, recipe_id)
     except Exception as e:
@@ -98,6 +146,24 @@ async def get_recipe_by_id(
 async def delete_recipe(
     recipe_id: int, session: Annotated[Session, Depends(get_session)]
 ):
+    """Delete a recipe from the database.
+
+    Permanently removes a recipe. Returns 204 No Content on success.
+    Includes HX-Trigger header to notify HTMX clients of the change.
+
+    Args:
+        recipe_id: Unique identifier of the recipe to delete.
+        session: Database session from dependency injection.
+
+    Returns:
+        Empty response with 204 status on success.
+
+    Raises:
+        HTTPException: 404 if recipe not found, 500 if database error.
+
+    Response Headers:
+        HX-Trigger: "recipeListChanged" event for HTMX updates.
+    """
     try:
         recipe = session.get(Recipe, recipe_id)
     except Exception as e:

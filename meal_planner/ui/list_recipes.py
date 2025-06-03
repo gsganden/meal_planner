@@ -1,4 +1,4 @@
-"""UI component for displaying a list of recipes."""
+"""Recipe list display components for the Meal Planner application."""
 
 from fasthtml.common import *
 from monsterui.all import *
@@ -7,7 +7,22 @@ from meal_planner.ui.common import ICON_DELETE
 
 
 def format_recipe_list(recipes_data: list[dict]) -> FT:
-    """Formats the recipe list data into a list of recipe items."""
+    """Format a list of recipes as an interactive HTML list.
+
+    Creates a styled list of recipe items, each with a clickable name
+    that navigates to the recipe detail page and a delete button with
+    confirmation dialog.
+
+    Args:
+        recipes_data: List of recipe dictionaries, each containing at least
+            'id' and 'name' fields.
+
+    Returns:
+        MonsterUI List component containing all recipe items with actions,
+        or a message if the list is empty.
+    """
+    if not recipes_data:
+        return P("No recipes found.")
     return Ul(
         *[
             Li(

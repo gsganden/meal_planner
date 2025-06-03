@@ -206,9 +206,9 @@ class TestRecipeSortableListPersistence:
         "Instructions: Step1, Step2"
     )
     MOCK_INITIAL_RECIPE = RecipeBase(
-        name="Sortable Test Recipe",
+        name="Sortable Test",
         ingredients=["Ing1", "Ing2", "Ing3"],
-        instructions=["First instruction details", "Second instruction details"],
+        instructions=["First instruction details.", "Second instruction details."],
     )
 
     def _assert_sortable_attributes(
@@ -445,12 +445,8 @@ class TestRecipeSortableListPersistence:
             "textarea", attrs={"name": FIELD_INSTRUCTIONS}
         )
         assert len(textareas) == 3, f"Expected 3 instructions, got {len(textareas)}"
-        assert (
-            textareas[0].get_text(strip=True) == "First instruction details."
-        )  # Original was "First instruction details"
-        assert (
-            textareas[1].get_text(strip=True) == "Second instruction details."
-        )  # Original was "Second instruction details"
+        assert textareas[0].get_text(strip=True) == "First instruction details."
+        assert textareas[1].get_text(strip=True) == "Second instruction details."
         assert textareas[2].get_text(strip=True) == ""
 
 

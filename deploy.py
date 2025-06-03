@@ -1,3 +1,5 @@
+"""Modal deployment script for the Meal Planner application."""
+
 import logging
 import os
 
@@ -17,11 +19,13 @@ from meal_planner.config import (
 app = modal.App("meal-planner")
 
 
-def create_volume() -> modal.Volume:
+def get_volume() -> modal.Volume:
+    """Creates or retrieves a Modal Volume for persistent data storage."""
     return modal.Volume.from_name("meal-planner-data", create_if_missing=True)
 
 
 def create_base_image() -> modal.Image:
+    """Creates the base Docker image for Modal functions."""
     return (
         modal.Image.debian_slim(python_version="3.12")
         .pip_install_from_pyproject("pyproject.toml")
@@ -32,6 +36,7 @@ def create_base_image() -> modal.Image:
 
 
 def create_google_api_key_secret() -> modal.Secret:
+    """Creates a Modal Secret for the Google API Key."""
     deploying = modal.is_local()
     if deploying and "GOOGLE_API_KEY" not in os.environ:
         raise ValueError(
@@ -43,7 +48,7 @@ def create_google_api_key_secret() -> modal.Secret:
 
 
 base_image = create_base_image()
-volume = create_volume()
+volume = get_volume()
 
 
 @app.function(
