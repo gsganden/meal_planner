@@ -20,6 +20,8 @@ dependencies = [
     "sqlmodel",
     "alembic",
     "fastapi>=0.115.12",
+    "chardet>=5.2.0",
+    "brotli>=1.1.0",
 ]
 
 [project.optional-dependencies]
