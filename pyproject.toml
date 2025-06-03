@@ -50,10 +50,9 @@ lint.select = ["E", "F", "W", "I", "B", "C4", "SIM", "S", "D"]
 lint.ignore = ["F403", "F405", "D105", "D107"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "D"]
-"meal_planner/main.py" = ["F811"]
-"alembic/**/*.py" = ["D"]
-"scripts/**/*.py" = ["D"]
+"tests/**/*.py" = ["S101", "D"] # allow assert, do not require docstrings
+"alembic/**/*.py" = ["D"] # do not require docstrings
+"scripts/**/*.py" = ["D"] # do not require docstrings
 
 [tool.ruff.lint.isort]
 known-first-party = ["meal_planner"]
