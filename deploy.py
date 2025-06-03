@@ -36,6 +36,7 @@ def create_base_image() -> modal.Image:
 
 
 def create_google_api_key_secret() -> modal.Secret:
+    """Creates a Modal Secret for the Google API Key."""
     deploying = modal.is_local()
     if deploying and "GOOGLE_API_KEY" not in os.environ:
         raise ValueError(
