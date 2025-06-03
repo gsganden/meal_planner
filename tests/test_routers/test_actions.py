@@ -884,7 +884,7 @@ class TestExtractRecipeEndpoint:
     async def test_extract_run_missing_instructions(
         self, mock_llm_generate_recipe, mock_postprocess, client: AsyncClient
     ):
-        initial_recipe = RecipeBase(
+        initial_recipe = RecipeBase.model_construct(
             name="Test Recipe", ingredients=["ingredient1"], instructions=[]
         )
         final_recipe = RecipeBase(
