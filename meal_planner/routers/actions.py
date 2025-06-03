@@ -81,11 +81,32 @@ async def post_save_recipe(request: Request):
                 exc_info=True,
             )
             if e.response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
-                result = Span(
-                    "Could not save recipe: Invalid data for some fields.",
-                    cls=CSS_ERROR_CLASS,
-                    id="save-button-container",
-                )
+                try:
+                    error_detail = e.response.json().get("detail", [])
+                    for error in error_detail:
+                        if (
+                            isinstance(error, dict)
+                            and error.get("loc") == ["body", "instructions"]
+                            and error.get("type") == "too_short"
+                        ):
+                            result = Span(
+                                "Please add at least one instruction to the recipe.",
+                                cls=CSS_ERROR_CLASS,
+                                id="save-button-container",
+                            )
+                            break
+                    else:
+                        result = Span(
+                            "Could not save recipe: Invalid data for some fields.",
+                            cls=CSS_ERROR_CLASS,
+                            id="save-button-container",
+                        )
+                except Exception:
+                    result = Span(
+                        "Could not save recipe: Invalid data for some fields.",
+                        cls=CSS_ERROR_CLASS,
+                        id="save-button-container",
+                    )
             else:
                 result = Span(
                     "Could not save recipe. Please check input and try again.",

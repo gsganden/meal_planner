@@ -135,6 +135,38 @@ class TestCreateRecipeValidation:
                     }
                 ],
             ),
+            (
+                {
+                    "name": "Test",
+                    "ingredients": ["i1"],
+                    "instructions": [],
+                },
+                [
+                    {
+                        "loc": ("body", "instructions"),
+                        "msg": (
+                            "List should have at least 1 item after validation, not 0"
+                        ),
+                        "type": "too_short",
+                    }
+                ],
+            ),
+            (
+                {
+                    "name": "Test",
+                    "ingredients": [],
+                    "instructions": ["s1"],
+                },
+                [
+                    {
+                        "loc": ("body", "ingredients"),
+                        "msg": (
+                            "List should have at least 1 item after validation, not 0"
+                        ),
+                        "type": "too_short",
+                    }
+                ],
+            ),
         ],
     )
     async def test_create_recipe_validation_error(
