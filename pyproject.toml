@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "anyio",
     "beautifulsoup4>=4.13.4",
+    "brotli",
     "openai",
     "httpx",
     "instructor",
@@ -20,8 +21,7 @@ dependencies = [
     "sqlmodel",
     "alembic",
     "fastapi>=0.115.12",
-    "chardet>=5.2.0",
-    "brotli>=1.1.0",
+    "zstandard>=0.23.0",
 ]
 
 [project.optional-dependencies]
