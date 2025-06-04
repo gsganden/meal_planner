@@ -5,8 +5,8 @@ including both database models (SQLModel) and API request/response models.
 """
 
 from typing import Annotated, Optional
-
-from sqlalchemy import Column
+import datetime
+from sqlalchemy import Column, func
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
 
@@ -72,7 +72,21 @@ class Recipe(RecipeBase, table=True):
         name: Inherited from RecipeBase.
         ingredients: Inherited from RecipeBase, stored as JSON.
         instructions: Inherited from RecipeBase, stored as JSON.
+        created_at: Timestamp of when the recipe was created.
+        updated_at: Timestamp of when the recipe was last updated.
     """
 
     __tablename__ = "recipes"  # type: ignore[assignment]
     id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: Optional[datetime.datetime] = Field(
+        default=None,
+        sa_column_kwargs={"server_default": func.now()},
+        nullable=False,
+        description="Timestamp of when the recipe was created.",
+    )
+    updated_at: Optional[datetime.datetime] = Field(
+        default=None,
+        sa_column_kwargs={"server_default": func.now(), "onupdate": func.now()},
+        nullable=False,
+        description="Timestamp of when the recipe was last updated.",
+    )
