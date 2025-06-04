@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 
 from meal_planner.models import RecipeBase
-from meal_planner.routers.actions import extract_recipe_from_text
+from meal_planner.services.call_llm import generate_recipe_from_text
 from meal_planner.services.extract_webpage_text import clean_html_text
+from meal_planner.services.process_recipe import postprocess_recipe
 
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
 
@@ -37,9 +38,10 @@ async def extracted_recipe_fixture(request, anyio_backend):
     html_file_path: Path = request.param
 
     expected_data = recipes_data[html_file_path]
-    extracted_recipe = await extract_recipe_from_text(
-        clean_html_text(html_file_path.read_text())
-    )
+    page_content = clean_html_text(html_file_path.read_text())
+    llm_extracted_recipe = await generate_recipe_from_text(text=page_content)
+    extracted_recipe = postprocess_recipe(llm_extracted_recipe)
+
     return extracted_recipe, expected_data
 
 

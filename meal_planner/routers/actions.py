@@ -24,7 +24,6 @@ from meal_planner.ui.common import CSS_ERROR_CLASS, CSS_SUCCESS_CLASS
 from meal_planner.ui.edit_recipe import (
     build_edit_review_form,
     build_modify_form_response,
-    build_recipe_display,
 )
 
 logger = logging.getLogger(__name__)
@@ -262,7 +261,15 @@ async def post_modify_recipe(request: Request):
         )
 
     except ValidationError as ve:
-        logger.error("Validation error post-LLM or unexpected: %s", ve)
+        logger.error(
+            (
+                "Validation error during recipe extraction or postprocessing: %s. "
+                "Text: '%s'"
+            ),
+            ve,
+            recipe_text[:100],
+            exc_info=True,
+        )
         result = build_modify_form_response(
             current_recipe=current_recipe,  # Revert to recipe before this error
             original_recipe=original_recipe,
@@ -289,108 +296,126 @@ async def post_modify_recipe(request: Request):
     return result
 
 
-async def extract_recipe_from_text(page_text: str) -> RecipeBase:
-    """Extract and post-process a recipe from raw text content.
-
-    Coordinates the LLM extraction and post-processing steps to convert
-    unstructured text into a validated recipe object.
-
-    Args:
-        page_text: Raw text content containing recipe information.
-
-    Returns:
-        Validated and post-processed RecipeBase object.
-
-    Raises:
-        Exception: If LLM extraction fails.
-        ValueError: If post-processing finds no valid ingredients.
-    """
-    logger.info("Attempting to extract recipe from provided text.")
-    try:
-        extracted_recipe: RecipeBase = await generate_recipe_from_text(text=page_text)
-    except Exception as e:
-        logger.error(
-            f"LLM service failed to generate recipe from text: {e!r}", exc_info=True
-        )
-        raise
-
-    result = postprocess_recipe(extracted_recipe)
-    logger.info(
-        "Extraction (via call_llm) and postprocessing successful. Recipe Name: %s",
-        result.name,
-    )
-    logger.debug("Processed Recipe Object: %r", result)
-    return result
-
-
 @rt("/recipes/extract/run")
 async def post_extract_recipe_run(
     recipe_text: str | None = None,
 ):  # Renamed from 'post' to avoid conflict
-    """Handles the extraction of a recipe from raw text input.
+    """Handles recipe extraction from text.
 
-    This route is typically called via HTMX from the recipe extraction page.
-    It takes raw text, attempts to extract a structured recipe from it using
-    an LLM service (via the `extract_recipe_from_text` helper), and then
-    returns HTML components to display the extracted recipe and populate
-    an edit/review form.
+    This endpoint takes raw text, attempts to extract a recipe from it using an
+    LLM service, and then populates the recipe editing form with the
+    extracted data.
 
     Args:
-        recipe_text: The raw text string from which to extract a recipe.
-                     Passed as a query parameter by FastHTML from form data.
+        recipe_text: The raw text input by the user, expected to contain a recipe.
 
     Returns:
-        A `Group` of `Div` components containing the rendered extracted recipe
-        for reference, and OOB-swapped `Div`s for the recipe edit form and
-        review section.
-        Returns a single `Div` with an error message if no text is provided
-        or if extraction fails.
+        A Group of Divs for OOB swaps updating '#edit-form-target',
+        '#review-section-target', and clearing '#error-message-container'
+        if successful.
+        If `recipe_text` is missing, returns an error message Div for OOB swap to
+        '#error-message-container'.
+        If LLM extraction fails, returns an error message Div for OOB swap to
+        '#error-message-container'.
+        If extracted recipe has no instructions, returns an error message Div for OOB
+        swap to '#error-message-container'.
     """
     if not recipe_text:
-        logger.error("Recipe extraction called without text.")
-        return Div("No text content provided for extraction.", cls=CSS_ERROR_CLASS)
-
-    try:
-        logger.info("Calling extraction logic")
-        processed_recipe = await extract_recipe_from_text(recipe_text)
-        logger.info("Extraction successful")
-        logger.info(
-            f"Instructions before building form: {processed_recipe.instructions}"
-        )
-    except Exception as e:
-        logger.error(
-            "Error during recipe extraction: %s",
-            e,
-            exc_info=True,
-        )
-        result = Div(
-            "Recipe extraction failed. An unexpected error occurred during processing.",
+        logger.warning("Recipe extraction called with no text provided.")
+        return Div(
+            "No text content provided for extraction.",
+            id="error-message-container",
+            hx_swap_oob="innerHTML",
             cls=CSS_ERROR_CLASS,
         )
-    else:
-        rendered_recipe_html = Div(
-            H2("Extracted Recipe (Reference)"),
-            build_recipe_display(processed_recipe.model_dump()),
-            cls="mb-6 space-y-4",
+
+    try:
+        extracted_recipe: RecipeBase = await generate_recipe_from_text(text=recipe_text)
+        logger.info(
+            "LLM successfully generated recipe from text. Name: %s",
+            extracted_recipe.name,
         )
 
+        if not extracted_recipe.instructions:
+            logger.warning(
+                "Recipe extracted from text is missing instructions. Recipe name: %s",
+                extracted_recipe.name,
+            )
+            return Div(
+                (
+                    "Recipe extraction resulted in missing instructions. "
+                    "Please refine your input or try a different recipe text."
+                ),
+                id="error-message-container",
+                hx_swap_oob="innerHTML",
+                cls=f"{CSS_ERROR_CLASS} mt-2",
+            )
+
+        original_recipe_for_form = extracted_recipe
+        processed_recipe = postprocess_recipe(extracted_recipe)
+        logger.info("Recipe postprocessing successful. Name: %s", processed_recipe.name)
+
         edit_form_card, review_section_card = build_edit_review_form(
-            processed_recipe, processed_recipe
+            current_recipe=processed_recipe,
+            original_recipe=original_recipe_for_form,
+            error_message_content=None,
+            # modification_prompt_value is not passed for initial extraction
         )
 
         edit_oob_div = Div(
             edit_form_card,
-            hx_swap_oob="innerHTML:#edit-form-target",
+            id="edit-form-target",  # This Div IS the target
+            hx_swap_oob="innerHTML",
         )
-
         review_oob_div = Div(
             review_section_card,
-            hx_swap_oob="innerHTML:#review-section-target",
+            id="review-section-target",  # This Div IS the target
+            hx_swap_oob="innerHTML",
+        )
+        # Clear any previous error messages
+        clear_error_message_div = Div(
+            id="error-message-container", hx_swap_oob="innerHTML"
         )
 
-        result = Group(rendered_recipe_html, edit_oob_div, review_oob_div)
+        return Group(edit_oob_div, review_oob_div, clear_error_message_div)
 
-    return result
+    except ValidationError as ve:
+        logger.error(
+            (
+                "Validation error during recipe extraction or postprocessing: %s. "
+                "Text: '%s'"
+            ),
+            ve,
+            recipe_text[:100],
+            exc_info=True,
+        )
+        return Div(
+            "Recipe data is invalid after extraction. Please check the input text.",
+            id="error-message-container",
+            hx_swap_oob="innerHTML",
+            cls=CSS_ERROR_CLASS,
+        )
+    except Exception as e:
+        logger.error(
+            "LLM service failed to generate recipe from text: %s. Text: '%s'",
+            e,
+            recipe_text[:100],  # Log only a snippet
+            exc_info=True,
+        )
+        # Ensure a distinct log for the more generic "Error during recipe extraction"
+        # if it's not the LLM service call itself, though often it will be.
+        if not isinstance(
+            e, (RuntimeError, FileNotFoundError)
+        ):  # Assuming LLM service raises these
+            logger.error(
+                "Error during recipe extraction processing: %s", e, exc_info=True
+            )
+        return Div(
+            "Recipe extraction failed. Please try again or check the input text.",
+            id="error-message-container",
+            hx_swap_oob="innerHTML",
+            cls=CSS_ERROR_CLASS,
+        )
 
 
 @rt("/recipes/delete")
