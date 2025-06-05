@@ -333,6 +333,126 @@ class TestSaveRecipeEndpoint:
             "Could not save recipe. Please check input and try again." in response.text
         )
 
+    @pytest.mark.anyio
+    async def test_save_recipe_api_call_422_too_short_instructions(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """Test 422 error from API when instructions are missing/too short."""
+        error_detail = [
+            {
+                "type": "too_short",
+                "loc": ["body", "instructions"],
+                "msg": "List should have at least 1 item after validation, not 0",
+                "input": {"name": "Test", "ingredients": ["i1"], "instructions": []},
+            }
+        ]
+        mock_response = httpx.Response(
+            status_code=422,
+            json={"detail": error_detail},
+            request=httpx.Request("POST", "/api/v0/recipes"),
+        )
+        mock_post = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                message="Unprocessable Entity",
+                request=httpx.Request("POST", "/api/v0/recipes"),
+                response=mock_response,
+            )
+        )
+        monkeypatch.setattr(
+            "meal_planner.routers.actions.internal_api_client.post", mock_post
+        )
+
+        form_data = {
+            FIELD_NAME: "Recipe Missing Instructions",
+            FIELD_INGREDIENTS: ["ingredient1"],
+            FIELD_INSTRUCTIONS: ["Actual instruction provided"],
+        }
+        response = await client.post(RECIPES_SAVE_URL, data=form_data)
+        assert response.status_code == 200  # Action route itself returns 200
+        soup = BeautifulSoup(response.text, "html.parser")
+        error_span = soup.find("span", id="save-button-container")
+        assert error_span is not None
+        assert CSS_ERROR_CLASS in error_span.get("class", [])
+        assert (
+            "Please add at least one instruction to the recipe."
+            in error_span.get_text(strip=True)
+        )
+        mock_post.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_save_recipe_api_call_422_malformed_detail(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """Test 422 error from API with malformed/unexpected detail structure."""
+        # Scenario 1: Detail is a string, not a list of dicts
+        mock_response_string_detail = httpx.Response(
+            status_code=422,
+            json={"detail": "A simple error string, not a list of error objects"},
+            request=httpx.Request("POST", "/api/v0/recipes"),
+        )
+        mock_post_string_detail = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                message="Unprocessable Entity",
+                request=httpx.Request("POST", "/api/v0/recipes"),
+                response=mock_response_string_detail,
+            )
+        )
+        monkeypatch.setattr(
+            "meal_planner.routers.actions.internal_api_client.post",
+            mock_post_string_detail,
+        )
+
+        form_data = {
+            FIELD_NAME: "Malformed Detail Test 1",
+            FIELD_INGREDIENTS: ["ingredient1"],
+            FIELD_INSTRUCTIONS: ["instruction1"],
+        }
+        response = await client.post(RECIPES_SAVE_URL, data=form_data)
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.text, "html.parser")
+        error_span = soup.find("span", id="save-button-container")
+        assert error_span is not None
+        assert CSS_ERROR_CLASS in error_span.get("class", [])
+        assert (
+            "Could not save recipe: Invalid data for some fields."
+            in error_span.get_text(strip=True)
+        )
+        mock_post_string_detail.assert_called_once()
+
+        # Scenario 2: Response is not JSON
+        mock_response_non_json = httpx.Response(
+            status_code=422,
+            content=b"This is not JSON content",
+            request=httpx.Request("POST", "/api/v0/recipes"),
+        )
+        mock_post_non_json = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                message="Unprocessable Entity",
+                request=httpx.Request("POST", "/api/v0/recipes"),
+                response=mock_response_non_json,
+            )
+        )
+        monkeypatch.setattr(
+            "meal_planner.routers.actions.internal_api_client.post", mock_post_non_json
+        )
+
+        form_data_2 = {
+            FIELD_NAME: "Malformed Detail Test 2",
+            FIELD_INGREDIENTS: ["ingredient1"],
+            FIELD_INSTRUCTIONS: ["instruction1"],
+        }
+        response_2 = await client.post(RECIPES_SAVE_URL, data=form_data_2)
+        assert response_2.status_code == 200
+        soup_2 = BeautifulSoup(response_2.text, "html.parser")
+        error_span_2 = soup_2.find("span", id="save-button-container")
+        assert error_span_2 is not None
+        assert CSS_ERROR_CLASS in error_span_2.get("class", [])
+        assert (
+            "Could not save recipe: Invalid data for some fields."
+            in error_span_2.get_text(strip=True)
+        )
+        mock_post_non_json.assert_called_once()
+
 
 # Fixtures for TestModifyRecipeEndpoint
 @pytest.fixture
@@ -808,6 +928,7 @@ class TestExtractRecipeEndpoint:
         assert response.status_code == 200
         mock_llm_generate_recipe.assert_called_once_with(text="Some recipe text")
 
+        # Check that the response text contains key information from the recipe
         assert "Test" in response.text
         assert expected_recipe.ingredients[0] in response.text
         if expected_recipe.instructions:
@@ -815,17 +936,38 @@ class TestExtractRecipeEndpoint:
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        edit_oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#edit-form-target"})
-        assert edit_oob_div is not None, "OOB edit form div not found"
-
-        review_oob_div = soup.find(
-            "div", {"hx-swap-oob": "innerHTML:#review-section-target"}
+        # Find the OOB swapped div by its ID
+        edit_oob_div = soup.find("div", id="edit-form-target")
+        assert edit_oob_div is not None, (
+            "OOB div with id='edit-form-target' not found. Response: "
+            f"{response.text[:500]}..."
         )
-        assert review_oob_div is not None, "OOB review section div not found"
+        assert edit_oob_div.get("hx-swap-oob") == "innerHTML", (
+            "hx-swap-oob attribute missing or incorrect on edit-form-target"
+        )
 
-        save_button = review_oob_div.find("button", string="Save Recipe")
-        assert save_button is not None
+        review_oob_div = soup.find("div", id="review-section-target")
+        assert review_oob_div is not None, (
+            "OOB div with id='review-section-target' not found. Response: "
+            f"{response.text[:500]}..."
+        )
+        assert review_oob_div.get("hx-swap-oob") == "innerHTML", (
+            "hx-swap-oob attribute missing or incorrect on review-section-target"
+        )
 
+        clear_error_oob_div = soup.find("div", id="error-message-container")
+        assert clear_error_oob_div is not None, (
+            "OOB div with id='error-message-container' not found for clearing. "
+            f"Response: {response.text[:500]}..."
+        )
+        assert clear_error_oob_div.get("hx-swap-oob") == "innerHTML", (
+            "hx-swap-oob attribute missing or incorrect on error-message-container"
+        )
+        assert not clear_error_oob_div.get_text(strip=True), (
+            "Error message container should be empty"
+        )
+
+        # Further checks within the OOB divs
         name_input = edit_oob_div.find("input", {"name": "name"})
         assert name_input is not None
         assert name_input.get("value") == "Test"
@@ -884,17 +1026,11 @@ class TestExtractRecipeEndpoint:
     async def test_extract_run_missing_instructions(
         self, mock_llm_generate_recipe, mock_postprocess, client: AsyncClient
     ):
-        initial_recipe = RecipeBase(
+        initial_recipe = RecipeBase.model_construct(
             name="Test Recipe", ingredients=["ingredient1"], instructions=[]
-        )
-        final_recipe = RecipeBase(
-            name="Test Recipe",
-            ingredients=["ingredient1"],
-            instructions=["Default instruction"],
         )
 
         mock_llm_generate_recipe.return_value = initial_recipe
-        mock_postprocess.return_value = final_recipe
 
         form_data = {FIELD_RECIPE_TEXT: "Recipe with missing instructions"}
         response = await client.post(RECIPES_EXTRACT_RUN_URL, data=form_data)
@@ -903,17 +1039,49 @@ class TestExtractRecipeEndpoint:
         mock_llm_generate_recipe.assert_called_once_with(
             text="Recipe with missing instructions"
         )
-        mock_postprocess.assert_called_once_with(initial_recipe)
+        mock_postprocess.assert_not_called()  # Ensure postprocessing is skipped
+
+        # The response text should BE the OOB error div fragment.
+        # Basic string checks on the raw response text:
+        assert "Recipe extraction resulted in missing instructions." in response.text
+        assert 'id="error-message-container"' in response.text
+        assert 'hx-swap-oob="innerHTML"' in response.text
+        assert f'class="{CSS_ERROR_CLASS} mt-2"' in response.text
 
         soup = BeautifulSoup(response.text, "html.parser")
-        edit_oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#edit-form-target"})
-        assert edit_oob_div is not None, "OOB edit form div not found"
 
-        instruction_textareas = edit_oob_div.find_all(
-            "textarea", {"name": "instructions"}
+        # Find the error div by its ID; it should be the primary content
+        # of the OOB response.
+        error_div = soup.find("div", id="error-message-container")
+
+        # If BS wraps the fragment in <html><body>, adjust the search.
+        if not error_div and soup.body:
+            error_div = soup.body.find("div", id="error-message-container")
+
+        assert error_div is not None, (
+            f"Div with id='error-message-container' not found. "
+            f"Response: {response.text[:200]}... "
+            f"{response.text[200:500]}..."
         )
-        assert len(instruction_textareas) >= 1
-        assert "Default instruction" in instruction_textareas[0].get_text()
+
+        assert (
+            "Recipe extraction resulted in missing instructions."
+            in error_div.get_text()
+        )
+        assert CSS_ERROR_CLASS in error_div.get("class", [])
+        assert error_div.get("hx-swap-oob") == "innerHTML"
+
+        # Ensure that the main form content is NOT part of this OOB error response
+        edit_form_target_div = soup.find("div", id="edit-form-target")
+        assert edit_form_target_div is None, (
+            "#edit-form-target should not be present in an OOB error response"
+            " for #error-message-container."
+        )
+        name_input = soup.find("input", {"name": "name"})
+        assert name_input is None, (
+            "Recipe name input should not be present in this specific"
+            " OOB error response."
+        )
 
     @patch("meal_planner.routers.actions.postprocess_recipe")
     @patch(
@@ -944,12 +1112,95 @@ class TestExtractRecipeEndpoint:
         mock_postprocess.assert_called_once_with(initial_recipe)
 
         soup = BeautifulSoup(response.text, "html.parser")
-        edit_oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#edit-form-target"})
-        assert edit_oob_div is not None, "OOB edit form div not found"
+        edit_oob_div = soup.find("div", id="edit-form-target")
+        assert edit_oob_div is not None, (
+            "OOB div with id='edit-form-target' not found. Response: "
+            f"{response.text[:500]}..."
+        )
+        assert edit_oob_div.get("hx-swap-oob") == "innerHTML"
 
         ingredient_inputs = edit_oob_div.find_all("input", {"name": "ingredients"})
         assert len(ingredient_inputs) >= 1
         assert ingredient_inputs[0].get("value") == "Default ingredient"
+
+    @patch(
+        "meal_planner.routers.actions.generate_recipe_from_text", new_callable=AsyncMock
+    )
+    @patch("meal_planner.routers.actions.postprocess_recipe")
+    @patch("meal_planner.routers.actions.logger.error")
+    async def test_extract_run_validation_error_during_postprocessing(
+        self,
+        mock_logger_error: MagicMock,
+        mock_postprocess: MagicMock,
+        mock_llm_generate_recipe: AsyncMock,
+        client: AsyncClient,
+    ):
+        """Test ValidationError raised by postprocess_recipe after LLM extraction."""
+        # LLM returns a seemingly valid recipe
+        llm_extracted_recipe = RecipeBase(
+            name="Test Recipe",
+            ingredients=["Raw Ingredient 1", "  "],  # One valid, one to be filtered
+            instructions=["Raw Instruction 1."],
+        )
+        mock_llm_generate_recipe.return_value = llm_extracted_recipe
+
+        # Create a genuine ValidationError instance for mocking
+        from pydantic import BaseModel  # Alias Field
+        from pydantic import Field as PydanticField
+
+        class _TempModel(BaseModel):
+            ingredients: list[str] = PydanticField(min_length=1)
+
+        validation_error_instance = None
+        try:
+            _TempModel(ingredients=[])
+        except ValidationError as e:
+            validation_error_instance = e
+
+        assert validation_error_instance is not None, (
+            "Failed to create ValidationError for mock"
+        )
+        mock_postprocess.side_effect = validation_error_instance
+
+        form_data = {
+            FIELD_RECIPE_TEXT: "Some recipe text that leads to validation error"
+        }
+        response = await client.post(RECIPES_EXTRACT_RUN_URL, data=form_data)
+
+        assert response.status_code == 200
+        mock_llm_generate_recipe.assert_called_once_with(
+            text="Some recipe text that leads to validation error"
+        )
+        mock_postprocess.assert_called_once_with(llm_extracted_recipe)
+
+        # Check log call
+        mock_logger_error.assert_called_once()
+        args, kwargs = mock_logger_error.call_args
+        assert "Validation error during recipe extraction or postprocessing" in args[0]
+        assert args[1] is validation_error_instance  # Check against the instance
+        assert "Some recipe text that leads to validation error"[:100] in args[2]
+        assert kwargs.get("exc_info") is True
+
+        # Check UI response
+        soup = BeautifulSoup(response.text, "html.parser")
+        error_div = soup.find("div", id="error-message-container")
+        if not error_div and soup.body:
+            error_div = soup.body.find("div", id="error-message-container")
+
+        assert error_div is not None, (
+            f"OOB Error div 'error-message-container' not found. "
+            f"Response: {response.text[:200]}... "
+            f"{response.text[200:500]}..."
+        )
+        assert (
+            "Recipe data is invalid after extraction. Please check the input text."
+            in error_div.get_text(strip=True)
+        )
+        assert error_div.get("hx-swap-oob") == "innerHTML"
+        assert CSS_ERROR_CLASS in error_div.get("class", [])
+
+        # Ensure main form is not sent
+        assert soup.find("div", id="edit-form-target") is None
 
 
 @pytest.mark.anyio
@@ -962,20 +1213,32 @@ async def test_extract_run_returns_save_form(
     monkeypatch.setattr(
         "meal_planner.routers.actions.generate_recipe_from_text", mock_extract
     )
+    # Also mock postprocess_recipe to ensure it doesn't interfere
+    mock_postprocess = MagicMock(return_value=mock_recipe_data_fixture)
+    monkeypatch.setattr(
+        "meal_planner.routers.actions.postprocess_recipe", mock_postprocess
+    )
 
     form_data = {FIELD_RECIPE_TEXT: "Some recipe text"}
     response = await client.post(RECIPES_EXTRACT_RUN_URL, data=form_data)
 
     assert response.status_code == 200
+    mock_postprocess.assert_called_once_with(mock_recipe_data_fixture)
 
     soup = BeautifulSoup(response.text, "html.parser")
-    edit_oob_div = soup.find("div", {"hx-swap-oob": "innerHTML:#edit-form-target"})
-    assert edit_oob_div is not None, "OOB edit form div not found"
-
-    review_oob_div = soup.find(
-        "div", {"hx-swap-oob": "innerHTML:#review-section-target"}
+    edit_oob_div = soup.find("div", id="edit-form-target")
+    assert edit_oob_div is not None, (
+        "OOB div with id='edit-form-target' not found. Response: "
+        f"{response.text[:500]}..."
     )
-    assert review_oob_div is not None, "OOB review section div not found"
+    assert edit_oob_div.get("hx-swap-oob") == "innerHTML"
+
+    review_oob_div = soup.find("div", id="review-section-target")
+    assert review_oob_div is not None, (
+        "OOB div with id='review-section-target' not found. Response: "
+        f"{response.text[:500]}..."
+    )
+    assert review_oob_div.get("hx-swap-oob") == "innerHTML"
 
     save_button = review_oob_div.find("button", string="Save Recipe")
     assert save_button is not None, "Save Recipe button not found"

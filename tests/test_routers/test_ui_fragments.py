@@ -236,10 +236,12 @@ class TestRecipeSortableListPersistence:
         )
 
     @patch("meal_planner.routers.actions.generate_recipe_from_text")
+    @patch("meal_planner.routers.actions.postprocess_recipe")
     async def test_sortable_after_ingredient_delete(
-        self, mock_llm_extract, client: AsyncClient
+        self, mock_postprocess, mock_llm_extract, client: AsyncClient
     ):
         mock_llm_extract.return_value = self.MOCK_INITIAL_RECIPE
+        mock_postprocess.return_value = self.MOCK_INITIAL_RECIPE
 
         extract_response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: self.INITIAL_RECIPE_TEXT}
@@ -248,17 +250,17 @@ class TestRecipeSortableListPersistence:
         html_after_extract = extract_response.text
 
         soup_after_extract = BeautifulSoup(html_after_extract, "html.parser")
-        edit_form_target_oob_div = soup_after_extract.find(
-            "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
-        )
+        edit_form_target_oob_div = soup_after_extract.find("div", id="edit-form-target")
         assert edit_form_target_oob_div is not None, (
-            "OOB div for edit form target not found after extract"
+            "OOB div with id='edit-form-target' not found after extract. "
+            f"Response: {html_after_extract[:500]}..."
         )
-        assert isinstance(edit_form_target_oob_div, Tag)
+        assert edit_form_target_oob_div.get("hx-swap-oob") == "innerHTML", (
+            "hx-swap-oob attribute missing or incorrect on edit-form-target"
+        )
 
-        ingredients_list_div_extract = edit_form_target_oob_div.find(
-            "div", id="ingredients-list"
-        )
+        form_in_oob = edit_form_target_oob_div.find("form", id="edit-review-form")
+        ingredients_list_div_extract = form_in_oob.find("div", id="ingredients-list")
         self._assert_sortable_attributes(
             ingredients_list_div_extract, "ingredients-list (initial extract)"
         )
@@ -296,10 +298,12 @@ class TestRecipeSortableListPersistence:
         assert inputs[1].get("value") == "Ing3"
 
     @patch("meal_planner.routers.actions.generate_recipe_from_text")
+    @patch("meal_planner.routers.actions.postprocess_recipe")
     async def test_sortable_after_instruction_delete(
-        self, mock_llm_extract, client: AsyncClient
+        self, mock_postprocess, mock_llm_extract, client: AsyncClient
     ):
         mock_llm_extract.return_value = self.MOCK_INITIAL_RECIPE
+        mock_postprocess.return_value = self.MOCK_INITIAL_RECIPE
 
         extract_response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: self.INITIAL_RECIPE_TEXT}
@@ -308,15 +312,17 @@ class TestRecipeSortableListPersistence:
         html_after_extract = extract_response.text
 
         soup_after_extract = BeautifulSoup(html_after_extract, "html.parser")
-        edit_form_target_oob_div = soup_after_extract.find(
-            "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
+        edit_form_target_oob_div = soup_after_extract.find("div", id="edit-form-target")
+        assert edit_form_target_oob_div is not None, (
+            "OOB div with id='edit-form-target' not found after extract. "
+            f"Response: {html_after_extract[:500]}..."
         )
-        assert edit_form_target_oob_div is not None
-        assert isinstance(edit_form_target_oob_div, Tag)
+        assert edit_form_target_oob_div.get("hx-swap-oob") == "innerHTML", (
+            "hx-swap-oob attribute missing or incorrect on edit-form-target"
+        )
 
-        instructions_list_div_extract = edit_form_target_oob_div.find(
-            "div", id="instructions-list"
-        )
+        form_in_oob = edit_form_target_oob_div.find("form", id="edit-review-form")
+        instructions_list_div_extract = form_in_oob.find("div", id="instructions-list")
         self._assert_sortable_attributes(
             instructions_list_div_extract, "instructions-list (initial extract)"
         )
@@ -351,10 +357,12 @@ class TestRecipeSortableListPersistence:
         )  # Original was "Second instruction details"
 
     @patch("meal_planner.routers.actions.generate_recipe_from_text")
+    @patch("meal_planner.routers.actions.postprocess_recipe")
     async def test_sortable_after_ingredient_add(
-        self, mock_llm_extract, client: AsyncClient
+        self, mock_postprocess, mock_llm_extract, client: AsyncClient
     ):
         mock_llm_extract.return_value = self.MOCK_INITIAL_RECIPE
+        mock_postprocess.return_value = self.MOCK_INITIAL_RECIPE
 
         extract_response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: self.INITIAL_RECIPE_TEXT}
@@ -363,14 +371,17 @@ class TestRecipeSortableListPersistence:
         html_after_extract = extract_response.text
 
         soup_after_extract = BeautifulSoup(html_after_extract, "html.parser")
-        edit_form_target_oob_div = soup_after_extract.find(
-            "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
+        edit_form_target_oob_div = soup_after_extract.find("div", id="edit-form-target")
+        assert edit_form_target_oob_div is not None, (
+            "OOB div with id='edit-form-target' not found after extract. "
+            f"Response: {html_after_extract[:500]}..."
         )
-        assert edit_form_target_oob_div is not None
-        assert isinstance(edit_form_target_oob_div, Tag)
-        ingredients_list_div_extract = edit_form_target_oob_div.find(
-            "div", id="ingredients-list"
+        assert edit_form_target_oob_div.get("hx-swap-oob") == "innerHTML", (
+            "hx-swap-oob attribute missing or incorrect on edit-form-target"
         )
+
+        form_in_oob = edit_form_target_oob_div.find("form", id="edit-review-form")
+        ingredients_list_div_extract = form_in_oob.find("div", id="ingredients-list")
         self._assert_sortable_attributes(
             ingredients_list_div_extract, "ingredients-list (initial extract)"
         )
@@ -401,10 +412,12 @@ class TestRecipeSortableListPersistence:
         assert inputs[3].get("value", "") == ""
 
     @patch("meal_planner.routers.actions.generate_recipe_from_text")
+    @patch("meal_planner.routers.actions.postprocess_recipe")
     async def test_sortable_after_instruction_add(
-        self, mock_llm_extract, client: AsyncClient
+        self, mock_postprocess, mock_llm_extract, client: AsyncClient
     ):
         mock_llm_extract.return_value = self.MOCK_INITIAL_RECIPE
+        mock_postprocess.return_value = self.MOCK_INITIAL_RECIPE
 
         extract_response = await client.post(
             RECIPES_EXTRACT_RUN_URL, data={FIELD_RECIPE_TEXT: self.INITIAL_RECIPE_TEXT}
@@ -413,14 +426,17 @@ class TestRecipeSortableListPersistence:
         html_after_extract = extract_response.text
 
         soup_after_extract = BeautifulSoup(html_after_extract, "html.parser")
-        edit_form_target_oob_div = soup_after_extract.find(
-            "div", attrs={"hx-swap-oob": "innerHTML:#edit-form-target"}
+        edit_form_target_oob_div = soup_after_extract.find("div", id="edit-form-target")
+        assert edit_form_target_oob_div is not None, (
+            "OOB div with id='edit-form-target' not found after extract. "
+            f"Response: {html_after_extract[:500]}..."
         )
-        assert edit_form_target_oob_div is not None
-        assert isinstance(edit_form_target_oob_div, Tag)
-        instructions_list_div_extract = edit_form_target_oob_div.find(
-            "div", id="instructions-list"
+        assert edit_form_target_oob_div.get("hx-swap-oob") == "innerHTML", (
+            "hx-swap-oob attribute missing or incorrect on edit-form-target"
         )
+
+        form_in_oob = edit_form_target_oob_div.find("form", id="edit-review-form")
+        instructions_list_div_extract = form_in_oob.find("div", id="instructions-list")
         self._assert_sortable_attributes(
             instructions_list_div_extract, "instructions-list (initial extract)"
         )
