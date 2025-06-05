@@ -263,15 +263,16 @@ async def post_modify_recipe(request: Request):
     except ValidationError as ve:
         logger.error(
             (
-                "Validation error during recipe extraction or postprocessing: %s. "
-                "Text: '%s'"
+                "Validation error after LLM modification and postprocessing. "
+                "Prompt: '%s', Original Recipe Name: '%s', Error: %s"
             ),
+            modification_prompt,
+            original_recipe.name,
             ve,
-            recipe_text[:100],
             exc_info=True,
         )
         result = build_modify_form_response(
-            current_recipe=current_recipe,  # Revert to recipe before this error
+            current_recipe=current_recipe,
             original_recipe=original_recipe,
             modification_prompt_value=modification_prompt,
             error_message_content=Div(
