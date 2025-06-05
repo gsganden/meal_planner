@@ -4,7 +4,7 @@ import logging
 
 import httpx
 from fastapi import Request, Response
-from fasthtml.common import *  # type: ignore
+from fasthtml.common import *
 from pydantic import ValidationError
 from starlette import status
 from starlette.datastructures import FormData
@@ -130,7 +130,7 @@ async def post_save_recipe(request: Request):
         else:
             user_final_message = "Current Recipe Saved!"
             css_class = CSS_SUCCESS_CLASS
-            result = FtResponse(  # type: ignore
+            result = FtResponse(
                 Span(user_final_message, id="save-button-container", cls=css_class),
                 headers={"HX-Trigger": "recipeListChanged"},
             )
@@ -220,7 +220,7 @@ async def post_modify_recipe(request: Request):
         return build_modify_form_response(
             current_recipe=current_recipe,
             original_recipe=original_recipe,
-            modification_prompt_value=modification_prompt,  # Preserve entered prompt
+            modification_prompt_value=modification_prompt,
             error_message_content=Div(
                 "Please enter modification instructions.", cls=f"{CSS_ERROR_CLASS} mt-2"
             ),
@@ -254,7 +254,7 @@ async def post_modify_recipe(request: Request):
     except RuntimeError as llm_e:
         logger.error("LLM modification error: %s", llm_e)
         result = build_modify_form_response(
-            current_recipe=current_recipe,  # Revert to recipe before LLM attempt
+            current_recipe=current_recipe,
             original_recipe=original_recipe,
             modification_prompt_value=modification_prompt,
             error_message_content=Div(str(llm_e), cls=f"{CSS_ERROR_CLASS} mt-2"),
@@ -285,7 +285,7 @@ async def post_modify_recipe(request: Request):
             "Unexpected error in recipe modification flow: %s", e, exc_info=True
         )
         result = build_modify_form_response(
-            current_recipe=current_recipe,  # Revert to recipe before this error
+            current_recipe=current_recipe,
             original_recipe=original_recipe,
             modification_prompt_value=modification_prompt,
             error_message_content=Div(
@@ -300,7 +300,7 @@ async def post_modify_recipe(request: Request):
 @rt("/recipes/extract/run")
 async def post_extract_recipe_run(
     recipe_text: str | None = None,
-):  # Renamed from 'post' to avoid conflict
+):
     """Handles recipe extraction from text.
 
     This endpoint takes raw text, attempts to extract a recipe from it using an
@@ -360,20 +360,18 @@ async def post_extract_recipe_run(
             current_recipe=processed_recipe,
             original_recipe=original_recipe_for_form,
             error_message_content=None,
-            # modification_prompt_value is not passed for initial extraction
         )
 
         edit_oob_div = Div(
             edit_form_card,
-            id="edit-form-target",  # This Div IS the target
+            id="edit-form-target",
             hx_swap_oob="innerHTML",
         )
         review_oob_div = Div(
             review_section_card,
-            id="review-section-target",  # This Div IS the target
+            id="review-section-target",
             hx_swap_oob="innerHTML",
         )
-        # Clear any previous error messages
         clear_error_message_div = Div(
             id="error-message-container", hx_swap_oob="innerHTML"
         )
@@ -400,14 +398,10 @@ async def post_extract_recipe_run(
         logger.error(
             "LLM service failed to generate recipe from text: %s. Text: '%s'",
             e,
-            recipe_text[:100],  # Log only a snippet
+            recipe_text[:100],
             exc_info=True,
         )
-        # Ensure a distinct log for the more generic "Error during recipe extraction"
-        # if it's not the LLM service call itself, though often it will be.
-        if not isinstance(
-            e, (RuntimeError, FileNotFoundError)
-        ):  # Assuming LLM service raises these
+        if not isinstance(e, (RuntimeError, FileNotFoundError)):
             logger.error(
                 "Error during recipe extraction processing: %s", e, exc_info=True
             )
