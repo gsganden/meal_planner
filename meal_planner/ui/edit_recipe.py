@@ -462,11 +462,7 @@ def _build_instructions_section(instructions: list[str]):
         cls="mb-4 uk-border-circle p-1 flex items-center justify-center",
     )
     return Div(
-        Div(
-            H3("Instructions"),
-            Span(" (at least one required)", cls=TextT.muted + " text-sm ml-2"),
-            cls="flex items-baseline",
-        ),
+        H3("Instructions"),
         instruction_inputs_container,
         add_instruction_button,
     )
