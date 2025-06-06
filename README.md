@@ -58,7 +58,7 @@ graph LR
 ## Setup
 
 ```bash
-uv sync
+uv sync --all-extras
 ```
 
 [Get a Gemini API key](https://aistudio.google.com/apikey) and assign its value to a `GOOGLE_API_KEY` environment variable inside a dotenv file.
@@ -73,6 +73,12 @@ pre-commit install --hook-type pre-push -f
 
 ```bash
 uv run modal serve deploy.py
+```
+
+## Run Database Migrations
+
+```bash
+uv run modal run deploy.py::migrate_db
 ```
 
 ## Run Tests

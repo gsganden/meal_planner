@@ -1,6 +1,7 @@
 """REST API endpoints for recipe CRUD operations."""
 
 import logging
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -47,6 +48,11 @@ async def create_recipe(
         Location: URL path to the newly created recipe resource.
     """
     db_recipe = Recipe.model_validate(recipe_data)
+
+    # Set timestamps for new recipes since SQLite doesn't auto-populate server defaults
+    now = datetime.now(timezone.utc)
+    db_recipe.created_at = now
+    db_recipe.updated_at = now
 
     try:
         session.add(db_recipe)
