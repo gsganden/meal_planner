@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import patch
 
 import pytest
@@ -395,3 +396,150 @@ class TestDeleteRecipe:
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error deleting recipe"}
             mock_commit.assert_called_once()
+
+
+@pytest.mark.anyio
+class TestRecipeTimestamps:
+    """Test timestamp functionality for recipe creation and retrieval."""
+
+    async def test_create_recipe_includes_timestamps_in_response(
+        self, client: AsyncClient, valid_recipe_payload: dict
+    ):
+        """Test that creating a recipe includes timestamps in response."""
+        response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
+
+        assert response.status_code == 201
+        response_json = response.json()
+
+        # Verify timestamps are present in response
+        assert "created_at" in response_json
+        assert "updated_at" in response_json
+
+        # Verify timestamps are valid datetime strings
+        created_at_str = response_json["created_at"]
+        updated_at_str = response_json["updated_at"]
+
+        assert isinstance(created_at_str, str)
+        assert isinstance(updated_at_str, str)
+
+        # Verify timestamps can be parsed as datetime
+        created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+        updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+
+        # For new recipes, created_at and updated_at should be very close/identical
+        time_diff = abs((updated_at - created_at).total_seconds())
+        assert time_diff < 5, f"created_at and updated_at differ by {time_diff} seconds"
+
+    async def test_create_recipe_timestamps_stored_in_database(
+        self,
+        client: AsyncClient,
+        dbsession: SQLModelSession,
+        valid_recipe_payload: dict,
+    ):
+        """Test that timestamps are correctly stored in the database."""
+        response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
+
+        assert response.status_code == 201
+        recipe_id = response.json()["id"]
+
+        # Fetch the recipe directly from database
+        db_recipe = dbsession.get(Recipe, recipe_id)
+        assert db_recipe is not None
+
+        # Verify timestamps are populated in database
+        assert db_recipe.created_at is not None
+        assert db_recipe.updated_at is not None
+
+        # Verify timestamps are datetime objects
+        assert isinstance(db_recipe.created_at, datetime)
+        assert isinstance(db_recipe.updated_at, datetime)
+
+        # For new recipes, created_at and updated_at should be very close/identical
+        time_diff = abs((db_recipe.updated_at - db_recipe.created_at).total_seconds())
+        assert time_diff < 5, f"DB timestamps differ by {time_diff} seconds"
+
+    async def test_get_recipe_by_id_includes_timestamps(
+        self, client: AsyncClient, valid_recipe_payload: dict
+    ):
+        """Test that retrieving a recipe by ID includes timestamps."""
+        # Create recipe first
+        create_response = await client.post(
+            "/api/v0/recipes", json=valid_recipe_payload
+        )
+        assert create_response.status_code == 201
+        recipe_id = create_response.json()["id"]
+
+        # Retrieve the recipe
+        get_response = await client.get(f"/api/v0/recipes/{recipe_id}")
+        assert get_response.status_code == 200
+
+        response_json = get_response.json()
+
+        # Verify timestamps are present
+        assert "created_at" in response_json
+        assert "updated_at" in response_json
+
+        # Verify timestamps match creation response
+        create_created_at = create_response.json()["created_at"]
+        create_updated_at = create_response.json()["updated_at"]
+
+        assert response_json["created_at"] == create_created_at
+        assert response_json["updated_at"] == create_updated_at
+
+    async def test_get_all_recipes_includes_timestamps(
+        self, client: AsyncClient, valid_recipe_payload: dict
+    ):
+        """Test that retrieving all recipes includes timestamps for each recipe."""
+        # Create a couple of recipes
+        recipe1_payload = {**valid_recipe_payload, "name": "Recipe One"}
+        recipe2_payload = {**valid_recipe_payload, "name": "Recipe Two"}
+
+        create_response1 = await client.post("/api/v0/recipes", json=recipe1_payload)
+        create_response2 = await client.post("/api/v0/recipes", json=recipe2_payload)
+
+        assert create_response1.status_code == 201
+        assert create_response2.status_code == 201
+
+        # Get all recipes
+        get_response = await client.get("/api/v0/recipes")
+        assert get_response.status_code == 200
+
+        recipes = get_response.json()
+        assert len(recipes) == 2
+
+        # Verify timestamps are present for all recipes
+        for recipe in recipes:
+            assert "created_at" in recipe
+            assert "updated_at" in recipe
+            assert isinstance(recipe["created_at"], str)
+            assert isinstance(recipe["updated_at"], str)
+
+            # Verify timestamps can be parsed
+            created_at = datetime.fromisoformat(
+                recipe["created_at"].replace("Z", "+00:00")
+            )
+            # Verify timestamps are reasonable (recent)
+            now = datetime.now(created_at.tzinfo)
+            time_since_creation = (now - created_at).total_seconds()
+            assert time_since_creation < 60, (
+                f"Recipe seems too old: {time_since_creation}s ago"
+            )
+
+    async def test_recipe_timestamps_are_approximately_equal_for_new_recipes(
+        self, client: AsyncClient, valid_recipe_payload: dict
+    ):
+        """Test that timestamps are approximately equal for new recipes."""
+        response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
+        assert response.status_code == 201
+
+        response_json = response.json()
+        created_at = datetime.fromisoformat(
+            response_json["created_at"].replace("Z", "+00:00")
+        )
+        updated_at = datetime.fromisoformat(
+            response_json["updated_at"].replace("Z", "+00:00")
+        )
+
+        # For new recipes, timestamps should be identical or very close
+        time_diff = abs((updated_at - created_at).total_seconds())
+        assert time_diff < 1, f"New recipe timestamps differ by {time_diff} seconds"

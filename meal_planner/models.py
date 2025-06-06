@@ -4,9 +4,10 @@ This module defines the core data models used throughout the application,
 including both database models (SQLModel) and API request/response models.
 """
 
+from datetime import datetime
 from typing import Annotated, Optional
 
-from sqlalchemy import Column
+from sqlalchemy import Column, func
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
 
@@ -74,7 +75,29 @@ class Recipe(RecipeBase, table=True):
         name: Inherited from RecipeBase.
         ingredients: Inherited from RecipeBase, stored as JSON.
         instructions: Inherited from RecipeBase, stored as JSON.
+        created_at: Timestamp of when the recipe was created (UTC).
+            This is a database-managed field. It will be `None` in Python
+            before an object is persisted but will always be populated for
+            records retrieved from the database.
+        updated_at: Timestamp of when the recipe was last updated (UTC).
+            This is a database-managed field. It will be `None` in Python
+            before an object is persisted but will always be populated for
+            records retrieved from the database.
     """
 
     __tablename__ = "recipes"  # type: ignore[assignment]
     id: Optional[int] = Field(default=None, primary_key=True)
+    # SQLite limitations require manual timestamp management in application code.
+    # These server defaults are kept for database portability and direct SQL operations.
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column_kwargs={"nullable": False, "server_default": func.now()},
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column_kwargs={
+            "nullable": False,
+            "server_default": func.now(),
+            "onupdate": func.now(),
+        },
+    )

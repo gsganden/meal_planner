@@ -1,6 +1,6 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
-We can use `source .env && uv run modal serve deploy.py` to run the app at https://gsganden--meal-planner-web-dev.modal.run
+Use `source .env && uv run modal serve deploy.py` to run the app at https://gsganden--meal-planner-web-dev.modal.run
