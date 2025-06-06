@@ -543,15 +543,3 @@ class TestRecipeTimestamps:
         # For new recipes, timestamps should be identical or very close
         time_diff = abs((updated_at - created_at).total_seconds())
         assert time_diff < 1, f"New recipe timestamps differ by {time_diff} seconds"
-
-    # Placeholder test for future update functionality (Issue #53)
-    def test_recipe_update_timestamps_placeholder(self):
-        """Placeholder test for recipe update timestamp functionality.
-
-        When Issue #53 (Add Update (PUT/PATCH) Operation for Recipes) is implemented,
-        this test should verify:
-        1. Updating a recipe changes the updated_at timestamp
-        2. Updating a recipe does NOT change the created_at timestamp
-        3. The new updated_at timestamp is more recent than the original
-        """
-        pytest.skip("Recipe update functionality not yet implemented (Issue #53)")
