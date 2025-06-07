@@ -1083,6 +1083,53 @@ class TestExtractRecipeEndpoint:
             " OOB error response."
         )
 
+    @patch(
+        "meal_planner.routers.actions.generate_recipe_from_text", new_callable=AsyncMock
+    )
+    async def test_extract_run_no_diff_immediately_after_extraction(
+        self, mock_llm_generate_recipe, client: AsyncClient
+    ):
+        """Regression test: Confirm there's no diff immediately after recipe extraction.
+
+        This test prevents the bug where postprocessing changes would show up as
+        modifications in the diff view right after extraction, making it appear
+        like the user had already made changes.
+        """
+        expected_recipe = RecipeBase(
+            name="Test Recipe with postprocessing changes",
+            ingredients=["1 cup flour", "2 eggs"],
+            instructions=["Mix ingredients.", "Bake for 30 minutes."],
+        )
+        mock_llm_generate_recipe.return_value = expected_recipe
+
+        form_data = {FIELD_RECIPE_TEXT: "Some recipe text"}
+        response = await client.post(RECIPES_EXTRACT_RUN_URL, data=form_data)
+
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Find the diff elements
+        diff_before_pre = soup.find("pre", id="diff-before-pre")
+        diff_after_pre = soup.find("pre", id="diff-after-pre")
+        assert diff_before_pre is not None, "Diff before <pre> not found"
+        assert diff_after_pre is not None, "Diff after <pre> not found"
+
+        # Extract text content from both diff panes
+        before_text = diff_before_pre.get_text()
+        after_text = diff_after_pre.get_text()
+
+        # The key assertion: both sides should be identical (no modifications)
+        assert before_text == after_text, (
+            "Diff shows modifications immediately after extraction. "
+            f"Before: {before_text[:100]}... After: {after_text[:100]}..."
+        )
+
+        # Additional check: there should be no <ins> or <del> tags (no modifications)
+        ins_tags = soup.find_all("ins")
+        del_tags = soup.find_all("del")
+        assert len(ins_tags) == 0, f"Found unexpected <ins> tags: {ins_tags}"
+        assert len(del_tags) == 0, f"Found unexpected <del> tags: {del_tags}"
+
     @patch("meal_planner.routers.actions.postprocess_recipe")
     @patch(
         "meal_planner.routers.actions.generate_recipe_from_text", new_callable=AsyncMock
