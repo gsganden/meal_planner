@@ -407,19 +407,22 @@ def _get_http_error_message(status_code: int, response_text: str = "") -> str:
             ),
             500: (
                 "The website is currently experiencing server issues. "
-                "Please try again later or copy and paste the recipe text below instead."
+                "Please try again later or copy and paste the recipe text below "
+                "instead."
             ),
             502: (
                 "The website is currently experiencing server issues. "
-                "Please try again later or copy and paste the recipe text below instead."
+                "Please try again later or copy and paste the recipe text below."
             ),
             503: (
                 "The website is currently experiencing server issues. "
-                "Please try again later or copy and paste the recipe text below instead."
+                "Please try again later or copy and paste the recipe text below "
+                "instead."
             ),
             504: (
                 "The website is currently experiencing server issues. "
-                "Please try again later or copy and paste the recipe text below instead."
+                "Please try again later or copy and paste the recipe text below "
+                "instead."
             ),
         }.get(
             status_code,
