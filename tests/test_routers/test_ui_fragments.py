@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from pydantic import ValidationError
 
 from meal_planner.models import RecipeBase
+from meal_planner.routers.ui_fragments import _get_http_error_message
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from tests.constants import (
     FIELD_INGREDIENTS,
@@ -1020,7 +1021,7 @@ class TestFetchTextEndpoint:
                         ),
                     ),
                 },
-                "Error fetching URL: The server returned an error.",
+                "The recipe page was not found. Please check the URL and try again.",
             ),
             (
                 RuntimeError,
@@ -1087,3 +1088,126 @@ class TestFetchTextEndpoint:
             f"hx-swap-oob attribute incorrect or missing on parent of error_div. "
             f"Got: {parent_of_error_div.get('hx-swap-oob')}"
         )
+
+    async def test_fetch_text_perimeterx_response(self, client: AsyncClient):
+        """Test that PerimeterX responses are handled with specific messaging."""
+        perimeterx_html = """
+        <!DOCTYPE html> <html lang="en"> <head>
+        <title>Access to this page has been denied.</title>
+        </head> <body>
+        <p>Access to this page has been denied because we believe you are using
+        automation tools to browse the website.</p>
+        <p>Powered by <a href="https://www.perimeterx.com/whywasiblocked">
+        PerimeterX</a>, Inc.</p>
+        </body> </html>
+        """
+
+        with patch(
+            "meal_planner.routers.ui_fragments.fetch_and_clean_text_from_url",
+            new_callable=AsyncMock,
+        ) as local_mock_fetch_clean:
+            local_mock_fetch_clean.side_effect = httpx.HTTPStatusError(
+                "403 Forbidden",
+                request=httpx.Request("GET", self.TEST_URL),
+                response=httpx.Response(
+                    403,
+                    content=perimeterx_html,
+                    request=httpx.Request("GET", self.TEST_URL),
+                ),
+            )
+
+            response = await client.post(
+                RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: self.TEST_URL}
+            )
+
+            assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        error_div = soup.find("div", id="fetch-url-error-display")
+        assert error_div is not None
+        error_text = error_div.text.strip()
+        assert "security measures that block automated access" in error_text
+        assert "copy and paste the recipe text below" in error_text
+
+
+class TestGetHttpErrorMessage:
+    """Test the _get_http_error_message helper function."""
+
+    @pytest.mark.parametrize(
+        "status_code, response_text, expected_fragment",
+        [
+            # Bot protection detection
+            (
+                403,
+                "PerimeterX access denied",
+                "security measures that block automated access",
+            ),
+            (
+                403,
+                "Powered by PerimeterX",
+                "security measures that block automated access",
+            ),
+            (
+                403,
+                "verify you are a human",
+                "security measures that block automated access",
+            ),
+            (
+                403,
+                "automation tools to browse",
+                "security measures that block automated access",
+            ),
+            (
+                403,
+                "Cloudflare security check",
+                "security measures that block automated access",
+            ),
+            (
+                200,
+                "Please complete the CAPTCHA",
+                "security measures that block automated access",
+            ),
+            # Specific status codes without bot protection
+            (403, "Forbidden", "doesn't allow automated access"),
+            (404, "Not Found", "recipe page was not found"),
+            (401, "Unauthorized", "requires login to access recipes"),
+            (429, "Too Many Requests", "limiting requests"),
+            (500, "Internal Server Error", "server issues"),
+            (502, "Bad Gateway", "server issues"),
+            (503, "Service Unavailable", "server issues"),
+            (504, "Gateway Timeout", "server issues"),
+            (400, "Bad Request", "doesn't allow our recipe fetcher"),
+            (418, "I'm a teapot", "doesn't allow our recipe fetcher"),  # Other 4xx
+            # Fallback case
+            (200, "Unknown error", "The server returned an error"),
+            (201, "Created", "The server returned an error"),
+        ],
+    )
+    def test_get_http_error_message(
+        self, status_code: int, response_text: str, expected_fragment: str
+    ):
+        """Test that the error message function returns appropriate messages."""
+        result = _get_http_error_message(status_code, response_text)
+        assert expected_fragment in result, (
+            f"Expected '{expected_fragment}' in result: '{result}'"
+        )
+
+    def test_bot_protection_case_insensitive(self):
+        """Test that bot protection detection is case-insensitive."""
+        result = _get_http_error_message(403, "PERIMETERX ACCESS DENIED")
+        assert "security measures that block automated access" in result
+
+    def test_real_perimeterx_response(self):
+        """Test with actual PerimeterX response content."""
+        perimeterx_response = """
+        <!DOCTYPE html> <html lang="en"> <head>
+        <title>Access to this page has been denied.</title>
+        </head> <body>
+        <p>Access to this page has been denied because we believe you are using
+        automation tools to browse the website.</p>
+        <p>Powered by <a href="https://www.perimeterx.com/whywasiblocked">
+        PerimeterX</a>, Inc.</p>
+        </body> </html>
+        """
+        result = _get_http_error_message(403, perimeterx_response)
+        assert "security measures that block automated access" in result
