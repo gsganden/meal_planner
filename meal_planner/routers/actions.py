@@ -352,13 +352,12 @@ async def post_extract_recipe_run(
                 cls=f"{CSS_ERROR_CLASS} mt-2",
             )
 
-        original_recipe_for_form = extracted_recipe
-        processed_recipe = postprocess_recipe(extracted_recipe)
-        logger.info("Recipe postprocessing successful. Name: %s", processed_recipe.name)
+        recipe = postprocess_recipe(extracted_recipe)
+        logger.info("Recipe postprocessing successful. Name: %s", recipe.name)
 
         edit_form_card, review_section_card = build_edit_review_form(
-            current_recipe=processed_recipe,
-            original_recipe=original_recipe_for_form,
+            current_recipe=recipe,
+            original_recipe=recipe,
             error_message_content=None,
         )
 
