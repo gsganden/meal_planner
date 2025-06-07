@@ -313,14 +313,14 @@ async def post_fetch_text(input_url: str | None = None):
         )
     except httpx.HTTPStatusError as e:
         logger.error(
-            "HTTP error fetching URL %s: %s. Response: %s",
+            "HTTP error fetching URL %s: Status %s. Response: %s",
             input_url,
-            e,
+            e.response.status_code,
             e.response.text,
             exc_info=True,
         )
         result = _prepare_error_response(
-            "Error fetching URL: The server returned an error."
+            _get_http_error_message(e.response.status_code, e.response.text)
         )
     except RuntimeError as e:
         logger.error(
@@ -354,6 +354,80 @@ async def post_fetch_text(input_url: str | None = None):
             hx_swap_oob="outerHTML:#fetch-url-error-display",
         )
         result = Group(text_area, clear_error_oob)
+
+    return result
+
+
+def _get_http_error_message(status_code: int, response_text: str = "") -> str:
+    """Generate user-friendly error messages for HTTP status codes.
+
+    Analyzes the HTTP status code and response content to provide specific,
+    actionable error messages that help users understand whether the issue
+    is with the website's compatibility or our service.
+
+    Args:
+        status_code: HTTP response status code.
+        response_text: Response body text to analyze for specific error patterns.
+
+    Returns:
+        User-friendly error message explaining the issue and next steps.
+    """
+    if any(
+        indicator in response_text.lower()
+        for indicator in (
+            "perimeterx",
+            "cloudflare",
+            "automation tools",
+            "verify you are a human",
+            "access denied",
+            "blocked",
+            "captcha",
+            "bot detection",
+            "security check",
+        )
+    ):
+        result = (
+            "This website uses security measures that block automated access. "
+            "You can copy and paste the recipe text below instead."
+        )
+    elif 400 <= status_code < 600:
+        result = {
+            401: (
+                "This website requires login to access recipes. "
+                "You can copy and paste the recipe text below instead."
+            ),
+            403: (
+                "This website doesn't allow automated access to its content. "
+                "You can copy and paste the recipe text below instead."
+            ),
+            404: "The recipe page was not found. Please check the URL and try again.",
+            429: (
+                "This website is limiting requests. Please wait a few minutes and "
+                "try again, or copy and paste the recipe text below instead."
+            ),
+            500: (
+                "The website is currently experiencing server issues. "
+                "Please try again later or copy and paste the recipe text below instead."
+            ),
+            502: (
+                "The website is currently experiencing server issues. "
+                "Please try again later or copy and paste the recipe text below instead."
+            ),
+            503: (
+                "The website is currently experiencing server issues. "
+                "Please try again later or copy and paste the recipe text below instead."
+            ),
+            504: (
+                "The website is currently experiencing server issues. "
+                "Please try again later or copy and paste the recipe text below instead."
+            ),
+        }.get(
+            status_code,
+            "This website doesn't allow our recipe fetcher to access its content. "
+            "You can copy and paste the recipe text below instead.",
+        )
+    else:
+        result = "Error fetching URL: The server returned an error."
 
     return result
 
