@@ -1376,7 +1376,7 @@ dependencies = [
     { name = "zstandard" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "beautifulsoup4" },
     { name = "coverage" },
@@ -1388,13 +1388,9 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-httpx" },
+    { name = "pytest-rerunfailures" },
     { name = "ruff" },
     { name = "uv" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest-rerunfailures" },
 ]
 
 [package.metadata]
@@ -1402,37 +1398,38 @@ requires-dist = [
     { name = "alembic" },
     { name = "anyio" },
     { name = "beautifulsoup4", specifier = ">=4.13.4" },
-    { name = "beautifulsoup4", marker = "extra == 'dev'" },
     { name = "brotli" },
-    { name = "coverage", marker = "extra == 'dev'" },
-    { name = "datasette", marker = "extra == 'dev'" },
     { name = "fastapi", specifier = ">=0.115.12" },
     { name = "fastlite", specifier = ">=0.1.3" },
     { name = "html2text" },
     { name = "httpx" },
-    { name = "httpx", marker = "extra == 'dev'" },
     { name = "instructor" },
-    { name = "jupyter", marker = "extra == 'dev'" },
     { name = "modal", specifier = ">=0.74.29" },
     { name = "monsterui" },
     { name = "openai" },
-    { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pydantic" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-httpx", marker = "extra == 'dev'" },
     { name = "python-fasthtml" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "ruff", marker = "extra == 'dev'" },
     { name = "sqlmodel" },
-    { name = "uv", marker = "extra == 'dev'" },
     { name = "zstandard", specifier = ">=0.23.0" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest-rerunfailures", specifier = ">=15.1" }]
+dev = [
+    { name = "beautifulsoup4" },
+    { name = "coverage" },
+    { name = "datasette" },
+    { name = "httpx" },
+    { name = "jupyter" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-httpx" },
+    { name = "pytest-rerunfailures", specifier = ">=15.1" },
+    { name = "ruff" },
+    { name = "uv" },
+]
 
 [[package]]
 name = "mergedeep"
