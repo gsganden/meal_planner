@@ -64,5 +64,10 @@ exclude_lines = [
     "pragma: no cover",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest-rerunfailures>=15.1",
+]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"

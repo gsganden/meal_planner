@@ -1392,6 +1392,11 @@ dev = [
     { name = "uv" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-rerunfailures" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "alembic" },
@@ -1425,6 +1430,9 @@ requires-dist = [
     { name = "zstandard", specifier = ">=0.23.0" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest-rerunfailures", specifier = ">=15.1" }]
 
 [[package]]
 name = "mergedeep"
@@ -1977,6 +1985,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/1f/89/5b12b7b29e3d0af3a4b9c071ee92fa25a9017453731a38f08ba01c280f4c/pytest_httpx-0.35.0.tar.gz", hash = "sha256:d619ad5d2e67734abfbb224c3d9025d64795d4b8711116b1a13f72a251ae511f", size = 54146 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b0/ed/026d467c1853dd83102411a78126b4842618e86c895f93528b0528c7a620/pytest_httpx-0.35.0-py3-none-any.whl", hash = "sha256:ee11a00ffcea94a5cbff47af2114d34c5b231c326902458deed73f9c459fd744", size = 19442 },
+]
+
+[[package]]
+name = "pytest-rerunfailures"
+version = "15.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a0/78/e6e358545537a8e82c4dc91e72ec0d6f80546a3786dd27c76b06ca09db77/pytest_rerunfailures-15.1.tar.gz", hash = "sha256:c6040368abd7b8138c5b67288be17d6e5611b7368755ce0465dda0362c8ece80", size = 26981 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f3/30/11d836ff01c938969efa319b4ebe2374ed79d28043a12bfc908577aab9f3/pytest_rerunfailures-15.1-py3-none-any.whl", hash = "sha256:f674c3594845aba8b23c78e99b1ff8068556cc6a8b277f728071fdc4f4b0b355", size = 13274 },
 ]
 
 [[package]]
