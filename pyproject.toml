@@ -24,21 +24,7 @@ dependencies = [
     "zstandard>=0.23.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "beautifulsoup4",
-    "coverage",
-    "datasette",
-    "httpx",
-    "jupyter",
-    "pre-commit",
-    "pytest",
-    "pytest-asyncio",
-    "pytest-cov",
-    "pytest-httpx",
-    "ruff",
-    "uv",
-]
+
 
 [tool.uv]
 package = true
@@ -64,9 +50,22 @@ exclude_lines = [
     "pragma: no cover",
 ]
 
+
 [dependency-groups]
 dev = [
+    "beautifulsoup4",
+    "coverage",
+    "datasette",
+    "httpx",
+    "jupyter",
+    "pre-commit",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-httpx",
     "pytest-rerunfailures>=15.1",
+    "ruff",
+    "uv",
 ]
 
 [tool.ruff.lint.pydocstyle]

@@ -58,7 +58,7 @@ graph LR
 ## Setup
 
 ```bash
-uv sync --all-extras
+uv sync --all-groups
 ```
 
 [Get a Gemini API key](https://aistudio.google.com/apikey) and assign its value to a `GOOGLE_API_KEY` environment variable inside a dotenv file.
