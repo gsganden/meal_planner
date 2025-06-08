@@ -31,7 +31,7 @@ recipes_data = load_all_test_data(TEST_DATA_DIR)
 @pytest.fixture(
     params=recipes_data.keys(),
     ids=[str(p.relative_to(Path(__file__).parent.parent)) for p in recipes_data],
-    scope="module",
+    scope="function",
 )
 async def extracted_recipe_fixture(request, anyio_backend):
     """Fixture to extract recipe data for a given path."""
@@ -47,39 +47,42 @@ async def extracted_recipe_fixture(request, anyio_backend):
 
 @pytest.mark.slow
 @pytest.mark.anyio
-async def test_extract_recipe_name(extracted_recipe_fixture):
-    """Tests the extracted recipe name against expected values."""
+async def test_extract_recipe(extracted_recipe_fixture):
+    """Tests the extracted recipe name, ingredients, and instructions.
+
+    Note: We combine all three checks (name, ingredients, instructions) into a single
+    test to enable efficient retry behavior. With function-scoped fixtures, each test
+    function gets its own fixture execution. By having 1 test per HTML file instead of
+    3 separate tests, we maintain 1 LLM call per HTML file while allowing
+    pytest-rerunfailures to properly re-execute the fixture on retry.
+    """
     extracted_recipe: RecipeBase
     expected_data: dict
     extracted_recipe, expected_data = extracted_recipe_fixture
 
+    # Test recipe name
     expected_names_list = expected_data["expected_names"]
     actual_name = extracted_recipe.name
+    assert actual_name in expected_names_list, (
+        f"Recipe name '{actual_name}' not in expected names {expected_names_list}"
+    )
 
-    assert actual_name in expected_names_list
+    # Test recipe ingredients
+    expected_ingredients = sorted(
+        [i.lower() for i in expected_data["expected_ingredients"]]
+    )
+    actual_ingredients = sorted([i.lower() for i in extracted_recipe.ingredients])
+    assert actual_ingredients == expected_ingredients, (
+        f"Ingredients don't match.\n"
+        f"Expected: {expected_ingredients}\n"
+        f"Actual: {actual_ingredients}"
+    )
 
-
-@pytest.mark.slow
-@pytest.mark.anyio
-def test_extract_recipe_ingredients(extracted_recipe_fixture):
-    """Tests the extracted recipe ingredients against expected values."""
-    extracted_recipe: RecipeBase
-    expected_data: dict
-    extracted_recipe, expected_data = extracted_recipe_fixture
-
-    expected = sorted([i.lower() for i in expected_data["expected_ingredients"]])
-    actual = sorted([i.lower() for i in extracted_recipe.ingredients])
-    assert actual == expected
-
-
-@pytest.mark.slow
-@pytest.mark.anyio
-def test_extract_recipe_instructions(extracted_recipe_fixture):
-    """Tests the extracted recipe instructions against expected values."""
-    extracted_recipe: RecipeBase
-    expected_data: dict
-    extracted_recipe, expected_data = extracted_recipe_fixture
-
+    # Test recipe instructions
     expected_instructions = expected_data["expected_instructions"]
     actual_instructions = extracted_recipe.instructions
-    assert actual_instructions == expected_instructions
+    assert actual_instructions == expected_instructions, (
+        f"Instructions don't match.\n"
+        f"Expected: {expected_instructions}\n"
+        f"Actual: {actual_instructions}"
+    )

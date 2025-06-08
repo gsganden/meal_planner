@@ -4,7 +4,7 @@ set -uo pipefail
 source .env
 
 # Define the specific eval test we want to run
-specific_eval_test="tests/test_ml_evals.py::test_extract_recipe_name[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
+specific_eval_test="tests/test_ml_evals.py::test_extract_recipe[tests/data/recipes/raw/good-old-fashioned-pancakes.html]"
 
 # Find all other test files (excluding the specific eval test)
 test_files=$(find tests -name 'test_*.py' ! -name 'test_ml_evals.py' -print0 | xargs -0)

@@ -58,7 +58,7 @@ graph LR
 ## Setup
 
 ```bash
-uv sync --all-extras
+uv sync --all-groups
 ```
 
 [Get a Gemini API key](https://aistudio.google.com/apikey) and assign its value to a `GOOGLE_API_KEY` environment variable inside a dotenv file.
@@ -83,19 +83,19 @@ uv run modal run deploy.py::migrate_db
 
 ## Run Tests
 
-To run all the tests:
-
-```bash
-uv run pytest --runslow
-```
-
-To skip tests that make slow LLM calls:
+Skip tests that make slow LLM calls:
 
 ```bash
 uv run pytest
 ```
 
-To check test coverage with minimal LLM calls:
+Run the tests that make slow LLM calls with a chance to retry once as a way to handle atypical nondeterministic failures:
+
+```bash
+source .env && uv run pytest tests/test_ml_evals.py --runslow --reruns=1
+```
+
+Check test coverage with minimal LLM calls:
 
 ```bash
 ./run_fast_coverage.sh
