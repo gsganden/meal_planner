@@ -8,8 +8,6 @@ from sqlmodel import Session as SQLModelSession
 
 from meal_planner.models import User
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.mark.anyio
 class TestGetUserById:
@@ -77,12 +75,12 @@ class TestDemoUserMigration:
     def test_demo_user_migration_format(self):
         """Test that demo user can be created with expected format."""
         from uuid import UUID
+
         # This tests the structure expected by the migration
         demo_user = User(
-            id=UUID("7dfc4e17-5b0c-4e08-8de1-8db9e7321711"),
-            username="demo_user"
+            id=UUID("7dfc4e17-5b0c-4e08-8de1-8db9e7321711"), username="demo_user"
         )
-        
+
         # Verify the model accepts the expected values
         assert demo_user.id == UUID("7dfc4e17-5b0c-4e08-8de1-8db9e7321711")
         assert demo_user.username == "demo_user"
