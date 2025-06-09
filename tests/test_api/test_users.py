@@ -154,12 +154,12 @@ class TestUserModel:
 
         # Adding second user with same username should fail
         dbsession.add(user2)
-        with pytest.raises(Exception):  # SQLite will raise an IntegrityError
+        with pytest.raises((Exception, RuntimeError)):  # SQLite IntegrityError
             dbsession.commit()
 
     def test_user_model_username_validation(self):
         """Test username field validation."""
         # Empty username should fail validation when model is validated
-        with pytest.raises(Exception):
+        with pytest.raises((ValueError, Exception)):
             user = User(username="")
             user.model_validate(user)
