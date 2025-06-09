@@ -640,6 +640,7 @@ class TestUpdateRecipe:
 
         # Add small delay to ensure timestamp difference
         import asyncio
+
         await asyncio.sleep(0.1)
 
         response = await client.put(
@@ -784,6 +785,7 @@ class TestUpdateRecipe:
 
         # Add delay to ensure timestamp difference
         import time
+
         time.sleep(0.1)
 
         # Update the recipe
