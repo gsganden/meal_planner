@@ -52,7 +52,7 @@ def sidebar():
         ),
         uk_nav=True,
         cls=NavT.primary,
-        uk_sticky="offset: 20",
+        uk_sticky="offset: 20; media: @m",
     )
     return Div(nav, cls="space-y-4 p-4 w-full md:w-full")
 
@@ -92,6 +92,7 @@ def with_layout(title: str, *content):
         sidebar(),
         id="mobile-sidebar",
         hidden=True,
+        cls="md:!hidden",
     )
 
     github_link = Div(
