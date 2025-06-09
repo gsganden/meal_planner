@@ -543,3 +543,306 @@ class TestRecipeTimestamps:
         # For new recipes, timestamps should be identical or very close
         time_diff = abs((updated_at - created_at).total_seconds())
         assert time_diff < 1, f"New recipe timestamps differ by {time_diff} seconds"
+
+
+@pytest.mark.anyio
+class TestUpdateRecipe:
+    """Test suite for the PUT /api/v0/recipes/{recipe_id} endpoint."""
+
+    @pytest_asyncio.fixture()
+    async def created_recipe(
+        self, client: AsyncClient, valid_recipe_payload: dict
+    ) -> dict:
+        """Creates a recipe and returns the response JSON with ID."""
+        response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
+        assert response.status_code == 201
+        return response.json()
+
+    @pytest.fixture()
+    def updated_recipe_payload(self):
+        """Payload for updating a recipe."""
+        return {
+            "name": "Updated Test Recipe",
+            "ingredients": ["2 cups flour", "3 eggs", "1 cup milk"],
+            "instructions": ["Combine ingredients", "Bake at 375F for 25 minutes"],
+        }
+
+    async def test_update_recipe_success(
+        self,
+        client: AsyncClient,
+        created_recipe: dict,
+        updated_recipe_payload: dict,
+    ):
+        """Test successful update of an existing recipe."""
+        recipe_id = created_recipe["id"]
+        response = await client.put(
+            f"/api/v0/recipes/{recipe_id}", json=updated_recipe_payload
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+
+        # Verify updated data is returned
+        assert response_json["id"] == recipe_id
+        assert response_json["name"] == updated_recipe_payload["name"]
+        assert response_json["ingredients"] == updated_recipe_payload["ingredients"]
+        assert response_json["instructions"] == updated_recipe_payload["instructions"]
+
+    async def test_update_recipe_includes_last_modified_header(
+        self,
+        client: AsyncClient,
+        created_recipe: dict,
+        updated_recipe_payload: dict,
+    ):
+        """Test that update response includes Last-Modified header."""
+        recipe_id = created_recipe["id"]
+        response = await client.put(
+            f"/api/v0/recipes/{recipe_id}", json=updated_recipe_payload
+        )
+
+        assert response.status_code == 200
+        assert "Last-Modified" in response.headers
+
+        # Verify header format (should be valid HTTP date)
+        last_modified = response.headers["Last-Modified"]
+        assert isinstance(last_modified, str)
+        assert len(last_modified) > 20  # Basic sanity check
+
+    async def test_update_recipe_preserves_created_at(
+        self,
+        client: AsyncClient,
+        created_recipe: dict,
+        updated_recipe_payload: dict,
+    ):
+        """Test that update preserves the original created_at timestamp."""
+        recipe_id = created_recipe["id"]
+        original_created_at = created_recipe["created_at"]
+
+        response = await client.put(
+            f"/api/v0/recipes/{recipe_id}", json=updated_recipe_payload
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+
+        # created_at should remain unchanged
+        assert response_json["created_at"] == original_created_at
+
+    async def test_update_recipe_updates_updated_at(
+        self,
+        client: AsyncClient,
+        created_recipe: dict,
+        updated_recipe_payload: dict,
+    ):
+        """Test that update changes the updated_at timestamp."""
+        recipe_id = created_recipe["id"]
+        original_updated_at = created_recipe["updated_at"]
+
+        # Add small delay to ensure timestamp difference
+        import asyncio
+        await asyncio.sleep(0.1)
+
+        response = await client.put(
+            f"/api/v0/recipes/{recipe_id}", json=updated_recipe_payload
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+
+        # updated_at should be different from original
+        assert response_json["updated_at"] != original_updated_at
+
+        # Parse timestamps to verify updated_at is more recent
+        original_dt = datetime.fromisoformat(original_updated_at.replace("Z", "+00:00"))
+        updated_dt = datetime.fromisoformat(
+            response_json["updated_at"].replace("Z", "+00:00")
+        )
+        assert updated_dt > original_dt
+
+    async def test_update_recipe_persists_to_database(
+        self,
+        client: AsyncClient,
+        created_recipe: dict,
+        updated_recipe_payload: dict,
+    ):
+        """Test that update changes are persisted to database."""
+        recipe_id = created_recipe["id"]
+
+        # Update the recipe
+        update_response = await client.put(
+            f"/api/v0/recipes/{recipe_id}", json=updated_recipe_payload
+        )
+        assert update_response.status_code == 200
+
+        # Fetch the recipe again to verify persistence
+        get_response = await client.get(f"/api/v0/recipes/{recipe_id}")
+        assert get_response.status_code == 200
+
+        response_json = get_response.json()
+        assert response_json["name"] == updated_recipe_payload["name"]
+        assert response_json["ingredients"] == updated_recipe_payload["ingredients"]
+        assert response_json["instructions"] == updated_recipe_payload["instructions"]
+
+    async def test_update_recipe_not_found(
+        self, client: AsyncClient, updated_recipe_payload: dict
+    ):
+        """Test updating a non-existent recipe returns 404."""
+        non_existent_id = 99999
+        response = await client.put(
+            f"/api/v0/recipes/{non_existent_id}", json=updated_recipe_payload
+        )
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Recipe not found"}
+
+    @pytest.mark.parametrize(
+        "invalid_payload, expected_status",
+        [
+            ({"ingredients": ["i1"], "instructions": ["s1"]}, 422),  # missing name
+            ({"name": "Test", "instructions": ["s1"]}, 422),  # missing ingredients
+            ({"name": "Test", "ingredients": ["i1"]}, 422),  # missing instructions
+            (
+                {"name": "", "ingredients": ["i1"], "instructions": ["s1"]},
+                422,
+            ),  # empty name
+            (
+                {"name": "Test", "ingredients": [], "instructions": ["s1"]},
+                422,
+            ),  # empty ingredients
+            (
+                {"name": "Test", "ingredients": ["i1"], "instructions": []},
+                422,
+            ),  # empty instructions
+        ],
+    )
+    async def test_update_recipe_validation_errors(
+        self,
+        client: AsyncClient,
+        created_recipe: dict,
+        invalid_payload: dict,
+        expected_status: int,
+    ):
+        """Test that invalid update payloads return 422 validation errors."""
+        recipe_id = created_recipe["id"]
+        response = await client.put(
+            f"/api/v0/recipes/{recipe_id}", json=invalid_payload
+        )
+
+        assert response.status_code == expected_status
+        if expected_status == 422:
+            assert "detail" in response.json()
+
+    async def test_update_recipe_db_fetch_error(
+        self, client: AsyncClient, created_recipe: dict, updated_recipe_payload: dict
+    ):
+        """Test handling of database errors when fetching recipe for update."""
+        recipe_id = created_recipe["id"]
+
+        with patch("sqlmodel.Session.get") as mock_get:
+            mock_get.side_effect = Exception("Database fetch error")
+
+            response = await client.put(
+                f"/api/v0/recipes/{recipe_id}", json=updated_recipe_payload
+            )
+
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Database error retrieving recipe"}
+            mock_get.assert_called_once_with(Recipe, recipe_id)
+
+    async def test_update_recipe_db_commit_error(
+        self, client: AsyncClient, created_recipe: dict, updated_recipe_payload: dict
+    ):
+        """Test handling of database errors during commit operation."""
+        recipe_id = created_recipe["id"]
+
+        with patch("sqlmodel.Session.commit") as mock_commit:
+            mock_commit.side_effect = Exception("Database commit error")
+
+            response = await client.put(
+                f"/api/v0/recipes/{recipe_id}", json=updated_recipe_payload
+            )
+
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Database error updating recipe"}
+            mock_commit.assert_called_once()
+
+    async def test_update_recipe_timestamp_verification(
+        self,
+        client: AsyncClient,
+        dbsession: SQLModelSession,
+        created_recipe: dict,
+        updated_recipe_payload: dict,
+    ):
+        """Test that timestamps are properly managed in the database."""
+        recipe_id = created_recipe["id"]
+
+        # Get original timestamps from database
+        original_recipe = dbsession.get(Recipe, recipe_id)
+        assert original_recipe is not None
+        original_created_at = original_recipe.created_at
+        original_updated_at = original_recipe.updated_at
+
+        # Add delay to ensure timestamp difference
+        import time
+        time.sleep(0.1)
+
+        # Update the recipe
+        response = await client.put(
+            f"/api/v0/recipes/{recipe_id}", json=updated_recipe_payload
+        )
+        assert response.status_code == 200
+
+        # Fetch updated recipe from database
+        dbsession.expire_all()  # Clear session cache
+        updated_recipe = dbsession.get(Recipe, recipe_id)
+        assert updated_recipe is not None
+
+        # Verify timestamp behavior
+        assert updated_recipe.created_at == original_created_at  # unchanged
+        assert updated_recipe.updated_at > original_updated_at  # updated
+        assert updated_recipe.updated_at != original_updated_at
+
+
+@pytest.mark.anyio
+class TestUpdateRecipeIntegration:
+    """Integration tests for recipe update functionality."""
+
+    async def test_create_update_get_integration(
+        self, client: AsyncClient, valid_recipe_payload: dict
+    ):
+        """Test complete create -> update -> get workflow."""
+        # Create recipe
+        create_response = await client.post(
+            "/api/v0/recipes", json=valid_recipe_payload
+        )
+        assert create_response.status_code == 201
+        recipe_id = create_response.json()["id"]
+
+        # Update recipe
+        updated_payload = {
+            "name": "Integration Test Recipe",
+            "ingredients": ["Updated ingredient 1", "Updated ingredient 2"],
+            "instructions": ["Updated step 1", "Updated step 2"],
+        }
+        update_response = await client.put(
+            f"/api/v0/recipes/{recipe_id}", json=updated_payload
+        )
+        assert update_response.status_code == 200
+
+        # Verify via GET
+        get_response = await client.get(f"/api/v0/recipes/{recipe_id}")
+        assert get_response.status_code == 200
+
+        final_recipe = get_response.json()
+        assert final_recipe["name"] == updated_payload["name"]
+        assert final_recipe["ingredients"] == updated_payload["ingredients"]
+        assert final_recipe["instructions"] == updated_payload["instructions"]
+
+        # Verify timestamps
+        create_created_at = create_response.json()["created_at"]
+        final_created_at = final_recipe["created_at"]
+        assert final_created_at == create_created_at  # created_at preserved
+
+        update_updated_at = update_response.json()["updated_at"]
+        final_updated_at = final_recipe["updated_at"]
+        assert final_updated_at == update_updated_at  # updated_at matches

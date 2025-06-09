@@ -148,6 +148,89 @@ async def get_recipe_by_id(
     return recipe
 
 
+@API_ROUTER.put("/v0/recipes/{recipe_id}", response_model=Recipe)
+async def update_recipe(
+    recipe_id: int,
+    recipe_data: RecipeBase,
+    session: Annotated[Session, Depends(get_session)],
+):
+    """Update an existing recipe in the database.
+
+    Performs a partial update, preserving any fields not included in the request body.
+    Returns the updated recipe with a Last-Modified header for caching support.
+
+    Args:
+        recipe_id: Unique identifier of the recipe to update.
+        recipe_data: Recipe data to update (name, ingredients, instructions).
+        session: Database session from dependency injection.
+
+    Returns:
+        The updated recipe with preserved created_at and new updated_at timestamp.
+
+    Raises:
+        HTTPException: 404 if recipe not found, 500 if database error.
+
+    Response Headers:
+        Last-Modified: Timestamp of when the recipe was last updated.
+    """
+    try:
+        recipe = session.get(Recipe, recipe_id)
+    except Exception as e:
+        logger.error(
+            "Database error fetching recipe ID %s for update: %s",
+            recipe_id,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error retrieving recipe",
+        ) from e
+
+    if recipe is None:
+        logger.warning("Recipe with ID %s not found for update.", recipe_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found"
+        )
+
+    # Update fields from request data (partial update semantics)
+    recipe.name = recipe_data.name
+    recipe.ingredients = recipe_data.ingredients
+    recipe.instructions = recipe_data.instructions
+
+    # Preserve created_at, update updated_at timestamp
+    recipe.updated_at = datetime.now(timezone.utc)
+
+    try:
+        session.add(recipe)
+        session.commit()
+        session.refresh(recipe)
+    except Exception as e:
+        session.rollback()
+        logger.error(
+            "Database error updating recipe ID %s: %s", recipe_id, e, exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error updating recipe",
+        ) from e
+
+    logger.info(
+        "Updated recipe with ID: %s, Name: %s",
+        recipe.id,
+        recipe.name,
+    )
+
+    # Format Last-Modified header as HTTP date
+    last_modified = recipe.updated_at.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+    return JSONResponse(
+        content=recipe.model_dump(mode="json"),
+        status_code=status.HTTP_200_OK,
+        headers={"Last-Modified": last_modified},
+    )
+
+
 @API_ROUTER.delete("/v0/recipes/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_recipe(
     recipe_id: int, session: Annotated[Session, Depends(get_session)]

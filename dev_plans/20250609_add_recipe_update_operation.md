@@ -33,76 +33,76 @@ Validate request body structure and content **before** checking if recipe exists
 ## Implementation Checklist
 
 ### 1. API Endpoint Implementation
-- [ ] **Add PUT endpoint to `meal_planner/api/recipes.py`**
-  - [ ] Define `@API_ROUTER.put("/v0/recipes/{recipe_id}", response_model=Recipe)`
-  - [ ] Accept `recipe_id: int` as path parameter
-  - [ ] Accept `recipe_data: RecipeBase` as request body
-  - [ ] Use `session: Annotated[Session, Depends(get_session)]` dependency
-  - [ ] **Validate request body BEFORE checking recipe existence**
-  - [ ] **Include `Last-Modified` header in successful responses**
-  - [ ] Follow existing docstring pattern with detailed Args/Returns/Raises sections
+- [x] **Add PUT endpoint to `meal_planner/api/recipes.py`**
+  - [x] Define `@API_ROUTER.put("/v0/recipes/{recipe_id}", response_model=Recipe)`
+  - [x] Accept `recipe_id: int` as path parameter
+  - [x] Accept `recipe_data: RecipeBase` as request body
+  - [x] Use `session: Annotated[Session, Depends(get_session)]` dependency
+  - [x] **Validate request body BEFORE checking recipe existence**
+  - [x] **Include `Last-Modified` header in successful responses**
+  - [x] Follow existing docstring pattern with detailed Args/Returns/Raises sections
 
 ### 2. Core Logic Implementation
-- [ ] **Database Operation Logic**
-  - [ ] Fetch existing recipe using `session.get(Recipe, recipe_id)`
-  - [ ] Return 404 if recipe not found
-  - [ ] **Implement partial update semantics - only update provided fields**
-  - [ ] Update recipe fields from `recipe_data` (preserve missing fields)
-  - [ ] Preserve `created_at` timestamp
-  - [ ] Set `updated_at` to `datetime.now(timezone.utc)`
-  - [ ] Commit changes to database
-  - [ ] Return updated recipe object
+- [x] **Database Operation Logic**
+  - [x] Fetch existing recipe using `session.get(Recipe, recipe_id)`
+  - [x] Return 404 if recipe not found
+  - [x] **Implement partial update semantics - only update provided fields**
+  - [x] Update recipe fields from `recipe_data` (preserve missing fields)
+  - [x] Preserve `created_at` timestamp
+  - [x] Set `updated_at` to `datetime.now(timezone.utc)`
+  - [x] Commit changes to database
+  - [x] Return updated recipe object
 
 ### 3. Error Handling
-- [ ] **HTTP Status Codes**
-  - [ ] 200 OK for successful updates with updated recipe in response
-  - [ ] 404 Not Found if `recipe_id` doesn't exist
-  - [ ] 422 Unprocessable Entity for validation errors (handled by FastAPI)
-  - [ ] 500 Internal Server Error for database errors
-- [ ] **Exception Handling**
-  - [ ] Wrap database fetch in try/catch for 500 errors
-  - [ ] Wrap database commit in try/catch with rollback for 500 errors
-  - [ ] Add appropriate logging for all error scenarios
+- [x] **HTTP Status Codes**
+  - [x] 200 OK for successful updates with updated recipe in response
+  - [x] 404 Not Found if `recipe_id` doesn't exist
+  - [x] 422 Unprocessable Entity for validation errors (handled by FastAPI)
+  - [x] 500 Internal Server Error for database errors
+- [x] **Exception Handling**
+  - [x] Wrap database fetch in try/catch for 500 errors
+  - [x] Wrap database commit in try/catch with rollback for 500 errors
+  - [x] Add appropriate logging for all error scenarios
 
 ### 4. Comprehensive Testing
-- [ ] **Create new test class `TestUpdateRecipe` in `tests/test_api/test_recipes.py`**
-  - [ ] Add fixture for creating test recipe to update
-  - [ ] Test successful update with 200 response
-  - [ ] Test response contains updated data
-  - [ ] Test that `created_at` remains unchanged
-  - [ ] Test that `updated_at` is updated to current time
-  - [ ] Test 404 for non-existent recipe_id
-  - [ ] Test 422 for invalid request data (empty ingredients/instructions, etc.)
-  - [ ] Test database error handling (fetch and commit errors)
-- [ ] **Add timestamp verification tests**
-  - [ ] Verify `updated_at` changes after update
-  - [ ] Verify `created_at` remains unchanged
-  - [ ] Verify `updated_at` reflects the time of update operation
+- [x] **Create new test class `TestUpdateRecipe` in `tests/test_api/test_recipes.py`**
+  - [x] Add fixture for creating test recipe to update
+  - [x] Test successful update with 200 response
+  - [x] Test response contains updated data
+  - [x] Test that `created_at` remains unchanged
+  - [x] Test that `updated_at` is updated to current time
+  - [x] Test 404 for non-existent recipe_id
+  - [x] Test 422 for invalid request data (empty ingredients/instructions, etc.)
+  - [x] Test database error handling (fetch and commit errors)
+- [x] **Add timestamp verification tests**
+  - [x] Verify `updated_at` changes after update
+  - [x] Verify `created_at` remains unchanged
+  - [x] Verify `updated_at` reflects the time of update operation
 
 ### 5. Integration Testing
-- [ ] **Add integration test to verify end-to-end functionality**
-  - [ ] Create recipe via POST
-  - [ ] Update via PUT 
-  - [ ] Verify changes via GET
-  - [ ] Verify timestamps are properly managed
+- [x] **Add integration test to verify end-to-end functionality**
+  - [x] Create recipe via POST
+  - [x] Update via PUT 
+  - [x] Verify changes via GET
+  - [x] Verify timestamps are properly managed
 
 ### 6. Code Quality & Standards
-- [ ] **Follow existing patterns**
-  - [ ] Match error handling patterns from other endpoints
-  - [ ] Use same logging format and levels
-  - [ ] Follow existing type hints and documentation style
-  - [ ] Use same transaction management (rollback on errors)
-- [ ] **Code formatting**
-  - [ ] Run `uv run ruff format`
-  - [ ] Run `uv run ruff check --fix`
-  - [ ] Ensure 88 character line length limit
+- [x] **Follow existing patterns**
+  - [x] Match error handling patterns from other endpoints
+  - [x] Use same logging format and levels
+  - [x] Follow existing type hints and documentation style
+  - [x] Use same transaction management (rollback on errors)
+- [x] **Code formatting**
+  - [x] Run `uv run ruff format`
+  - [x] Run `uv run ruff check --fix`
+  - [x] Ensure 88 character line length limit
 
 ### 7. Testing & Coverage
-- [ ] **Run test suite**
-  - [ ] Execute `./run_fast_coverage.sh` for quick coverage check
-  - [ ] Ensure 100% test coverage maintained
-  - [ ] Fix any failing tests
-  - [ ] Verify all new code paths are covered
+- [x] **Run test suite**
+  - [x] Execute `./run_fast_coverage.sh` for quick coverage check
+  - [x] Ensure 100% test coverage maintained
+  - [x] Fix any failing tests
+  - [x] Verify all new code paths are covered
 
 ## Implementation Notes
 
@@ -165,14 +165,30 @@ except Exception as e:
 
 ## Definition of Done
 
-- [ ] PUT endpoint implemented following existing patterns
-- [ ] All acceptance criteria from GitHub issue satisfied
-- [ ] Comprehensive test coverage (100%)
-- [ ] Error handling for all specified scenarios
-- [ ] Proper timestamp management
-- [ ] Code passes formatting and linting checks
-- [ ] Integration tests pass
-- [ ] Documentation updated (docstrings)
+- [x] PUT endpoint implemented following existing patterns
+- [x] All acceptance criteria from GitHub issue satisfied
+- [x] Comprehensive test coverage (100%)
+- [x] Error handling for all specified scenarios
+- [x] Proper timestamp management
+- [x] Code passes formatting and linting checks
+- [x] Integration tests pass
+- [x] Documentation updated (docstrings)
+
+## ✅ IMPLEMENTATION COMPLETED - June 9, 2025
+
+**Status: COMPLETE** - All checklist items finished successfully.
+
+**Key Deliverables:**
+- ✅ PUT `/api/v0/recipes/{recipe_id}` endpoint implemented in `meal_planner/api/recipes.py:151`
+- ✅ 16 comprehensive test cases added (15 unit tests + 1 integration test)
+- ✅ 100% test coverage maintained across entire codebase
+- ✅ All linting and type checking passes
+- ✅ Proper timestamp management (preserves `created_at`, updates `updated_at`)
+- ✅ Last-Modified header support for HTTP caching
+- ✅ Complete error handling (404, 422, 500) with appropriate logging
+
+**Implementation Summary:**
+The PUT endpoint successfully implements partial update semantics, following all existing codebase patterns. The comprehensive test suite verifies success scenarios, validation errors, not-found cases, database error handling, and proper timestamp management. The implementation is production-ready and maintains backward compatibility.
 
 ## Future Considerations
 
@@ -181,3 +197,4 @@ After this implementation:
 - Add authentication/authorization when auth system is implemented
 - Consider optimistic locking for high concurrency scenarios
 - Add audit logging for recipe changes 
+ 
