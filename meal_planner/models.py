@@ -6,6 +6,7 @@ including both database models (SQLModel) and API request/response models.
 
 from datetime import datetime
 from typing import Annotated, Optional
+from uuid import UUID, uuid4
 
 from pydantic import model_validator
 from sqlalchemy import Column, func
@@ -139,6 +140,53 @@ class Recipe(RecipeBase, table=True):
 
     __tablename__ = "recipes"  # type: ignore[assignment]
     id: Optional[int] = Field(default=None, primary_key=True)
+    # SQLite limitations require manual timestamp management in application code.
+    # These server defaults are kept for database portability and direct SQL operations.
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column_kwargs={"nullable": False, "server_default": func.now()},
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column_kwargs={
+            "nullable": False,
+            "server_default": func.now(),
+            "onupdate": func.now(),
+        },
+    )
+
+
+class User(SQLModel, table=True):
+    """Database model for storing user information.
+
+    This model represents users in the system and provides the foundation
+    for user-specific features and content association.
+
+    Attributes:
+        id: Primary key UUID, automatically generated on creation.
+        username: Unique username for the user, indexed for fast lookups.
+        created_at: Timestamp of when the user was created (UTC).
+            This is a database-managed field. It will be `None` in Python
+            before an object is persisted but will always be populated for
+            records retrieved from the database.
+        updated_at: Timestamp of when the user was last updated (UTC).
+            This is a database-managed field. It will be `None` in Python
+            before an object is persisted but will always be populated for
+            records retrieved from the database.
+    """
+
+    __tablename__ = "users"  # type: ignore[assignment]
+    id: Optional[UUID] = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        description="Unique identifier for the user",
+    )
+    username: str = Field(
+        ...,
+        description="Unique username for the user",
+        min_length=1,
+        sa_column_kwargs={"unique": True, "index": True, "nullable": False},
+    )
     # SQLite limitations require manual timestamp management in application code.
     # These server defaults are kept for database portability and direct SQL operations.
     created_at: Optional[datetime] = Field(
