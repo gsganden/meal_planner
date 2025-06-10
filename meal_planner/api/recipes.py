@@ -49,7 +49,6 @@ async def create_recipe(
     """
     db_recipe = Recipe.model_validate(recipe_data)
 
-    # Set timestamps for new recipes since SQLite doesn't auto-populate server defaults
     now = datetime.now(timezone.utc)
     db_recipe.created_at = now
     db_recipe.updated_at = now
