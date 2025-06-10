@@ -140,8 +140,6 @@ class Recipe(RecipeBase, table=True):
 
     __tablename__ = "recipes"  # type: ignore[assignment]
     id: Optional[int] = Field(default=None, primary_key=True)
-    # SQLite limitations require manual timestamp management in application code.
-    # These server defaults are kept for database portability and direct SQL operations.
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column_kwargs={"nullable": False, "server_default": func.now()},
