@@ -4,9 +4,10 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from pydantic import ValidationError
 from sqlmodel import Session as SQLModelSession
 
-from meal_planner.models import User
+from meal_planner.models import User, UserBase
 
 
 @pytest.mark.anyio
@@ -54,9 +55,7 @@ class TestGetUserById:
         assert response.status_code == 422
         assert "detail" in response.json()
 
-    async def test_get_user_db_fetch_error(
-        self, client: AsyncClient, monkeypatch, setup_user: UUID
-    ):
+    async def test_get_user_db_fetch_error(self, client: AsyncClient, setup_user: UUID):
         """Test handling of database errors during GET /api/v0/users/{user_id}."""
         with patch("sqlmodel.Session.get") as mock_get:
             mock_get.side_effect = Exception("Database fetch error")
@@ -132,7 +131,5 @@ class TestUserModel:
 
     def test_user_model_username_validation(self):
         """Test username field validation."""
-        # Empty username should fail validation when model is validated
-        with pytest.raises((ValueError, Exception)):
-            user = User(username="")
-            user.model_validate(user)
+        with pytest.raises(ValidationError):
+            UserBase(username="")
