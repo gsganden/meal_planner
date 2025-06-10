@@ -156,7 +156,20 @@ class Recipe(RecipeBase, table=True):
     )
 
 
-class User(SQLModel, table=True):
+class UserBase(SQLModel):
+    """Base user model with validation.
+
+    Contains shared user fields with Pydantic validation enabled.
+    """
+
+    username: str = Field(
+        ...,
+        description="Unique username for the user",
+        min_length=1,
+    )
+
+
+class User(UserBase, table=True):
     """Database model for storing user information.
 
     This model represents users in the system and provides the foundation
@@ -182,13 +195,8 @@ class User(SQLModel, table=True):
         description="Unique identifier for the user",
     )
     username: str = Field(
-        ...,
-        description="Unique username for the user",
-        min_length=1,
         sa_column_kwargs={"unique": True, "index": True, "nullable": False},
     )
-    # SQLite limitations require manual timestamp management in application code.
-    # These server defaults are kept for database portability and direct SQL operations.
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column_kwargs={"nullable": False, "server_default": func.now()},
