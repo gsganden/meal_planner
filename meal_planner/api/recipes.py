@@ -49,7 +49,6 @@ async def create_recipe(
     """
     db_recipe = Recipe.model_validate(recipe_data)
 
-    # Set timestamps for new recipes since SQLite doesn't auto-populate server defaults
     now = datetime.now(timezone.utc)
     db_recipe.created_at = now
     db_recipe.updated_at = now
@@ -156,8 +155,8 @@ async def update_recipe(
 ):
     """Update an existing recipe in the database.
 
-    Performs a partial update, preserving any fields not included in the request body.
-    Returns the updated recipe with a Last-Modified header for caching support.
+    Replaces all recipe fields with the provided data. Returns the updated recipe with a
+    Last-Modified header for caching support.
 
     Args:
         recipe_id: Unique identifier of the recipe to update.
@@ -193,12 +192,10 @@ async def update_recipe(
             status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found"
         )
 
-    # Update fields from request data (partial update semantics)
     recipe.name = recipe_data.name
     recipe.ingredients = recipe_data.ingredients
     recipe.instructions = recipe_data.instructions
 
-    # Preserve created_at, update updated_at timestamp
     recipe.updated_at = datetime.now(timezone.utc)
 
     try:
@@ -221,7 +218,6 @@ async def update_recipe(
         recipe.name,
     )
 
-    # Format Last-Modified header as HTTP date
     last_modified = recipe.updated_at.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
     return JSONResponse(
