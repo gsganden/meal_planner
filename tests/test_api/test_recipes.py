@@ -1,5 +1,6 @@
 from datetime import datetime
 from unittest.mock import patch
+from uuid import UUID
 
 import pytest
 import pytest_asyncio
@@ -280,7 +281,7 @@ class TestGetRecipes:
 @pytest.mark.anyio
 class TestGetRecipeById:
     @pytest.fixture
-    def setup_recipe(self, dbsession: SQLModelSession) -> int:
+    def setup_recipe(self, dbsession: SQLModelSession) -> UUID:
         """Inserts a recipe into the test database and returns its ID."""
         test_recipe = Recipe(
             name="Detailed Test Recipe",
@@ -294,7 +295,7 @@ class TestGetRecipeById:
         return test_recipe.id
 
     async def test_get_recipe_by_id_success(
-        self, client: AsyncClient, setup_recipe: int
+        self, client: AsyncClient, setup_recipe: UUID
     ):
         """Test GET /api/recipes/{recipe_id} returns the correct recipe."""
         recipe_id = setup_recipe
@@ -302,7 +303,7 @@ class TestGetRecipeById:
 
         assert response.status_code == 200
         response_json = response.json()
-        assert response_json["id"] == recipe_id
+        assert response_json["id"] == str(recipe_id)
         assert response_json["name"] == "Detailed Test Recipe"
         assert response_json["ingredients"] == [
             "Detail ingredient 1",
@@ -321,7 +322,7 @@ class TestGetRecipeById:
         assert response.json() == {"detail": "Recipe not found"}
 
     async def test_get_recipe_db_fetch_error(
-        self, client: AsyncClient, monkeypatch, setup_recipe: int
+        self, client: AsyncClient, monkeypatch, setup_recipe: UUID
     ):
         """Test handling of database errors during GET /api/recipes/{recipe_id}."""
         with patch("sqlmodel.Session.get") as mock_get:
