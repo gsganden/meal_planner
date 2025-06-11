@@ -158,7 +158,7 @@ class TestGetRecipeListPage:
 
 @pytest.mark.anyio
 class TestGetSingleRecipePage:
-    RECIPE_ID = 123
+    RECIPE_ID = "12345678-1234-1234-1234-123456789012"
     API_URL = f"/v0/recipes/{RECIPE_ID}"
     PAGE_URL = f"/recipes/{RECIPE_ID}"
 

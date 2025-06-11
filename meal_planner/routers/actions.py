@@ -413,7 +413,7 @@ async def post_extract_recipe_run(
 
 
 @rt("/recipes/delete")
-async def post_delete_recipe(id: int):
+async def post_delete_recipe(id: str):
     """Handles recipe deletion requests, typically initiated from the UI.
 
     This endpoint attempts to delete a recipe by its ID using an internal API call.
@@ -421,7 +421,7 @@ async def post_delete_recipe(id: int):
     to signal a change in the recipe list for UI updates.
 
     Args:
-        id: The integer ID of the recipe to be deleted.
+        id: The UUID string of the recipe to be deleted.
 
     Returns:
         A FastAPI `Response` object.
