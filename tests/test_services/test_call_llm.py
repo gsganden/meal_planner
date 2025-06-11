@@ -8,6 +8,8 @@ from meal_planner.services.call_llm import (
     ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE,
     ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE,
     MODEL_NAME,
+    _get_aclient,
+    _get_llm_prompt_path,
     generate_modified_recipe,
     generate_recipe_from_text,
     get_structured_llm_response,
@@ -420,3 +422,42 @@ async def test_generate_recipe_from_text_demonstrates_format_vulnerability(
         await generate_recipe_from_text(text=text_with_braces)
     except Exception as e:
         assert not isinstance(e, (KeyError, ValueError))
+
+
+def test_get_llm_prompt_path():
+    """Test the _get_llm_prompt_path helper function."""
+    result = _get_llm_prompt_path("recipe_extraction", "test_prompt.txt")
+    assert "recipe_extraction" in str(result)
+    assert "test_prompt.txt" in str(result)
+    assert result.name == "test_prompt.txt"
+
+
+@pytest.mark.anyio
+@patch.dict("os.environ", {"GOOGLE_API_KEY": "test_api_key"})
+@patch("meal_planner.services.call_llm.AsyncOpenAI")
+@patch("meal_planner.services.call_llm.instructor")
+async def test_get_aclient_creates_instructor_client(mock_instructor, mock_async_openai):
+    """Test that _get_aclient creates and caches the instructor client."""
+    import meal_planner.services.call_llm
+    
+    # Clear the cached client
+    meal_planner.services.call_llm._aclient = None
+    
+    mock_openai_instance = MagicMock()
+    mock_async_openai.return_value = mock_openai_instance
+    mock_instructor_instance = MagicMock()
+    mock_instructor.from_openai.return_value = mock_instructor_instance
+    
+    result = await _get_aclient()
+    
+    # Verify OpenAI client was created with correct parameters
+    mock_async_openai.assert_called_once_with(
+        api_key="test_api_key",
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+    
+    # Verify instructor client was created from OpenAI client
+    mock_instructor.from_openai.assert_called_once_with(mock_openai_instance)
+    
+    # Verify the function returns the instructor client
+    assert result is mock_instructor_instance

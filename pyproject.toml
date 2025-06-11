@@ -70,3 +70,7 @@ dev = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["user_entity_work", "wt-*"]

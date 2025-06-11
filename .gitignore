@@ -28,3 +28,5 @@ scripts/
 CLAUDE.md
 /.claude/
 github_mcp_env.txt
+user_entity_work/
+wt-*/
