@@ -34,6 +34,28 @@ RecipeName = Annotated[
     str, Field(..., description="The name of the recipe", min_length=1)
 ]
 
+CreatedAt = Annotated[
+    Optional[datetime],
+    Field(
+        default=None,
+        description="Timestamp of when the record was created (UTC)",
+        sa_column_kwargs={"nullable": False, "server_default": func.now()},
+    ),
+]
+
+UpdatedAt = Annotated[
+    Optional[datetime],
+    Field(
+        default=None,
+        description="Timestamp of when the record was last updated (UTC)",
+        sa_column_kwargs={
+            "nullable": False,
+            "server_default": func.now(),
+            "onupdate": func.now(),
+        },
+    ),
+]
+
 
 class RecipeBase(SQLModel):
     """Base recipe model with core fields shared across all recipe types.
@@ -140,20 +162,8 @@ class Recipe(RecipeBase, table=True):
 
     __tablename__ = "recipes"  # type: ignore[assignment]
     id: Optional[int] = Field(default=None, primary_key=True)
-    # SQLite limitations require manual timestamp management in application code.
-    # These server defaults are kept for database portability and direct SQL operations.
-    created_at: Optional[datetime] = Field(
-        default=None,
-        sa_column_kwargs={"nullable": False, "server_default": func.now()},
-    )
-    updated_at: Optional[datetime] = Field(
-        default=None,
-        sa_column_kwargs={
-            "nullable": False,
-            "server_default": func.now(),
-            "onupdate": func.now(),
-        },
-    )
+    created_at: CreatedAt
+    updated_at: UpdatedAt
 
 
 class UserBase(SQLModel):
@@ -197,15 +207,5 @@ class User(UserBase, table=True):
     username: str = Field(
         sa_column_kwargs={"unique": True, "index": True, "nullable": False},
     )
-    created_at: Optional[datetime] = Field(
-        default=None,
-        sa_column_kwargs={"nullable": False, "server_default": func.now()},
-    )
-    updated_at: Optional[datetime] = Field(
-        default=None,
-        sa_column_kwargs={
-            "nullable": False,
-            "server_default": func.now(),
-            "onupdate": func.now(),
-        },
-    )
+    created_at: CreatedAt
+    updated_at: UpdatedAt
