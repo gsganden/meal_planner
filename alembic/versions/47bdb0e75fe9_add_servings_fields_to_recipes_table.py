@@ -5,14 +5,15 @@ Revises: 1c66282b9e50
 Create Date: 2025-06-11 11:35:39.720238
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = '47bdb0e75fe9'
-down_revision: Union[str, None] = '1c66282b9e50'
+revision: str = "47bdb0e75fe9"
+down_revision: Union[str, None] = "1c66282b9e50"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -148,13 +148,15 @@ def build_recipe_display(recipe_data: dict) -> FT:
 
         components.append(P(Strong(servings_text), cls="mb-4"))
 
-    components.extend([
-        H4("Ingredients"),
-        Ul(
-            *[Li(ing) for ing in recipe_data.get("ingredients", [])],
-            cls=ListT.bullet,
-        ),
-    ])
+    components.extend(
+        [
+            H4("Ingredients"),
+            Ul(
+                *[Li(ing) for ing in recipe_data.get("ingredients", [])],
+                cls=ListT.bullet,
+            ),
+        ]
+    )
 
     instructions = recipe_data.get("instructions", [])
     if instructions:
