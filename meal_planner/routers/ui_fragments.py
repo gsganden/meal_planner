@@ -290,7 +290,7 @@ async def update_diff(request: Request) -> FT:
         return Div("Error updating diff view.", cls=CSS_ERROR_CLASS)
 
 
-@rt("/recipes/fetch-text")
+@rt("/recipes/ui/fetch-text")
 async def post_fetch_text(request: Request):
     """Fetch and clean text content from a recipe URL.
 

@@ -23,7 +23,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/api", api_app)
 
 # Need to import routers here to register them with the app
-# Import order matters: ui_fragments must come before pages to avoid route conflicts
-from meal_planner.routers import actions  # noqa: E402,F401,I001
-from meal_planner.routers import ui_fragments  # noqa: E402,F401,I001
-from meal_planner.routers import pages  # noqa: E402,F401,I001
+from meal_planner.routers import (  # noqa: E402
+    actions,  # noqa: F401
+    pages,  # noqa: F401
+    ui_fragments,  # noqa: F401
+)
