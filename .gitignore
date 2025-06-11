@@ -28,3 +28,6 @@ scripts/
 CLAUDE.md
 /.claude/
 github_mcp_env.txt
+
+# Git worktrees
+wt-*/
