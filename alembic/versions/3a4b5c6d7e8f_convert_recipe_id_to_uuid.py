@@ -48,7 +48,8 @@ def upgrade() -> None:
     # Get all existing recipes
     recipes = connection.execute(
         sa.text(
-            "SELECT id, name, ingredients, instructions, created_at, updated_at FROM recipes"
+            "SELECT id, name, ingredients, instructions, "
+            "created_at, updated_at FROM recipes"
         )
     ).fetchall()
 
@@ -57,8 +58,12 @@ def upgrade() -> None:
         new_uuid = str(uuid4())  # Standard UUID format with dashes
         connection.execute(
             sa.text("""
-                INSERT INTO recipes_new (id, name, ingredients, instructions, created_at, updated_at)
-                VALUES (:id, :name, :ingredients, :instructions, :created_at, :updated_at)
+                INSERT INTO recipes_new (
+                    id, name, ingredients, instructions, created_at, updated_at
+                )
+                VALUES (
+                    :id, :name, :ingredients, :instructions, :created_at, :updated_at
+                )
             """),
             {
                 "id": new_uuid,
@@ -103,15 +108,20 @@ def downgrade() -> None:
 
     recipes = connection.execute(
         sa.text(
-            "SELECT name, ingredients, instructions, created_at, updated_at FROM recipes"
+            "SELECT name, ingredients, instructions, "
+            "created_at, updated_at FROM recipes"
         )
     ).fetchall()
 
     for recipe in recipes:
         connection.execute(
             sa.text("""
-                INSERT INTO recipes_old (name, ingredients, instructions, created_at, updated_at)
-                VALUES (:name, :ingredients, :instructions, :created_at, :updated_at)
+                INSERT INTO recipes_old (
+                    name, ingredients, instructions, created_at, updated_at
+                )
+                VALUES (
+                    :name, :ingredients, :instructions, :created_at, :updated_at
+                )
             """),
             {
                 "name": recipe.name,
