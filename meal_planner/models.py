@@ -7,6 +7,7 @@ including both database models (SQLModel) and API request/response models.
 from datetime import datetime
 from typing import Annotated, Optional
 
+from pydantic import field_validator
 from sqlalchemy import Column, func
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
@@ -37,28 +38,63 @@ class RecipeBase(SQLModel):
         name: The recipe name, must be non-empty.
         ingredients: List of ingredient strings, must contain at least one item.
         instructions: List of cooking instruction steps.
+        servings_min: Optional minimum number of servings (positive integer).
+        servings_max: Optional maximum number of servings (positive integer).
     """
 
     name: RecipeName
     ingredients: RecipeIngredients
     instructions: RecipeInstructions
+    servings_min: Optional[int] = Field(
+        default=None, description="Minimum number of servings", ge=1
+    )
+    servings_max: Optional[int] = Field(
+        default=None, description="Maximum number of servings", ge=1
+    )
+
+    @field_validator("servings_max")
+    @classmethod
+    def validate_servings_max(cls, v: Optional[int], info) -> Optional[int]:
+        """Validate that servings_max >= servings_min if both are provided."""
+        if (
+            v is not None
+            and info.data.get("servings_min") is not None
+            and v < info.data["servings_min"]
+        ):
+            raise ValueError(
+                "servings_max must be greater than or equal to servings_min"
+            )
+        return v
 
     @property
     def markdown(self) -> str:
         """Generate a markdown-formatted representation of the recipe.
 
         Creates a structured markdown document with the recipe name as a
-        header, followed by ingredients and instructions in bulleted lists.
-        This format is used for display and for LLM prompts.
+        header, followed by servings info (if available), ingredients and
+        instructions in bulleted lists. This format is used for display
+        and for LLM prompts.
 
         Returns:
-            A markdown string with H1 title, H2 sections for ingredients
-            and instructions, each item as a bullet point.
+            A markdown string with H1 title, servings info, H2 sections for
+            ingredients and instructions, each item as a bullet point.
         """
+        servings_md = ""
+        if self.servings_min is not None or self.servings_max is not None:
+            if self.servings_min == self.servings_max:
+                servings_md = f"**Serves:** {self.servings_min}\n\n"
+            elif self.servings_min is not None and self.servings_max is not None:
+                servings_md = f"**Serves:** {self.servings_min}-{self.servings_max}\n\n"
+            elif self.servings_min is not None:
+                servings_md = f"**Serves:** {self.servings_min}+\n\n"
+            elif self.servings_max is not None:
+                servings_md = f"**Serves:** up to {self.servings_max}\n\n"
+
         ingredients_md = "\n".join([f"- {i}" for i in self.ingredients])
         instructions_md = "\n".join([f"- {i}" for i in self.instructions])
         return (
             f"# {self.name}\n\n"
+            f"{servings_md}"
             f"## Ingredients\n{ingredients_md}\n\n"
             f"## Instructions\n{instructions_md}\n"
         )
@@ -75,6 +111,8 @@ class Recipe(RecipeBase, table=True):
         name: Inherited from RecipeBase.
         ingredients: Inherited from RecipeBase, stored as JSON.
         instructions: Inherited from RecipeBase, stored as JSON.
+        servings_min: Inherited from RecipeBase, optional minimum servings.
+        servings_max: Inherited from RecipeBase, optional maximum servings.
         created_at: Timestamp of when the recipe was created (UTC).
             This is a database-managed field. It will be `None` in Python
             before an object is persisted but will always be populated for
