@@ -3,6 +3,7 @@
 import logging
 from datetime import datetime, timezone
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
@@ -112,7 +113,7 @@ async def get_all_recipes(session: Annotated[Session, Depends(get_session)]):
 
 @API_ROUTER.get("/v0/recipes/{recipe_id}", response_model=Recipe)
 async def get_recipe_by_id(
-    recipe_id: int, session: Annotated[Session, Depends(get_session)]
+    recipe_id: UUID, session: Annotated[Session, Depends(get_session)]
 ):
     """Retrieve a specific recipe by its ID.
 
@@ -235,7 +236,7 @@ async def update_recipe(
 
 @API_ROUTER.delete("/v0/recipes/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_recipe(
-    recipe_id: int, session: Annotated[Session, Depends(get_session)]
+    recipe_id: UUID, session: Annotated[Session, Depends(get_session)]
 ):
     """Delete a recipe from the database.
 

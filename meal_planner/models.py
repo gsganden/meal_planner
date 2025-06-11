@@ -56,6 +56,15 @@ UpdatedAt = Annotated[
     ),
 ]
 
+EntityId = Annotated[
+    Optional[UUID],
+    Field(
+        default_factory=uuid4,
+        primary_key=True,
+        description="Unique identifier for the entity",
+    ),
+]
+
 
 class RecipeBase(SQLModel):
     """Base recipe model with core fields shared across all recipe types.
@@ -161,7 +170,7 @@ class Recipe(RecipeBase, table=True):
     """
 
     __tablename__ = "recipes"  # type: ignore[assignment]
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: EntityId
     created_at: CreatedAt
     updated_at: UpdatedAt
 
@@ -199,11 +208,7 @@ class User(UserBase, table=True):
     """
 
     __tablename__ = "users"  # type: ignore[assignment]
-    id: Optional[UUID] = Field(
-        default_factory=uuid4,
-        primary_key=True,
-        description="Unique identifier for the user",
-    )
+    id: EntityId
     username: str = Field(
         sa_column_kwargs={"unique": True, "index": True, "nullable": False},
     )
