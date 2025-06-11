@@ -19,8 +19,10 @@ class TestRecipeServingsValidation:
                 servings_min=6,
                 servings_max=4,  # Invalid: max < min
             )
-        
-        assert "servings_max must be greater than or equal to servings_min" in str(exc_info.value)
+
+        assert "servings_max must be greater than or equal to servings_min" in str(
+            exc_info.value
+        )
 
     def test_servings_markdown_generation(self):
         """Test all branches of servings markdown generation."""

@@ -1,7 +1,10 @@
 """Tests for servings UI functionality."""
 
 from meal_planner.models import RecipeBase
-from meal_planner.ui.edit_recipe import build_recipe_display, _build_original_hidden_fields
+from meal_planner.ui.edit_recipe import (
+    _build_original_hidden_fields,
+    build_recipe_display,
+)
 
 
 class TestServingsUIDisplay:
@@ -91,7 +94,7 @@ class TestServingsUIDisplay:
     def test_build_original_hidden_fields_max_only(self):
         """Test hidden fields generation with only max servings."""
         recipe = RecipeBase(
-            name="Test Recipe", 
+            name="Test Recipe",
             ingredients=["ingredient 1"],
             instructions=["step 1"],
             servings_min=None,
