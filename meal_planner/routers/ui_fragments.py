@@ -291,19 +291,21 @@ async def update_diff(request: Request) -> FT:
 
 
 @rt("/recipes/fetch-text")
-async def post_fetch_text(input_url: str | None = None):
+async def post_fetch_text(request: Request):
     """Fetch and clean text content from a recipe URL.
 
     HTMX endpoint that retrieves webpage content, cleans it, and populates
     the recipe text area. Handles various error cases with appropriate messages.
 
     Args:
-        input_url: URL to fetch recipe content from.
+        request: FastAPI request containing form data with input_url.
 
     Returns:
         Group containing updated textarea with fetched content and
         error/success messages via OOB swap.
     """
+    form_data = await request.form()
+    input_url = form_data.get("input_url")
 
     def _prepare_error_response(error_message_str: str):
         """Prepare error response with textarea and error message."""
