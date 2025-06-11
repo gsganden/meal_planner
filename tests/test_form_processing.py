@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 from starlette.datastructures import FormData
 
-from meal_planner.form_processing import parse_recipe_form_data
+from meal_planner.form_processing import normalize_servings_values, parse_recipe_form_data
 from meal_planner.models import RecipeBase
 
 
@@ -24,6 +24,8 @@ class TestParseRecipeFormData:
             "name": "Test Recipe",
             "ingredients": ["Ing 1", "Ing 2"],
             "instructions": ["Step 1", "Step 2"],
+            "servings_min": None,
+            "servings_max": None,
         }
         RecipeBase(**parsed_data)
 
@@ -41,6 +43,8 @@ class TestParseRecipeFormData:
             "name": "Original Name",
             "ingredients": ["Orig Ing 1"],
             "instructions": ["Orig Step 1"],
+            "servings_min": None,
+            "servings_max": None,
         }
         RecipeBase(**parsed_data)
 
@@ -51,6 +55,8 @@ class TestParseRecipeFormData:
             "name": "Only Name",
             "ingredients": [],
             "instructions": [],
+            "servings_min": None,
+            "servings_max": None,
         }
 
     def test_parse_empty_strings_and_whitespace(self):
@@ -70,12 +76,140 @@ class TestParseRecipeFormData:
             "name": "  Spaced Name  ",
             "ingredients": ["Real Ing"],
             "instructions": ["Real Step"],
+            "servings_min": None,
+            "servings_max": None,
         }
         RecipeBase(**parsed_data)
 
     def test_parse_empty_form(self):
         form_data = FormData([])
         parsed_data = parse_recipe_form_data(form_data)
-        assert parsed_data == {"name": "", "ingredients": [], "instructions": []}
+        assert parsed_data == {
+            "name": "",
+            "ingredients": [],
+            "instructions": [],
+            "servings_min": None,
+            "servings_max": None,
+        }
         with pytest.raises(ValidationError):
             RecipeBase(**parsed_data)
+
+    def test_parse_servings_both_fields(self):
+        form_data = FormData(
+            [
+                ("name", "Test Recipe"),
+                ("ingredients", "Ing 1"),
+                ("instructions", "Step 1"),
+                ("servings_min", "4"),
+                ("servings_max", "6"),
+            ]
+        )
+        parsed_data = parse_recipe_form_data(form_data)
+        assert parsed_data == {
+            "name": "Test Recipe",
+            "ingredients": ["Ing 1"],
+            "instructions": ["Step 1"],
+            "servings_min": 4,
+            "servings_max": 6,
+        }
+        RecipeBase(**parsed_data)
+
+    def test_parse_servings_min_only(self):
+        form_data = FormData(
+            [
+                ("name", "Test Recipe"),
+                ("ingredients", "Ing 1"),
+                ("instructions", "Step 1"),
+                ("servings_min", "4"),
+            ]
+        )
+        parsed_data = parse_recipe_form_data(form_data)
+        assert parsed_data == {
+            "name": "Test Recipe",
+            "ingredients": ["Ing 1"],
+            "instructions": ["Step 1"],
+            "servings_min": 4,
+            "servings_max": 4,  # Should be normalized to same value
+        }
+        RecipeBase(**parsed_data)
+
+    def test_parse_servings_max_only(self):
+        form_data = FormData(
+            [
+                ("name", "Test Recipe"),
+                ("ingredients", "Ing 1"),
+                ("instructions", "Step 1"),
+                ("servings_max", "6"),
+            ]
+        )
+        parsed_data = parse_recipe_form_data(form_data)
+        assert parsed_data == {
+            "name": "Test Recipe",
+            "ingredients": ["Ing 1"],
+            "instructions": ["Step 1"],
+            "servings_min": 6,  # Should be normalized to same value
+            "servings_max": 6,
+        }
+        RecipeBase(**parsed_data)
+
+    def test_parse_servings_invalid_values(self):
+        form_data = FormData(
+            [
+                ("name", "Test Recipe"),
+                ("ingredients", "Ing 1"),
+                ("instructions", "Step 1"),
+                ("servings_min", "invalid"),
+                ("servings_max", "also_invalid"),
+            ]
+        )
+        parsed_data = parse_recipe_form_data(form_data)
+        assert parsed_data == {
+            "name": "Test Recipe",
+            "ingredients": ["Ing 1"],
+            "instructions": ["Step 1"],
+            "servings_min": None,
+            "servings_max": None,
+        }
+        RecipeBase(**parsed_data)
+
+    def test_parse_servings_empty_strings(self):
+        form_data = FormData(
+            [
+                ("name", "Test Recipe"),
+                ("ingredients", "Ing 1"),
+                ("instructions", "Step 1"),
+                ("servings_min", ""),
+                ("servings_max", "  "),
+            ]
+        )
+        parsed_data = parse_recipe_form_data(form_data)
+        assert parsed_data == {
+            "name": "Test Recipe",
+            "ingredients": ["Ing 1"],
+            "instructions": ["Step 1"],
+            "servings_min": None,
+            "servings_max": None,
+        }
+        RecipeBase(**parsed_data)
+
+
+class TestNormalizeServingsValues:
+    def test_both_values_provided(self):
+        result = normalize_servings_values(4, 6)
+        assert result == (4, 6)
+
+    def test_only_min_provided(self):
+        result = normalize_servings_values(4, None)
+        assert result == (4, 4)
+
+    def test_only_max_provided(self):
+        result = normalize_servings_values(None, 6)
+        assert result == (6, 6)
+
+    def test_both_none(self):
+        result = normalize_servings_values(None, None)
+        assert result == (None, None)
+
+    def test_same_values(self):
+        result = normalize_servings_values(4, 4)
+        assert result == (4, 4)

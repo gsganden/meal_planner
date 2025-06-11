@@ -121,23 +121,41 @@ def build_recipe_display(recipe_data: dict) -> FT:
     """Build a formatted display card for a recipe.
 
     Creates a read-only view of recipe data with proper formatting
-    for ingredients and instructions in bulleted lists.
+    for ingredients and instructions in bulleted lists, and servings
+    information if available.
 
     Args:
         recipe_data: Dictionary containing 'name', 'ingredients', 'instructions'
-            fields from a recipe.
+            and optionally 'servings_min', 'servings_max' fields from a recipe.
 
     Returns:
         MonsterUI Card component with formatted recipe display.
     """
-    components = [
-        H3(recipe_data["name"]),
+    components = [H3(recipe_data["name"])]
+
+    # Add servings information if available
+    servings_min = recipe_data.get("servings_min")
+    servings_max = recipe_data.get("servings_max")
+    if servings_min is not None or servings_max is not None:
+        if servings_min == servings_max:
+            servings_text = f"Serves: {servings_min}"
+        elif servings_min is not None and servings_max is not None:
+            servings_text = f"Serves: {servings_min}-{servings_max}"
+        elif servings_min is not None:
+            servings_text = f"Serves: {servings_min}+"
+        elif servings_max is not None:
+            servings_text = f"Serves: up to {servings_max}"
+
+        components.append(P(Strong(servings_text), cls="mb-4"))
+
+    components.extend([
         H4("Ingredients"),
         Ul(
             *[Li(ing) for ing in recipe_data.get("ingredients", [])],
             cls=ListT.bullet,
         ),
-    ]
+    ])
+
     instructions = recipe_data.get("instructions", [])
     if instructions:
         components.extend(
@@ -264,7 +282,7 @@ def _build_modification_controls(
 
 def _build_original_hidden_fields(original_recipe: RecipeBase):
     """Builds the hidden input fields for the original recipe data."""
-    return (
+    hidden_fields = [
         Input(type="hidden", name="original_name", value=original_recipe.name),
         *(
             Input(type="hidden", name="original_ingredients", value=ing)
@@ -274,21 +292,45 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
             Input(type="hidden", name="original_instructions", value=inst)
             for inst in original_recipe.instructions
         ),
-    )
+    ]
+
+    # Add servings fields if they have values
+    if original_recipe.servings_min is not None:
+        hidden_fields.append(
+            Input(
+                type="hidden",
+                name="original_servings_min",
+                value=str(original_recipe.servings_min),
+            )
+        )
+    if original_recipe.servings_max is not None:
+        hidden_fields.append(
+            Input(
+                type="hidden",
+                name="original_servings_max",
+                value=str(original_recipe.servings_max),
+            )
+        )
+
+    return tuple(hidden_fields)
 
 
 def _build_editable_section(current_recipe: RecipeBase):
-    """Builds the 'Edit Manually' section with inputs for name, ingredients.
+    """Builds the 'Edit Manually' section with inputs for name, servings, ingredients.
 
     and instructions.
     """
     name_input = _build_name_input(current_recipe.name)
+    servings_section = _build_servings_section(
+        current_recipe.servings_min, current_recipe.servings_max
+    )
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
 
     return Div(
         H3("Edit Manually"),
         name_input,
+        servings_section,
         ingredients_section,
         instructions_section,
     )
@@ -307,6 +349,51 @@ def _build_name_input(name_value: str):
         hx_swap="innerHTML",
         hx_trigger="change, keyup changed delay:500ms",
         hx_include="closest form",
+    )
+
+
+def _build_servings_section(servings_min: int | None, servings_max: int | None):
+    """Builds the servings input section with separate min/max fields."""
+    servings_min_input = Input(
+        id="servings_min",
+        name="servings_min",
+        label="Minimum Servings",
+        type="number",
+        value=str(servings_min) if servings_min is not None else "",
+        placeholder="e.g., 4",
+        min="1",
+        cls="mr-2",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_trigger="change, keyup changed delay:500ms",
+        hx_include="closest form",
+    )
+
+    servings_max_input = Input(
+        id="servings_max",
+        name="servings_max",
+        label="Maximum Servings",
+        type="number",
+        value=str(servings_max) if servings_max is not None else "",
+        placeholder="e.g., 6",
+        min="1",
+        cls="ml-2",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_trigger="change, keyup changed delay:500ms",
+        hx_include="closest form",
+    )
+
+    return Div(
+        H4("Servings"),
+        Div(
+            servings_min_input,
+            servings_max_input,
+            cls="flex gap-4",
+        ),
+        cls="mb-4",
     )
 
 
