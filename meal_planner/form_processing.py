@@ -22,15 +22,12 @@ def normalize_servings_values(
         Tuple of (normalized_min, normalized_max) where if only one value
         was provided, both will be set to that value.
     """
-    # If only min is provided, set max to the same value
     if servings_min is not None and servings_max is None:
         return servings_min, servings_min
 
-    # If only max is provided, set min to the same value
     if servings_max is not None and servings_min is None:
         return servings_max, servings_max
 
-    # If both are provided or both are None, return as-is
     return servings_min, servings_max
 
 
