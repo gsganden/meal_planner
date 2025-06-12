@@ -1151,6 +1151,11 @@ class TestFetchTextEndpoint:
             # Malformed URLs
             ("not-a-url", "Only HTTP and HTTPS URLs are allowed"),
             ("://invalid", "Only HTTP and HTTPS URLs are allowed"),
+            # Invalid hostname extraction
+            ("http://[invalid-ipv6", "Invalid URL format"),
+            ("http:///path-only", "Invalid URL: missing domain"),
+            # Multicast addresses
+            ("http://224.0.0.1/test", "Multicast addresses are not allowed"),
         ],
     )
     async def test_url_validation_blocks_unsafe_urls(
