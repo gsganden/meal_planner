@@ -47,14 +47,6 @@ def create_google_api_key_secret() -> modal.Secret:
     return modal.Secret.from_local_environ(["GOOGLE_API_KEY"])
 
 
-def get_google_api_key_secret_if_available() -> list[modal.Secret]:
-    """Get Google API key secret if available, otherwise return empty list."""
-    try:
-        return [create_google_api_key_secret()]
-    except ValueError:
-        return []
-
-
 base_image = create_base_image()
 volume = get_volume()
 
@@ -76,63 +68,8 @@ def migrate_db():
 
 
 @app.function(
-    image=base_image.add_local_file(
-        "alembic.ini", remote_path=str(ALEMBIC_INI_PATH_IN_CONTAINER)
-    ).add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER)),
-    volumes={str(CONTAINER_DATA_DIR): volume},
-)
-def test_migration_local():
-    """Test the new migration locally without needing Google API key."""
-    import os
-
-    print(f"Working directory: {os.getcwd()}")
-    print(f"Contents of /root: {os.listdir('/root')}")
-    print(f"ALEMBIC_INI_PATH_IN_CONTAINER: {ALEMBIC_INI_PATH_IN_CONTAINER}")
-    print(f"ALEMBIC_DIR_PATH_IN_CONTAINER: {ALEMBIC_DIR_PATH_IN_CONTAINER}")
-    print(f"Alembic ini exists: {ALEMBIC_INI_PATH_IN_CONTAINER.exists()}")
-    print(f"Alembic dir exists: {ALEMBIC_DIR_PATH_IN_CONTAINER.exists()}")
-
-    if ALEMBIC_DIR_PATH_IN_CONTAINER.exists():
-        print(f"Contents of alembic dir: {os.listdir(ALEMBIC_DIR_PATH_IN_CONTAINER)}")
-
-    CONTAINER_DB_FULL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    alembic_cfg = Config(str(ALEMBIC_INI_PATH_IN_CONTAINER))
-    alembic_cfg.set_main_option("script_location", str(ALEMBIC_DIR_PATH_IN_CONTAINER))
-    alembic_cfg.set_main_option("sqlalchemy.url", CONTAINER_MAIN_DATABASE_URL)
-
-    # Show current migration version
-    from sqlalchemy import create_engine
-
-    from alembic.runtime.migration import MigrationContext
-
-    engine = create_engine(CONTAINER_MAIN_DATABASE_URL)
-    with engine.connect() as connection:
-        context = MigrationContext.configure(connection)
-        current_rev = context.get_current_revision()
-        print(f"Current revision: {current_rev}")
-
-    # Run migration
-    command.upgrade(alembic_cfg, "head")
-
-    # Verify migration worked by checking table schema
-    from sqlalchemy import inspect
-
-    inspector = inspect(engine)
-    columns = inspector.get_columns("recipes")
-    column_names = [col["name"] for col in columns]
-    print(f"Recipe table columns: {column_names}")
-
-    if "servings_min" in column_names and "servings_max" in column_names:
-        print("✅ Migration successful! Servings columns added.")
-    else:
-        print("❌ Migration failed - servings columns not found.")
-
-    logging.info("Migration test completed.")
-
-
-@app.function(
     image=base_image,
-    secrets=get_google_api_key_secret_if_available(),
+    secrets=[create_google_api_key_secret()],
     volumes={str(CONTAINER_DATA_DIR): volume},
 )
 @modal.asgi_app()
