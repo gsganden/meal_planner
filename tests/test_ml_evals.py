@@ -31,18 +31,20 @@ recipes_data = load_all_test_data(TEST_DATA_DIR)
 
 @pytest.fixture(autouse=True)
 def ensure_real_llm_clients():
-    """Ensure that this test module uses real LLM clients, not mocks from other tests."""
-    # Stop any existing patches on instructor and AsyncOpenAI that might leak from other test files
+    """Ensure that this test module uses real LLM clients, not mocks from other
+    tests."""
+    # Stop any existing patches on instructor and AsyncOpenAI that might leak from
+    # other test files
     import meal_planner.services.call_llm
-    
+
     # Clear any cached client to force re-initialization with real modules
     meal_planner.services.call_llm._aclient = None
-    
+
     # Use patch.stopall() to ensure no patches from other tests are active
     patch.stopall()
-    
+
     yield
-    
+
     # Clean up after test
     meal_planner.services.call_llm._aclient = None
 
@@ -58,7 +60,7 @@ async def extracted_recipe_fixture(request, anyio_backend, ensure_real_llm_clien
 
     expected_data = recipes_data[html_file_path]
     page_content = clean_html_text(html_file_path.read_text())
-    
+
     llm_extracted_recipe = await generate_recipe_from_text(text=page_content)
     extracted_recipe = postprocess_recipe(llm_extracted_recipe)
 
