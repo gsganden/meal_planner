@@ -46,7 +46,7 @@ def _validate_url_for_ssrf(url: str) -> tuple[bool, str]:
         parsed = urlparse(url)
 
         # Check for valid scheme
-        if parsed.scheme not in ('http', 'https'):
+        if parsed.scheme not in ("http", "https"):
             return False, "Only HTTP and HTTPS URLs are allowed"
 
         # Check for non-empty netloc (domain)
@@ -86,9 +86,12 @@ def _validate_url_for_ssrf(url: str) -> tuple[bool, str]:
 
         # Block common internal hostnames
         internal_hostnames = {
-            'localhost', 'localhost.localdomain',
-            'metadata', 'metadata.google.internal',
-            'instance-data', 'link-local'
+            "localhost",
+            "localhost.localdomain",
+            "metadata",
+            "metadata.google.internal",
+            "instance-data",
+            "link-local",
         }
         if hostname.lower() in internal_hostnames:
             return False, "Internal hostnames are not allowed"
