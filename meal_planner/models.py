@@ -7,7 +7,7 @@ including both database models (SQLModel) and API request/response models.
 from datetime import datetime
 from typing import Annotated, Optional
 
-from pydantic import field_validator
+from pydantic import model_validator
 from sqlalchemy import Column, func
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
@@ -52,19 +52,18 @@ class RecipeBase(SQLModel):
         default=None, description="Maximum number of servings", ge=1
     )
 
-    @field_validator("servings_max")
-    @classmethod
-    def validate_servings_max(cls, v: Optional[int], info) -> Optional[int]:
-        """Validate that servings_max >= servings_min if both are provided."""
+    @model_validator(mode="after")
+    def validate_servings_range(self):
+        """Validate that servings_max is not less than servings_min."""
         if (
-            v is not None
-            and info.data.get("servings_min") is not None
-            and v < info.data["servings_min"]
+            self.servings_max is not None 
+            and self.servings_min is not None 
+            and self.servings_max < self.servings_min
         ):
             raise ValueError(
-                "servings_max must be greater than or equal to servings_min"
+                f"Maximum servings ({self.servings_max}) cannot be less than minimum servings ({self.servings_min})"
             )
-        return v
+        return self
 
     @property
     def markdown(self) -> str:
