@@ -4,6 +4,7 @@ LLM evals for main.py, rather than traditional unit tests.
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -11,9 +12,6 @@ from meal_planner.models import RecipeBase
 from meal_planner.services.call_llm import generate_recipe_from_text
 from meal_planner.services.extract_webpage_text import clean_html_text
 from meal_planner.services.process_recipe import postprocess_recipe
-
-# Disable httpx mocking for this entire module since these tests need real HTTP calls
-pytestmark = pytest.mark.httpx_mock(should_mock=lambda request: False)
 
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
 
@@ -31,12 +29,30 @@ def load_all_test_data(data_dir: Path) -> dict:
 recipes_data = load_all_test_data(TEST_DATA_DIR)
 
 
+@pytest.fixture(autouse=True)
+def ensure_real_llm_clients():
+    """Ensure that this test module uses real LLM clients, not mocks from other tests."""
+    # Stop any existing patches on instructor and AsyncOpenAI that might leak from other test files
+    import meal_planner.services.call_llm
+    
+    # Clear any cached client to force re-initialization with real modules
+    meal_planner.services.call_llm._aclient = None
+    
+    # Use patch.stopall() to ensure no patches from other tests are active
+    patch.stopall()
+    
+    yield
+    
+    # Clean up after test
+    meal_planner.services.call_llm._aclient = None
+
+
 @pytest.fixture(
     params=recipes_data.keys(),
     ids=[str(p.relative_to(Path(__file__).parent.parent)) for p in recipes_data],
     scope="function",
 )
-async def extracted_recipe_fixture(request, anyio_backend):
+async def extracted_recipe_fixture(request, anyio_backend, ensure_real_llm_clients):
     """Fixture to extract recipe data for a given path."""
     html_file_path: Path = request.param
 
