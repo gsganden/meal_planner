@@ -1342,7 +1342,9 @@ class TestDeleteRecipeEndpoint:
         """Test successful recipe deletion."""
         mock_api_client.delete.return_value = create_mock_api_response(status_code=204)
 
-        response = await client.post(self.DELETE_PATH, params={"recipe_id": self.TEST_UUID})
+        response = await client.post(
+            self.DELETE_PATH, params={"recipe_id": self.TEST_UUID}
+        )
         assert response.status_code == 200
         assert response.headers.get("HX-Trigger") == "recipeListChanged"
         mock_api_client.delete.assert_called_once_with(f"/v0/recipes/{self.TEST_UUID}")
@@ -1387,7 +1389,9 @@ class TestDeleteRecipeEndpoint:
             status_code=500, error_to_raise=http_error
         )
 
-        response = await client.post(self.DELETE_PATH, params={"recipe_id": self.TEST_UUID})
+        response = await client.post(
+            self.DELETE_PATH, params={"recipe_id": self.TEST_UUID}
+        )
         assert response.status_code == 500
         mock_api_client.delete.assert_called_once_with(f"/v0/recipes/{self.TEST_UUID}")
 
@@ -1400,6 +1404,8 @@ class TestDeleteRecipeEndpoint:
         """Test generic error during deletion."""
         mock_api_client.delete.side_effect = Exception("Generic API failure")
 
-        response = await client.post(self.DELETE_PATH, params={"recipe_id": self.TEST_UUID})
+        response = await client.post(
+            self.DELETE_PATH, params={"recipe_id": self.TEST_UUID}
+        )
         assert response.status_code == 500
         mock_api_client.delete.assert_called_once_with(f"/v0/recipes/{self.TEST_UUID}")
