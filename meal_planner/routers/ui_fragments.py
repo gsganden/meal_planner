@@ -1,6 +1,8 @@
 """Routers for generating and returning HTML UI fragments, often for HTMX swaps."""
 
+import ipaddress
 import logging
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import Request
@@ -24,6 +26,78 @@ from meal_planner.ui.edit_recipe import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_url_for_ssrf(url: str) -> tuple[bool, str]:
+    """Validate URL to prevent SSRF attacks.
+
+    Checks for:
+    - Valid HTTP/HTTPS scheme
+    - Non-empty domain
+    - Blocks private IP ranges and localhost
+
+    Args:
+        url: The URL to validate
+
+    Returns:
+        Tuple of (is_valid: bool, error_message: str)
+    """
+    try:
+        parsed = urlparse(url)
+
+        # Check for valid scheme
+        if parsed.scheme not in ('http', 'https'):
+            return False, "Only HTTP and HTTPS URLs are allowed"
+
+        # Check for non-empty netloc (domain)
+        if not parsed.netloc:
+            return False, "Invalid URL: missing domain"
+
+        # Extract hostname (remove port if present)
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "Invalid URL: could not extract hostname"
+
+        # Check if hostname is an IP address
+        try:
+            ip = ipaddress.ip_address(hostname)
+
+            # Check specific IP types first (more specific checks before general ones)
+            # Block loopback addresses
+            if ip.is_loopback:
+                return False, "Loopback addresses are not allowed"
+
+            # Block link-local addresses
+            if ip.is_link_local:
+                return False, "Link-local addresses are not allowed"
+
+            # Block multicast addresses
+            if ip.is_multicast:
+                return False, "Multicast addresses are not allowed"
+
+            # Block private IP ranges (after more specific checks)
+            if ip.is_private:
+                return False, "Private IP addresses are not allowed"
+
+        except ValueError:
+            # Not an IP address, it's a domain name - this is fine
+            # Additional domain validation could go here if needed
+            pass
+
+        # Block common internal hostnames
+        internal_hostnames = {
+            'localhost', 'localhost.localdomain',
+            'metadata', 'metadata.google.internal',
+            'instance-data', 'link-local'
+        }
+        if hostname.lower() in internal_hostnames:
+            return False, "Internal hostnames are not allowed"
+
+        return True, ""
+
+    except Exception as e:
+        logger.warning("URL validation error for %s: %s", url, e)
+        return False, "Invalid URL format"
 
 
 async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
@@ -328,6 +402,14 @@ async def post_fetch_text(request: Request):
     if not input_url:
         logger.error("Fetch text called without URL.")
         return _prepare_error_response("Please provide a Recipe URL to fetch.")
+
+    # Validate URL to prevent SSRF attacks
+    is_valid, error_message = _validate_url_for_ssrf(input_url)
+    if not is_valid:
+        logger.warning(
+            "Blocked potentially unsafe URL: %s - %s", input_url, error_message
+        )
+        return _prepare_error_response(f"Invalid URL: {error_message}")
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", input_url)
