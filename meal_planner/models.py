@@ -6,6 +6,7 @@ including both database models (SQLModel) and API request/response models.
 
 from datetime import datetime
 from typing import Annotated, Optional
+from uuid import UUID, uuid4
 
 from sqlalchemy import Column, func
 from sqlalchemy.types import JSON
@@ -23,6 +24,37 @@ RecipeInstructions = Annotated[
 ]
 RecipeName = Annotated[
     str, Field(..., description="The name of the recipe", min_length=1)
+]
+
+CreatedAt = Annotated[
+    Optional[datetime],
+    Field(
+        default=None,
+        description="Timestamp of when the record was created (UTC)",
+        sa_column_kwargs={"nullable": False, "server_default": func.now()},
+    ),
+]
+
+UpdatedAt = Annotated[
+    Optional[datetime],
+    Field(
+        default=None,
+        description="Timestamp of when the record was last updated (UTC)",
+        sa_column_kwargs={
+            "nullable": False,
+            "server_default": func.now(),
+            "onupdate": func.now(),
+        },
+    ),
+]
+
+EntityId = Annotated[
+    Optional[UUID],
+    Field(
+        default_factory=uuid4,
+        primary_key=True,
+        description="Unique identifier for the entity",
+    ),
 ]
 
 
@@ -86,18 +118,47 @@ class Recipe(RecipeBase, table=True):
     """
 
     __tablename__ = "recipes"  # type: ignore[assignment]
-    id: Optional[int] = Field(default=None, primary_key=True)
-    # SQLite limitations require manual timestamp management in application code.
-    # These server defaults are kept for database portability and direct SQL operations.
-    created_at: Optional[datetime] = Field(
-        default=None,
-        sa_column_kwargs={"nullable": False, "server_default": func.now()},
+    id: EntityId
+    created_at: CreatedAt
+    updated_at: UpdatedAt
+
+
+class UserBase(SQLModel):
+    """Base user model with validation.
+
+    Contains shared user fields with Pydantic validation enabled.
+    """
+
+    username: str = Field(
+        ...,
+        description="Unique username for the user",
+        min_length=1,
     )
-    updated_at: Optional[datetime] = Field(
-        default=None,
-        sa_column_kwargs={
-            "nullable": False,
-            "server_default": func.now(),
-            "onupdate": func.now(),
-        },
+
+
+class User(UserBase, table=True):
+    """Database model for storing user information.
+
+    This model represents users in the system and provides the foundation
+    for user-specific features and content association.
+
+    Attributes:
+        id: Primary key UUID, automatically generated on creation.
+        username: Unique username for the user, indexed for fast lookups.
+        created_at: Timestamp of when the user was created (UTC).
+            This is a database-managed field. It will be `None` in Python
+            before an object is persisted but will always be populated for
+            records retrieved from the database.
+        updated_at: Timestamp of when the user was last updated (UTC).
+            This is a database-managed field. It will be `None` in Python
+            before an object is persisted but will always be populated for
+            records retrieved from the database.
+    """
+
+    __tablename__ = "users"  # type: ignore[assignment]
+    id: EntityId
+    username: str = Field(
+        sa_column_kwargs={"unique": True, "index": True, "nullable": False},
     )
+    created_at: CreatedAt
+    updated_at: UpdatedAt

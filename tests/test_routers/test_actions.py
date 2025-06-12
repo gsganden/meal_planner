@@ -1,6 +1,7 @@
 """Tests for route handlers defined in meal_planner.routers.actions."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import httpx
 import pytest
@@ -69,7 +70,7 @@ class TestSaveRecipeEndpoint:
             f"Recipe named '{form_data[FIELD_NAME]}' not found in API response"
         )
         saved_recipe_id = saved_recipe_api_data["id"]
-        assert isinstance(saved_recipe_id, int)
+        UUID(saved_recipe_id)
 
         get_one_response = await client.get(f"/api/v0/recipes/{saved_recipe_id}")
         assert get_one_response.status_code == 200
@@ -1329,6 +1330,8 @@ def mock_recipe_data_fixture() -> RecipeBase:
 @pytest.mark.anyio
 class TestDeleteRecipeEndpoint:
     DELETE_PATH = "/recipes/delete"
+    TEST_UUID = "12345678-1234-1234-1234-123456789012"
+    NOT_FOUND_UUID = "99999999-9999-9999-9999-999999999999"
 
     @patch("meal_planner.routers.actions.internal_api_client", autospec=True)
     async def test_delete_recipe_success(
@@ -1339,10 +1342,12 @@ class TestDeleteRecipeEndpoint:
         """Test successful recipe deletion."""
         mock_api_client.delete.return_value = create_mock_api_response(status_code=204)
 
-        response = await client.post(self.DELETE_PATH, params={"id": 123})
+        response = await client.post(
+            self.DELETE_PATH, params={"recipe_id": self.TEST_UUID}
+        )
         assert response.status_code == 200
         assert response.headers.get("HX-Trigger") == "recipeListChanged"
-        mock_api_client.delete.assert_called_once_with("/v0/recipes/123")
+        mock_api_client.delete.assert_called_once_with(f"/v0/recipes/{self.TEST_UUID}")
 
     @patch("meal_planner.routers.actions.internal_api_client", autospec=True)
     async def test_delete_recipe_not_found(
@@ -1353,16 +1358,20 @@ class TestDeleteRecipeEndpoint:
         """Test deletion of non-existent recipe."""
         http_error = httpx.HTTPStatusError(
             "Not Found",
-            request=httpx.Request("DELETE", "/v0/recipes/999"),
+            request=httpx.Request("DELETE", f"/v0/recipes/{self.NOT_FOUND_UUID}"),
             response=httpx.Response(404),
         )
         mock_api_client.delete.return_value = create_mock_api_response(
             status_code=404, error_to_raise=http_error
         )
 
-        response = await client.post(self.DELETE_PATH, params={"id": 999})
+        response = await client.post(
+            self.DELETE_PATH, params={"recipe_id": self.NOT_FOUND_UUID}
+        )
         assert response.status_code == 404
-        mock_api_client.delete.assert_called_once_with("/v0/recipes/999")
+        mock_api_client.delete.assert_called_once_with(
+            f"/v0/recipes/{self.NOT_FOUND_UUID}"
+        )
 
     @patch("meal_planner.routers.actions.internal_api_client", autospec=True)
     async def test_delete_recipe_api_error(
@@ -1373,16 +1382,18 @@ class TestDeleteRecipeEndpoint:
         """Test API error during deletion."""
         http_error = httpx.HTTPStatusError(
             "Internal Server Error",
-            request=httpx.Request("DELETE", "/v0/recipes/123"),
+            request=httpx.Request("DELETE", f"/v0/recipes/{self.TEST_UUID}"),
             response=httpx.Response(500),
         )
         mock_api_client.delete.return_value = create_mock_api_response(
             status_code=500, error_to_raise=http_error
         )
 
-        response = await client.post(self.DELETE_PATH, params={"id": 123})
+        response = await client.post(
+            self.DELETE_PATH, params={"recipe_id": self.TEST_UUID}
+        )
         assert response.status_code == 500
-        mock_api_client.delete.assert_called_once_with("/v0/recipes/123")
+        mock_api_client.delete.assert_called_once_with(f"/v0/recipes/{self.TEST_UUID}")
 
     @patch("meal_planner.routers.actions.internal_api_client", autospec=True)
     async def test_delete_recipe_generic_error(
@@ -1393,6 +1404,8 @@ class TestDeleteRecipeEndpoint:
         """Test generic error during deletion."""
         mock_api_client.delete.side_effect = Exception("Generic API failure")
 
-        response = await client.post(self.DELETE_PATH, params={"id": 123})
+        response = await client.post(
+            self.DELETE_PATH, params={"recipe_id": self.TEST_UUID}
+        )
         assert response.status_code == 500
-        mock_api_client.delete.assert_called_once_with("/v0/recipes/123")
+        mock_api_client.delete.assert_called_once_with(f"/v0/recipes/{self.TEST_UUID}")
