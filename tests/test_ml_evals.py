@@ -15,6 +15,16 @@ from meal_planner.services.process_recipe import postprocess_recipe
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
 
 
+@pytest.fixture(autouse=True)
+def reset_llm_client():
+    """Reset the cached LLM client before each test to ensure real API calls."""
+    import meal_planner.services.call_llm
+
+    meal_planner.services.call_llm._aclient = None
+    meal_planner.services.call_llm._openai_client = None
+    yield
+
+
 def load_all_test_data(data_dir: Path) -> dict:
     all_data = {}
     for json_file in data_dir.glob("*.json"):
