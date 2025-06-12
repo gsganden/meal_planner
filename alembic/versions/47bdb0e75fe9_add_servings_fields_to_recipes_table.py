@@ -43,6 +43,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Remove the columns in reverse order
-    op.drop_column("recipes", "servings_max")
-    op.drop_column("recipes", "servings_min")
+    # Use batch operations for SQLite compatibility
+    with op.batch_alter_table("recipes", schema=None) as batch_op:
+        batch_op.drop_column("servings_max")
+        batch_op.drop_column("servings_min")

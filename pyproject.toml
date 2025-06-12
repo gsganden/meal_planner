@@ -74,3 +74,4 @@ convention = "google"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["user_entity_work", "wt-*"]
+asyncio_default_fixture_loop_scope = "function"

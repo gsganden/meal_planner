@@ -12,6 +12,9 @@ from meal_planner.services.call_llm import generate_recipe_from_text
 from meal_planner.services.extract_webpage_text import clean_html_text
 from meal_planner.services.process_recipe import postprocess_recipe
 
+# Disable httpx mocking for this entire module since these tests need real HTTP calls
+pytestmark = pytest.mark.httpx_mock(should_mock=lambda request: False)
+
 TEST_DATA_DIR = Path(__file__).parent / "data/recipes/processed"
 
 
@@ -39,6 +42,7 @@ async def extracted_recipe_fixture(request, anyio_backend):
 
     expected_data = recipes_data[html_file_path]
     page_content = clean_html_text(html_file_path.read_text())
+    
     llm_extracted_recipe = await generate_recipe_from_text(text=page_content)
     extracted_recipe = postprocess_recipe(llm_extracted_recipe)
 
