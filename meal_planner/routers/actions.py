@@ -1,6 +1,7 @@
 """Routers for actions that process data or perform operations, often via POST."""
 
 import logging
+from uuid import UUID
 
 import httpx
 from fastapi import Request, Response
@@ -413,7 +414,7 @@ async def post_extract_recipe_run(
 
 
 @rt("/recipes/delete")
-async def post_delete_recipe(id: str):
+async def post_delete_recipe(recipe_id: UUID):
     """Handles recipe deletion requests, typically initiated from the UI.
 
     This endpoint attempts to delete a recipe by its ID using an internal API call.
@@ -421,7 +422,7 @@ async def post_delete_recipe(id: str):
     to signal a change in the recipe list for UI updates.
 
     Args:
-        id: The UUID string of the recipe to be deleted.
+        recipe_id: The UUID of the recipe to be deleted.
 
     Returns:
         A FastAPI `Response` object.
@@ -430,23 +431,23 @@ async def post_delete_recipe(id: str):
         - On other API or unexpected errors: HTTP 500.
     """
     try:
-        response = await internal_api_client.delete(f"/v0/recipes/{id}")
+        response = await internal_api_client.delete(f"/v0/recipes/{recipe_id}")
         response.raise_for_status()
-        logger.info("Successfully deleted recipe ID %s", id)
+        logger.info("Successfully deleted recipe ID %s", recipe_id)
         return Response(headers={"HX-Trigger": "recipeListChanged"})
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
-            logger.warning("Recipe ID %s not found for deletion", id)
+            logger.warning("Recipe ID %s not found for deletion", recipe_id)
             return Response(status_code=404)
         else:
             logger.error(
                 "API error deleting recipe ID %s: Status %s, Response: %s",
-                id,
+                recipe_id,
                 e.response.status_code,
                 e.response.text,
                 exc_info=True,
             )
             return Response(status_code=500)
     except Exception as e:
-        logger.error("Error deleting recipe ID %s: %s", id, e, exc_info=True)
+        logger.error("Error deleting recipe ID %s: %s", recipe_id, e, exc_info=True)
         return Response(status_code=500)
