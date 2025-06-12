@@ -81,6 +81,11 @@ uv run modal serve deploy.py
 uv run modal run deploy.py::migrate_db
 ```
 
+You can also run Alembic CLI commands directly:
+```bash
+uv run modal shell deploy.py::migrate_db -c "alembic current"
+```
+
 ## Run Tests
 
 Skip tests that make slow LLM calls:
