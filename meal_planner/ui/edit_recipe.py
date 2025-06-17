@@ -133,7 +133,6 @@ def build_recipe_display(recipe_data: dict) -> FT:
     """
     components = [H3(recipe_data["name"])]
 
-    # Add servings information if available
     servings_min = recipe_data.get("servings_min")
     servings_max = recipe_data.get("servings_max")
     if servings_min is not None or servings_max is not None:
