@@ -317,10 +317,7 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
 
 
 def _build_editable_section(current_recipe: RecipeBase):
-    """Builds the 'Edit Manually' section with inputs for name, servings, ingredients.
-
-    and instructions.
-    """
+    """Builds the 'Edit Manually' section."""
     name_input = _build_name_input(current_recipe.name)
     servings_section = _build_servings_section(
         current_recipe.servings_min, current_recipe.servings_max
@@ -358,12 +355,10 @@ def _build_servings_section(servings_min: int | None, servings_max: int | None):
     servings_min_input = Input(
         id="servings_min",
         name="servings_min",
-        label="Minimum Servings",
+        label="Min",
         type="number",
         value=str(servings_min) if servings_min is not None else "",
-        placeholder="e.g., 4",
         min="1",
-        cls="mr-2",
         hx_post="/recipes/ui/update-diff",
         hx_target="#diff-content-wrapper",
         hx_swap="innerHTML",
@@ -374,12 +369,10 @@ def _build_servings_section(servings_min: int | None, servings_max: int | None):
     servings_max_input = Input(
         id="servings_max",
         name="servings_max",
-        label="Maximum Servings",
+        label="Max",
         type="number",
         value=str(servings_max) if servings_max is not None else "",
-        placeholder="e.g., 6",
         min="1",
-        cls="ml-2",
         hx_post="/recipes/ui/update-diff",
         hx_target="#diff-content-wrapper",
         hx_swap="innerHTML",
@@ -388,11 +381,12 @@ def _build_servings_section(servings_min: int | None, servings_max: int | None):
     )
 
     return Div(
-        H4("Servings"),
+        H4("Servings Range"),
         Div(
-            servings_min_input,
-            servings_max_input,
-            cls="flex gap-4",
+            Div(servings_min_input, style="width: 5rem;"),
+            P("\u00a0to\u00a0"),
+            Div(servings_max_input, style="width: 5rem;"),
+            cls="flex gap-3 items-end",
         ),
         cls="mb-4",
     )

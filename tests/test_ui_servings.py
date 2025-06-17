@@ -3,6 +3,7 @@
 from meal_planner.models import RecipeBase
 from meal_planner.ui.edit_recipe import (
     _build_original_hidden_fields,
+    _build_servings_section,
     build_recipe_display,
 )
 
@@ -104,3 +105,34 @@ class TestServingsUIDisplay:
         # This should hit only the max servings branch
         assert result is not None
         assert len(result) >= 4  # name + 1 ingredient + 1 instruction + 1 servings
+
+
+class TestServingsUIEditSection:
+    """Test servings edit section UI components."""
+
+    def test_build_servings_section_renders_correctly(self):
+        """Test that the servings section renders with the new UI elements."""
+        result = _build_servings_section(4, 6)
+        result_str = str(result)
+
+        assert "Servings Range" in result_str
+        assert "to" in result_str
+        assert "Min" in result_str
+        assert "Max" in result_str
+
+    def test_build_servings_section_with_none_values(self):
+        """Test servings section with None values."""
+        result = _build_servings_section(None, None)
+        result_str = str(result)
+
+        assert "Servings Range" in result_str
+        assert "Min" in result_str
+        assert "Max" in result_str
+
+    def test_build_servings_section_layout_classes(self):
+        """Test that the servings section has the correct layout classes."""
+        result = _build_servings_section(4, 6)
+        result_str = str(result)
+
+        assert "flex gap-3 items-end" in result_str
+        assert "width: 5rem;" in result_str
