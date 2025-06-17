@@ -62,7 +62,7 @@ class RecipeBase(SQLModel):
         ):
             raise ValueError(
                 f"Maximum servings ({self.servings_max}) cannot be less than minimum "
-                "servings ({self.servings_min})"
+                f"servings ({self.servings_min})"
             )
         return self
 
