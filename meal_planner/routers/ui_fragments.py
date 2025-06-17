@@ -16,6 +16,7 @@ from meal_planner.services.extract_webpage_text import (
 )
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.edit_recipe import (
+    _build_servings_section,
     build_diff_content_children,
     render_ingredient_list_items,
     render_instruction_list_items,
@@ -259,7 +260,36 @@ async def update_diff(request: Request) -> FT:
         )
     except ValidationError as e:
         logger.warning("Validation error during diff update: %s", e, exc_info=False)
-        error_message = "Recipe state invalid for diff. Please check all fields."
+
+        # Check if this is a servings validation error
+        error_str = str(e)
+        if (
+            "Maximum servings" in error_str
+            and "cannot be less than minimum servings" in error_str
+        ):
+            # Extract servings values for display
+            try:
+                current_data = parse_recipe_form_data(form_data)
+                servings_min = current_data.get("servings_min")
+                servings_max = current_data.get("servings_max")
+
+                from meal_planner.ui.edit_recipe import _build_servings_section
+
+                servings_section_with_error = _build_servings_section(
+                    servings_min,
+                    servings_max,
+                    error_message="Max servings cannot be less than min servings",
+                )
+
+                return Group(
+                    servings_section_with_error,
+                    hx_swap_oob="outerHTML:div:has(h4:contains('Servings Range'))",
+                )
+            except Exception as ex:
+                # Fall back to generic error if we can't build the specific error
+                logger.debug("Failed to build specific servings error: %s", ex)
+
+        error_message = "Please check your recipe fields - there may be invalid values."
         return Div(error_message, cls=CSS_ERROR_CLASS)
     except Exception as e:
         logger.error("Error updating diff: %s", e, exc_info=True)
@@ -477,3 +507,88 @@ def _build_sortable_list_with_oob_diff(
         hx_swap_oob="innerHTML:#diff-content-wrapper",
     )
     return Group(list_component, oob_diff_component)
+
+
+@rt("/recipes/ui/adjust-servings")
+async def adjust_servings(request: Request) -> FT:
+    """Adjust servings range to prevent invalid states and update diff.
+
+    When a user changes min or max servings, this endpoint automatically
+    adjusts the other value if needed to maintain a valid range, then
+    returns the updated servings section with OOB diff update.
+
+    Args:
+        request: FastAPI request containing form data with servings values.
+
+    Returns:
+        Updated servings section with adjusted values and OOB diff update.
+    """
+    form_data = await request.form()
+    try:
+        current_data = parse_recipe_form_data(form_data)
+        servings_min = current_data.get("servings_min")
+        servings_max = current_data.get("servings_max")
+
+        # Apply smart adjustment logic
+        if servings_min is not None and servings_max is not None:
+            if servings_min > servings_max:
+                # Determine which field was likely changed by comparing to original
+                original_data = parse_recipe_form_data(form_data, prefix="original_")
+                original_min = original_data.get("servings_min")
+
+                # If min changed from original, adjust max to match min
+                # If max changed from original, adjust min to match max
+                # Default to adjusting max if we can't determine
+                if original_min != servings_min:
+                    servings_max = servings_min
+                else:
+                    servings_min = servings_max
+        elif servings_min is not None and servings_max is None:
+            # If only min is set, set max to min
+            servings_max = servings_min
+        elif servings_max is not None and servings_min is None:
+            # If only max is set, set min to max
+            servings_min = servings_max
+
+        # Build updated servings section
+        updated_servings_section = _build_servings_section(servings_min, servings_max)
+
+        # Update the form data with adjusted values for diff calculation
+        current_data["servings_min"] = servings_min
+        current_data["servings_max"] = servings_max
+
+        # Build diff update
+        original_data = parse_recipe_form_data(form_data, prefix="original_")
+        current_recipe = RecipeBase(**current_data)
+        original_recipe = RecipeBase(**original_data)
+
+        before_component, after_component = build_diff_content_children(
+            original_recipe, current_recipe.markdown
+        )
+        oob_diff_component = Div(
+            before_component,
+            after_component,
+            cls="flex space-x-4 mt-4",
+            hx_swap_oob="innerHTML:#diff-content-wrapper",
+        )
+
+        return Group(updated_servings_section, oob_diff_component)
+
+    except ValidationError as e:
+        logger.warning(
+            "Validation error during servings adjustment: %s", e, exc_info=False
+        )
+        # Return servings section with error message
+        current_data = parse_recipe_form_data(form_data)
+        return _build_servings_section(
+            current_data.get("servings_min"),
+            current_data.get("servings_max"),
+            error_message="Please enter valid serving numbers",
+        )
+    except Exception as e:
+        logger.error("Error adjusting servings: %s", e, exc_info=True)
+        # Return basic servings section without adjustment
+        current_data = parse_recipe_form_data(form_data)
+        return _build_servings_section(
+            current_data.get("servings_min"), current_data.get("servings_max")
+        )

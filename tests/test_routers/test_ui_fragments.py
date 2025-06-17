@@ -164,7 +164,7 @@ class TestUpdateDiffEndpoint:
 
         assert response.status_code == 200
         html = response.text
-        assert "Recipe state invalid for diff. Please check all fields." in html
+        assert "Please check your recipe fields - there may be invalid values." in html
         assert "diff-content-wrapper" not in html
 
         mock_logger_warning.assert_called_once()

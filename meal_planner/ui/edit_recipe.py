@@ -350,7 +350,9 @@ def _build_name_input(name_value: str):
     )
 
 
-def _build_servings_section(servings_min: int | None, servings_max: int | None):
+def _build_servings_section(
+    servings_min: int | None, servings_max: int | None, error_message: str | None = None
+):
     """Builds the servings input section with separate min/max fields."""
     servings_min_input = Input(
         id="servings_min",
@@ -359,10 +361,10 @@ def _build_servings_section(servings_min: int | None, servings_max: int | None):
         type="number",
         value=str(servings_min) if servings_min is not None else "",
         min="1",
-        hx_post="/recipes/ui/update-diff",
-        hx_target="#diff-content-wrapper",
-        hx_swap="innerHTML",
-        hx_trigger="change, keyup changed delay:500ms",
+        hx_post="/recipes/ui/adjust-servings",
+        hx_target="#servings-section",
+        hx_swap="outerHTML",
+        hx_trigger="input changed delay:200ms",
         hx_include="closest form",
     )
 
@@ -373,22 +375,31 @@ def _build_servings_section(servings_min: int | None, servings_max: int | None):
         type="number",
         value=str(servings_max) if servings_max is not None else "",
         min="1",
-        hx_post="/recipes/ui/update-diff",
-        hx_target="#diff-content-wrapper",
-        hx_swap="innerHTML",
-        hx_trigger="change, keyup changed delay:500ms",
+        hx_post="/recipes/ui/adjust-servings",
+        hx_target="#servings-section",
+        hx_swap="outerHTML",
+        hx_trigger="input changed delay:200ms",
         hx_include="closest form",
     )
 
-    return Div(
-        H4("Servings Range"),
+    components = [H4("Servings Range")]
+
+    if error_message:
+        components.append(P(error_message, cls="text-red-600 text-sm mb-2"))
+
+    components.append(
         Div(
             Div(servings_min_input, style="width: 5rem;"),
             P("\u00a0to\u00a0"),
             Div(servings_max_input, style="width: 5rem;"),
             cls="flex gap-3 items-end",
-        ),
+        )
+    )
+
+    return Div(
+        *components,
         cls="mb-4",
+        id="servings-section",
     )
 
 
