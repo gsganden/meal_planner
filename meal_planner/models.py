@@ -56,8 +56,8 @@ class RecipeBase(SQLModel):
     def validate_servings_range(self):
         """Validate that servings_max is not less than servings_min."""
         if (
-            self.servings_max is not None 
-            and self.servings_min is not None 
+            self.servings_max is not None
+            and self.servings_min is not None
             and self.servings_max < self.servings_min
         ):
             raise ValueError(

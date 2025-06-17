@@ -145,7 +145,7 @@ def build_recipe_display(recipe_data: dict) -> FT:
         elif servings_max is not None:
             servings_text = f"Serves: up to {servings_max}"
 
-        components.append(P(Strong(servings_text), cls="mb-4"))
+        components.append(P(Strong(html.escape(servings_text)), cls="mb-4"))
 
     components.extend(
         [
