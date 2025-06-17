@@ -77,9 +77,18 @@ uv run modal serve deploy.py
 
 ## Run Database Migrations
 
+Run Alembic migrations:
+
 ```bash
 uv run modal run deploy.py::migrate_db
 ```
+
+You can also run Alembic CLI commands directly, e.g.:
+
+```bash
+uv run modal shell deploy.py::migrate_db -c "alembic current"
+```
+
 
 ## Run Tests
 
