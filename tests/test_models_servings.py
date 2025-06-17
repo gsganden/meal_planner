@@ -20,7 +20,7 @@ class TestRecipeServingsValidation:
                 servings_max=4,  # Invalid: max < min
             )
 
-        assert "servings_max must be greater than or equal to servings_min" in str(
+        assert "Maximum servings (4) cannot be less than minimum servings (6)" in str(
             exc_info.value
         )
 
