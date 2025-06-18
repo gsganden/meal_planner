@@ -2,7 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Refer to `README.md` for the app architecture and typical commands. Refer to `.pre-commit-config.yaml` for standard checks.
+Refer to:
+- `README.md` for the app architecture and typical commands
+- `pre-commit-config.yaml` for standard checks.
+- `.cursor` for code style guidance.
 
 ### Environment Configuration
 
