@@ -9,25 +9,18 @@ from starlette.datastructures import FormData
 def normalize_servings_values(
     servings_min: int | None, servings_max: int | None
 ) -> tuple[int | None, int | None]:
-    """Normalize servings values based on user requirements.
+    """Return servings values as-is without auto-population.
 
-    If only one serving value is provided, sets both min and max to that value.
-    This handles the case where users enter a single serving count.
+    Preserves user intent by not auto-populating empty values.
+    Users can intentionally leave one field empty or clear values.
 
     Args:
         servings_min: Optional minimum servings value
         servings_max: Optional maximum servings value
 
     Returns:
-        Tuple of (normalized_min, normalized_max) where if only one value
-        was provided, both will be set to that value.
+        Tuple of (servings_min, servings_max) unchanged.
     """
-    if servings_min is not None and servings_max is None:
-        return servings_min, servings_min
-
-    if servings_max is not None and servings_min is None:
-        return servings_max, servings_max
-
     return servings_min, servings_max
 
 

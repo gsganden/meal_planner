@@ -7,6 +7,8 @@ Refer to:
 - `pre-commit-config.yaml` for standard checks.
 - `.cursor` for code style guidance.
 
+Do **not** comment the code except where necessary to explain the rationale for an initially puzzling choice. Do NOT leave comments that simply restate what the code does. If the code is at a lower level of abstraction than its surroundings, place it in a helper function with a descriptive name rather than leaving a comment.
+
 ### Environment Configuration
 
 Requires a `GOOGLE_API_KEY` for Gemini AI access, stored in a `.env` file or environment variable.
@@ -16,7 +18,10 @@ Requires a `GOOGLE_API_KEY` for Gemini AI access, stored in a `.env` file or env
 It is helpful to use worktrees to manage multiple tasks in parallel:
 
 ```bash
-# Create a new worktree using the naming convention and copy .env file into it
+# Create branch
+git checkout -b <branch-name>
+
+# Create a new worktree for the branch using the naming convention and copy .env file into it
 git worktree add ../meal_planner__wt-<branch-name> <branch-name> \
     && cp .env ../meal_planner__wt-<branch-name>
 

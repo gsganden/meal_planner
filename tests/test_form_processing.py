@@ -132,7 +132,7 @@ class TestParseRecipeFormData:
             "ingredients": ["Ing 1"],
             "instructions": ["Step 1"],
             "servings_min": 4,
-            "servings_max": 4,  # Should be normalized to same value
+            "servings_max": None,  # Should stay None, not auto-populated
         }
         RecipeBase(**parsed_data)
 
@@ -150,7 +150,7 @@ class TestParseRecipeFormData:
             "name": "Test Recipe",
             "ingredients": ["Ing 1"],
             "instructions": ["Step 1"],
-            "servings_min": 6,  # Should be normalized to same value
+            "servings_min": None,  # Should stay None, not auto-populated
             "servings_max": 6,
         }
         RecipeBase(**parsed_data)
@@ -203,11 +203,11 @@ class TestNormalizeServingsValues:
 
     def test_only_min_provided(self):
         result = normalize_servings_values(4, None)
-        assert result == (4, 4)
+        assert result == (4, None)  # No auto-population
 
     def test_only_max_provided(self):
         result = normalize_servings_values(None, 6)
-        assert result == (6, 6)
+        assert result == (None, 6)  # No auto-population
 
     def test_both_none(self):
         result = normalize_servings_values(None, None)

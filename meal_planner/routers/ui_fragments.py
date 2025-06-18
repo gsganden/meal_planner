@@ -268,26 +268,20 @@ async def update_diff(request: Request) -> FT:
             and "cannot be less than minimum servings" in error_str
         ):
             # Extract servings values for display
-            try:
-                current_data = parse_recipe_form_data(form_data)
-                servings_min = current_data.get("servings_min")
-                servings_max = current_data.get("servings_max")
+            current_data = parse_recipe_form_data(form_data)
+            servings_min = current_data.get("servings_min")
+            servings_max = current_data.get("servings_max")
 
-                from meal_planner.ui.edit_recipe import _build_servings_section
+            servings_section_with_error = _build_servings_section(
+                servings_min,
+                servings_max,
+                error_message="Max servings cannot be less than min servings",
+            )
 
-                servings_section_with_error = _build_servings_section(
-                    servings_min,
-                    servings_max,
-                    error_message="Max servings cannot be less than min servings",
-                )
-
-                return Group(
-                    servings_section_with_error,
-                    hx_swap_oob="outerHTML:div:has(h4:contains('Servings Range'))",
-                )
-            except Exception as ex:
-                # Fall back to generic error if we can't build the specific error
-                logger.debug("Failed to build specific servings error: %s", ex)
+            return Group(
+                servings_section_with_error,
+                hx_swap_oob="outerHTML:#servings-section",
+            )
 
         error_message = "Please check your recipe fields - there may be invalid values."
         return Div(error_message, cls=CSS_ERROR_CLASS)
@@ -530,25 +524,22 @@ async def adjust_servings(request: Request) -> FT:
         servings_max = current_data.get("servings_max")
 
         # Apply smart adjustment logic
-        if servings_min is not None and servings_max is not None:
-            if servings_min > servings_max:
-                # Determine which field was likely changed by comparing to original
-                original_data = parse_recipe_form_data(form_data, prefix="original_")
-                original_min = original_data.get("servings_min")
+        if (
+            servings_min is not None
+            and servings_max is not None
+            and servings_min > servings_max
+        ):
+            # Determine which field was likely changed by comparing to original
+            original_data = parse_recipe_form_data(form_data, prefix="original_")
+            original_min = original_data.get("servings_min")
 
-                # If min changed from original, adjust max to match min
-                # If max changed from original, adjust min to match max
-                # Default to adjusting max if we can't determine
-                if original_min != servings_min:
-                    servings_max = servings_min
-                else:
-                    servings_min = servings_max
-        elif servings_min is not None and servings_max is None:
-            # If only min is set, set max to min
-            servings_max = servings_min
-        elif servings_max is not None and servings_min is None:
-            # If only max is set, set min to max
-            servings_min = servings_max
+            # If min changed from original, adjust max to match min
+            # If max changed from original, adjust min to match max
+            # Default to adjusting max if we can't determine
+            if original_min != servings_min:
+                servings_max = servings_min
+            else:
+                servings_min = servings_max
 
         # Build updated servings section
         updated_servings_section = _build_servings_section(servings_min, servings_max)
