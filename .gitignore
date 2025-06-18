@@ -27,6 +27,3 @@ scripts/
 
 /.claude/
 github_mcp_env.txt
-
-# Worktrees
-wt-*/
