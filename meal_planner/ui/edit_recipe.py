@@ -124,20 +124,41 @@ def build_recipe_display(recipe_data: dict) -> FT:
     for ingredients and instructions in bulleted lists.
 
     Args:
-        recipe_data: Dictionary containing 'name', 'ingredients', 'instructions'
-            fields from a recipe.
+        recipe_data: Dictionary containing 'name', 'ingredients', 'instructions',
+            and optionally 'source' fields from a recipe.
 
     Returns:
         MonsterUI Card component with formatted recipe display.
     """
-    components = [
-        H3(recipe_data["name"]),
-        H4("Ingredients"),
-        Ul(
-            *[Li(ing) for ing in recipe_data.get("ingredients", [])],
-            cls=ListT.bullet,
-        ),
-    ]
+    components = [H3(recipe_data["name"])]
+
+    # Add source if present
+    source = recipe_data.get("source")
+    if source:
+        if source.startswith(("http://", "https://")):
+            # Display as clickable link
+            source_component = P(
+                Strong("Source: "),
+                A(source, href=source, target="_blank", rel="noopener noreferrer"),
+                cls="mb-3",
+            )
+        else:
+            # Display as plain text
+            source_component = P(Strong("Source: "), source, cls="mb-3")
+        components.append(source_component)
+
+    # Add ingredients
+    components.extend(
+        [
+            H4("Ingredients"),
+            Ul(
+                *[Li(ing) for ing in recipe_data.get("ingredients", [])],
+                cls=ListT.bullet,
+            ),
+        ]
+    )
+
+    # Add instructions if present
     instructions = recipe_data.get("instructions", [])
     if instructions:
         components.extend(
@@ -266,6 +287,9 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
     """Builds the hidden input fields for the original recipe data."""
     return (
         Input(type="hidden", name="original_name", value=original_recipe.name),
+        Input(
+            type="hidden", name="original_source", value=original_recipe.source or ""
+        ),
         *(
             Input(type="hidden", name="original_ingredients", value=ing)
             for ing in original_recipe.ingredients
@@ -283,12 +307,14 @@ def _build_editable_section(current_recipe: RecipeBase):
     and instructions.
     """
     name_input = _build_name_input(current_recipe.name)
+    source_input = _build_source_input(current_recipe.source)
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
 
     return Div(
         H3("Edit Manually"),
         name_input,
+        source_input,
         ingredients_section,
         instructions_section,
     )
@@ -301,6 +327,23 @@ def _build_name_input(name_value: str):
         name="name",
         label="Recipe Name",
         value=name_value,
+        cls="mb-4",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_trigger="change, keyup changed delay:500ms",
+        hx_include="closest form",
+    )
+
+
+def _build_source_input(source_value: str | None):
+    """Builds the input field for the recipe source."""
+    return Input(
+        id="source",
+        name="source",
+        label="Source (Optional)",
+        value=source_value or "",
+        placeholder="e.g., https://example.com/recipe",
         cls="mb-4",
         hx_post="/recipes/ui/update-diff",
         hx_target="#diff-content-wrapper",

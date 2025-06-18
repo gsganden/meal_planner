@@ -4,7 +4,7 @@ import logging
 
 import httpx
 from fastapi import Request
-from fasthtml.common import FT, Div, Group, P  # type: ignore
+from fasthtml.common import FT, Div, Group, Input, P  # type: ignore
 from monsterui.all import TextArea
 from pydantic import ValidationError
 
@@ -295,6 +295,7 @@ async def post_fetch_text(input_url: str | None = None):
                 rows=15,
                 cls="mb-4",
             ),
+            Input(type="hidden", name="recipe_source_url", value=""),
             id="recipe_text_container",
         )
         return Group(text_area, error_oob)
@@ -347,6 +348,7 @@ async def post_fetch_text(input_url: str | None = None):
                 rows=15,
                 cls="mb-4",
             ),
+            Input(type="hidden", name="recipe_source_url", value=input_url),
             id="recipe_text_container",
         )
         clear_error_oob = Div(

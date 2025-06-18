@@ -7,6 +7,7 @@ from fasthtml.common import *
 from meal_planner.models import RecipeBase
 from meal_planner.ui.edit_recipe import (
     build_edit_review_form,
+    build_recipe_display,
     generate_diff_html,
 )
 
@@ -202,3 +203,61 @@ def test_build_edit_review_form_with_original():
     edit_card, review_card = result
     assert edit_card is not None
     assert review_card is not None
+
+
+class TestBuildRecipeDisplay:
+    """Test the build_recipe_display function with source field."""
+
+    def test_recipe_display_with_url_source(self):
+        """Test recipe display with a URL source shows clickable link."""
+        recipe_data = {
+            "name": "Test Recipe",
+            "source": "https://example.com/recipe",
+            "ingredients": ["Ingredient 1", "Ingredient 2"],
+            "instructions": ["Step 1", "Step 2"],
+        }
+
+        card = build_recipe_display(recipe_data)
+        html = str(card)
+
+        assert "Test Recipe" in html
+        assert "Source:" in html
+        assert "https://example.com/recipe" in html
+        assert "'href': 'https://example.com/recipe'" in html
+        assert "'target': '_blank'" in html
+        assert "'rel': 'noopener noreferrer'" in html
+        assert "Ingredient 1" in html
+        assert "Step 1" in html
+
+    def test_recipe_display_with_text_source(self):
+        """Test recipe display with a text source shows plain text."""
+        recipe_data = {
+            "name": "Test Recipe",
+            "source": "My cookbook page 42",
+            "ingredients": ["Ingredient 1"],
+            "instructions": ["Step 1"],
+        }
+
+        card = build_recipe_display(recipe_data)
+        html = str(card)
+
+        assert "Test Recipe" in html
+        assert "Source:" in html
+        assert "My cookbook page 42" in html
+        assert "'href':" not in html  # Should not be a clickable link
+
+    def test_recipe_display_without_source(self):
+        """Test recipe display without source field works normally."""
+        recipe_data = {
+            "name": "Test Recipe",
+            "ingredients": ["Ingredient 1"],
+            "instructions": ["Step 1"],
+        }
+
+        card = build_recipe_display(recipe_data)
+        html = str(card)
+
+        assert "Test Recipe" in html
+        assert "Source:" not in html
+        assert "Ingredient 1" in html
+        assert "Step 1" in html

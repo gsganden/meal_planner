@@ -22,15 +22,23 @@ def parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
     Returns:
         Dictionary with cleaned recipe data containing:
             - "name": Recipe name as string
+            - "source": Optional source URL/reference as string or None
             - "ingredients": List of non-empty ingredient strings
             - "instructions": List of non-empty instruction strings
 
     Note:
         Empty strings and whitespace-only values are filtered out from
-        ingredients and instructions lists.
+        ingredients and instructions lists. Source field allows empty values.
     """
     name_value = form_data.get(f"{prefix}name")
     name = name_value if isinstance(name_value, str) else ""
+
+    source_value = form_data.get(f"{prefix}source")
+    source = (
+        source_value.strip()
+        if isinstance(source_value, str) and source_value.strip()
+        else None
+    )
 
     ingredients_values = form_data.getlist(f"{prefix}ingredients")
     ingredients = [
@@ -44,6 +52,7 @@ def parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
 
     return {
         "name": name,
+        "source": source,
         "ingredients": ingredients,
         "instructions": instructions,
     }

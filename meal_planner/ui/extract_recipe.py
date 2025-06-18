@@ -61,6 +61,7 @@ def create_extraction_form() -> Card:
             rows=15,
             cls="mb-4",
         ),
+        Input(type="hidden", name="recipe_source_url", value=""),
         id="recipe_text_container",
     )
 

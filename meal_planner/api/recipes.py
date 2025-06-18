@@ -195,6 +195,7 @@ async def update_recipe(
     recipe.name = recipe_data.name
     recipe.ingredients = recipe_data.ingredients
     recipe.instructions = recipe_data.instructions
+    recipe.source = recipe_data.source
 
     recipe.updated_at = datetime.now(timezone.utc)
 

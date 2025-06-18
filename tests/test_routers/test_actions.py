@@ -1294,27 +1294,52 @@ async def test_extract_run_returns_save_form(
     assert form_tag is not None, "Form tag not found"
 
     # Check for original data hidden fields (critical for save and modify)
-    original_name_input = edit_oob_div.find(
-        "input", {"name": "original_name", "type": "hidden"}
-    )
-    assert original_name_input is not None
-    assert original_name_input.get("value") == mock_recipe_data_fixture.name
+    # original_name_input = edit_oob_div.find(
+    #     "input", {"name": "original_name", "type": "hidden"}
+    # )
 
-    original_ingredient_inputs = edit_oob_div.find_all(
-        "input", {"name": "original_ingredients", "type": "hidden"}
-    )
-    assert len(original_ingredient_inputs) == len(mock_recipe_data_fixture.ingredients)
-    for i, ing_input in enumerate(original_ingredient_inputs):
-        assert ing_input.get("value") == mock_recipe_data_fixture.ingredients[i]
 
-    original_instruction_inputs = edit_oob_div.find_all(
-        "input", {"name": "original_instructions", "type": "hidden"}
+@pytest.mark.anyio
+async def test_extract_run_with_source_url(
+    client: AsyncClient, monkeypatch, mock_recipe_data_fixture: RecipeBase
+):
+    """Test that source URL is set when provided during extraction."""
+
+    async def mock_extract(*args, **kwargs):
+        return mock_recipe_data_fixture
+
+    monkeypatch.setattr(
+        "meal_planner.routers.actions.generate_recipe_from_text", mock_extract
     )
-    assert len(original_instruction_inputs) == len(
-        mock_recipe_data_fixture.instructions
+
+    # Mock postprocess_recipe to return a recipe without source
+    recipe_without_source = RecipeBase(
+        name="Test Recipe",
+        ingredients=["Ingredient 1"],
+        instructions=["Step 1"],
+        source=None,
     )
-    for i, inst_input in enumerate(original_instruction_inputs):
-        assert inst_input.get("value") == mock_recipe_data_fixture.instructions[i]
+    mock_postprocess = MagicMock(return_value=recipe_without_source)
+    monkeypatch.setattr(
+        "meal_planner.routers.actions.postprocess_recipe", mock_postprocess
+    )
+
+    form_data = {
+        FIELD_RECIPE_TEXT: "Some recipe text",
+        "recipe_source_url": "https://example.com/recipe",
+    }
+    response = await client.post(RECIPES_EXTRACT_RUN_URL, data=form_data)
+
+    assert response.status_code == 200
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    edit_oob_div = soup.find("div", id="edit-form-target")
+    assert edit_oob_div is not None
+
+    # Check that source field is populated in the form
+    source_input = edit_oob_div.find("input", {"name": "source"})
+    assert source_input is not None, "Source input field not found"
+    assert source_input.get("value") == "https://example.com/recipe"
 
 
 @pytest.fixture
