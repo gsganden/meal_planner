@@ -46,7 +46,7 @@ class TestSaveRecipeEndpoint:
         soup = BeautifulSoup(save_response.text, "html.parser")
         span_tag = soup.find("span", id="save-button-container")
         assert span_tag is not None, "Save success message span not found"
-        assert "Current Recipe Saved!" in span_tag.get_text(strip=True), (
+        assert "New Recipe Saved!" in span_tag.get_text(strip=True), (
             "Success message text not found"
         )
 
