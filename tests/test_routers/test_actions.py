@@ -560,7 +560,7 @@ class TestSaveAsRecipeEndpoint:
     async def test_save_as_recipe_api_error(self, mock_post, client: AsyncClient):
         """Test save-as when API call fails."""
         mock_post.side_effect = Exception("API Error")
-        
+
         form_data = {
             FIELD_NAME: "Valid Recipe",
             FIELD_INGREDIENTS: ["ing1"],
@@ -573,7 +573,9 @@ class TestSaveAsRecipeEndpoint:
         soup = BeautifulSoup(save_response.text, "html.parser")
         span_tag = soup.find("span", id="save-button-container")
         assert span_tag is not None
-        assert "Could not save recipe copy. Please try again." in span_tag.get_text(strip=True)
+        assert "Could not save recipe copy. Please try again." in span_tag.get_text(
+            strip=True
+        )
 
 
 @pytest.mark.anyio

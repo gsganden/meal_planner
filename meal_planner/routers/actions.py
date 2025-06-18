@@ -183,7 +183,9 @@ async def post_save_as_recipe(request: Request):
         parsed_data["name"] = generate_copy_name(parsed_data["name"])
         recipe_obj = RecipeBase(**parsed_data)
     except (ValidationError, Exception) as e:
-        logger.warning("Error processing recipe data for save-as: %s", e, exc_info=False)
+        logger.warning(
+            "Error processing recipe data for save-as: %s", e, exc_info=False
+        )
         result = Span(
             "Invalid recipe data. Please check the fields.",
             cls=CSS_ERROR_CLASS,
