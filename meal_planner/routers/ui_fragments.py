@@ -523,19 +523,14 @@ async def adjust_servings(request: Request) -> FT:
         servings_min = current_data.get("servings_min")
         servings_max = current_data.get("servings_max")
 
-        # Apply smart adjustment logic
         if (
             servings_min is not None
             and servings_max is not None
             and servings_min > servings_max
         ):
-            # Determine which field was likely changed by comparing to original
             original_data = parse_recipe_form_data(form_data, prefix="original_")
             original_min = original_data.get("servings_min")
 
-            # If min changed from original, adjust max to match min
-            # If max changed from original, adjust min to match max
-            # Default to adjusting max if we can't determine
             if original_min != servings_min:
                 servings_max = servings_min
             else:
