@@ -182,17 +182,10 @@ async def post_save_as_recipe(request: Request):
         # Generate copy name for save-as functionality
         parsed_data["name"] = generate_copy_name(parsed_data["name"])
         recipe_obj = RecipeBase(**parsed_data)
-    except ValidationError as e:
-        logger.warning("Validation error saving recipe copy: %s", e, exc_info=False)
+    except (ValidationError, Exception) as e:
+        logger.warning("Error processing recipe data for save-as: %s", e, exc_info=False)
         result = Span(
             "Invalid recipe data. Please check the fields.",
-            cls=CSS_ERROR_CLASS,
-            id="save-button-container",
-        )
-    except Exception as e:
-        logger.error("Error parsing form data during save-as: %s", e, exc_info=True)
-        result = Span(
-            "Error processing form data.",
             cls=CSS_ERROR_CLASS,
             id="save-button-container",
         )
@@ -206,59 +199,10 @@ async def post_save_as_recipe(request: Request):
             logger.info(
                 "Recipe copy created via API call from UI, Name: %s", recipe_obj.name
             )
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "API error saving recipe copy: Status %s, Response: %s",
-                e.response.status_code,
-                e.response.text,
-                exc_info=True,
-            )
-            if e.response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
-                try:
-                    error_detail = e.response.json().get("detail", [])
-                    for error in error_detail:
-                        if (
-                            isinstance(error, dict)
-                            and error.get("loc") == ["body", "instructions"]
-                            and error.get("type") == "too_short"
-                        ):
-                            result = Span(
-                                "Please add at least one instruction to the recipe.",
-                                cls=CSS_ERROR_CLASS,
-                                id="save-button-container",
-                            )
-                            break
-                    else:
-                        result = Span(
-                            "Could not save recipe copy: Invalid data for some fields.",
-                            cls=CSS_ERROR_CLASS,
-                            id="save-button-container",
-                        )
-                except Exception:
-                    result = Span(
-                        "Could not save recipe copy: Invalid data for some fields.",
-                        cls=CSS_ERROR_CLASS,
-                        id="save-button-container",
-                    )
-            else:
-                result = Span(
-                    "Could not save recipe copy. Please check input and try again.",
-                    cls=CSS_ERROR_CLASS,
-                    id="save-button-container",
-                )
-        except httpx.RequestError as e:
-            logger.error("Network error saving recipe copy: %s", e, exc_info=True)
-            result = Span(
-                "Could not save recipe copy due to a network issue. Please try again.",
-                cls=CSS_ERROR_CLASS,
-                id="save-button-container",
-            )
         except Exception as e:
-            logger.error(
-                "Unexpected error saving recipe copy via API: %s", e, exc_info=True
-            )
+            logger.error("Error saving recipe copy: %s", e, exc_info=True)
             result = Span(
-                "An unexpected error occurred while saving the recipe copy.",
+                "Could not save recipe copy. Please try again.",
                 cls=CSS_ERROR_CLASS,
                 id="save-button-container",
             )

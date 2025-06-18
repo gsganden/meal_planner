@@ -18,9 +18,11 @@ from tests.constants import (
     FIELD_ORIGINAL_INGREDIENTS,
     FIELD_ORIGINAL_INSTRUCTIONS,
     FIELD_ORIGINAL_NAME,
+    FIELD_RECIPE_ID,
     FIELD_RECIPE_TEXT,
     RECIPES_EXTRACT_RUN_URL,
     RECIPES_MODIFY_URL,
+    RECIPES_SAVE_AS_URL,
     RECIPES_SAVE_URL,
 )
 from tests.test_helpers import (
@@ -480,6 +482,98 @@ def mock_llm_modified_recipe_fixture() -> RecipeBase:
         ingredients=["mod ing 1."],
         instructions=["mod inst 1."],
     )
+
+
+@pytest.mark.anyio
+class TestSaveRecipeExistingEndpoint:
+    """Tests for saving existing recipes (PUT functionality)."""
+
+    @pytest.mark.anyio
+    async def test_save_existing_recipe_success(self, client: AsyncClient):
+        """Test updating an existing recipe via PUT."""
+        # First create a recipe to update
+        create_data = {
+            FIELD_NAME: "Original Recipe Name",
+            FIELD_INGREDIENTS: ["original ing 1", "original ing 2"],
+            FIELD_INSTRUCTIONS: ["original inst 1", "original inst 2"],
+        }
+        create_response = await client.post(RECIPES_SAVE_URL, data=create_data)
+        assert create_response.status_code == 200
+
+        # Now update it
+        update_data = {
+            FIELD_NAME: "Updated Recipe Name",
+            FIELD_INGREDIENTS: ["updated ing 1", "updated ing 2"],
+            FIELD_INSTRUCTIONS: ["updated inst 1", "updated inst 2"],
+            FIELD_RECIPE_ID: "1",  # First recipe gets ID 1
+        }
+
+        save_response = await client.post(RECIPES_SAVE_URL, data=update_data)
+        assert save_response.status_code == 200
+
+        soup = BeautifulSoup(save_response.text, "html.parser")
+        span_tag = soup.find("span", id="save-button-container")
+        assert span_tag is not None
+        assert "Recipe Updated!" in span_tag.get_text(strip=True)
+
+
+@pytest.mark.anyio
+class TestSaveAsRecipeEndpoint:
+    """Tests for save-as functionality (copy creation)."""
+
+    @pytest.mark.anyio
+    async def test_save_as_recipe_success(self, client: AsyncClient):
+        """Test creating a recipe copy with auto-generated name."""
+        form_data = {
+            FIELD_NAME: "Original Recipe",
+            FIELD_INGREDIENTS: ["original ing 1", "original ing 2"],
+            FIELD_INSTRUCTIONS: ["original inst 1", "original inst 2"],
+        }
+
+        save_response = await client.post(RECIPES_SAVE_AS_URL, data=form_data)
+        assert save_response.status_code == 200
+
+        soup = BeautifulSoup(save_response.text, "html.parser")
+        span_tag = soup.find("span", id="save-button-container")
+        assert span_tag is not None
+        assert "New Recipe Copy Saved!" in span_tag.get_text(strip=True)
+
+    @pytest.mark.anyio
+    async def test_save_as_recipe_validation_error(self, client: AsyncClient):
+        """Test save-as with invalid data."""
+        form_data = {
+            FIELD_NAME: "Valid Name",
+            FIELD_INGREDIENTS: ["ing1"],
+            FIELD_INSTRUCTIONS: [],  # Invalid: no instructions
+        }
+
+        save_response = await client.post(RECIPES_SAVE_AS_URL, data=form_data)
+        assert save_response.status_code == 200
+
+        soup = BeautifulSoup(save_response.text, "html.parser")
+        span_tag = soup.find("span", id="save-button-container")
+        assert span_tag is not None
+        assert "Invalid recipe data" in span_tag.get_text(strip=True)
+
+    @pytest.mark.anyio
+    @patch("meal_planner.routers.actions.internal_api_client.post")
+    async def test_save_as_recipe_api_error(self, mock_post, client: AsyncClient):
+        """Test save-as when API call fails."""
+        mock_post.side_effect = Exception("API Error")
+        
+        form_data = {
+            FIELD_NAME: "Valid Recipe",
+            FIELD_INGREDIENTS: ["ing1"],
+            FIELD_INSTRUCTIONS: ["inst1"],
+        }
+
+        save_response = await client.post(RECIPES_SAVE_AS_URL, data=form_data)
+        assert save_response.status_code == 200
+
+        soup = BeautifulSoup(save_response.text, "html.parser")
+        span_tag = soup.find("span", id="save-button-container")
+        assert span_tag is not None
+        assert "Could not save recipe copy. Please try again." in span_tag.get_text(strip=True)
 
 
 @pytest.mark.anyio
