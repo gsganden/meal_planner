@@ -69,10 +69,18 @@ Install pre-commit hooks:
 pre-commit install --hook-type pre-push -f
 ```
 
-## Run App Locally
+## Run App
+
+Run locally:
 
 ```bash
 uv run modal serve deploy.py
+```
+
+Merging a PR into `main` triggers deployment as part of a CI/CD process. THat is our usual deployment flow but we can deploy directly from local in a pinch, e.g. for an urgent hotfix:
+
+```bash
+uv run modal deploy deploy.py
 ```
 
 ## Run Database Migrations
