@@ -300,6 +300,7 @@ async def post_modify_recipe(request: Request):
 @rt("/recipes/extract/run")
 async def post_extract_recipe_run(
     recipe_text: str | None = None,
+    recipe_source_url: str | None = None,
 ):
     """Handles recipe extraction from text.
 
@@ -309,6 +310,8 @@ async def post_extract_recipe_run(
 
     Args:
         recipe_text: The raw text input by the user, expected to contain a recipe.
+        recipe_source_url: Optional URL source for the recipe (auto-populated from
+            fetch).
 
     Returns:
         A Group of Divs for OOB swaps updating '#edit-form-target',
@@ -354,6 +357,11 @@ async def post_extract_recipe_run(
 
         recipe = postprocess_recipe(extracted_recipe)
         logger.info("Recipe postprocessing successful. Name: %s", recipe.name)
+
+        # Set the source URL if provided
+        if recipe_source_url and recipe_source_url.strip():
+            recipe.source = recipe_source_url.strip()
+            logger.info("Set recipe source to: %s", recipe.source)
 
         edit_form_card, review_section_card = build_edit_review_form(
             current_recipe=recipe,

@@ -37,31 +37,40 @@ class RecipeBase(SQLModel):
         name: The recipe name, must be non-empty.
         ingredients: List of ingredient strings, must contain at least one item.
         instructions: List of cooking instruction steps.
+        source: Optional source URL or reference for the recipe.
     """
 
     name: RecipeName
     ingredients: RecipeIngredients
     instructions: RecipeInstructions
+    source: Optional[str] = Field(
+        default=None, description="Optional source URL or reference for the recipe"
+    )
 
     @property
     def markdown(self) -> str:
         """Generate a markdown-formatted representation of the recipe.
 
         Creates a structured markdown document with the recipe name as a
-        header, followed by ingredients and instructions in bulleted lists.
-        This format is used for display and for LLM prompts.
+        header, followed by source (if present), ingredients and instructions
+        in bulleted lists. This format is used for display and for LLM prompts.
 
         Returns:
-            A markdown string with H1 title, H2 sections for ingredients
-            and instructions, each item as a bullet point.
+            A markdown string with H1 title, optional source, H2 sections for
+            ingredients and instructions, each item as a bullet point.
         """
         ingredients_md = "\n".join([f"- {i}" for i in self.ingredients])
         instructions_md = "\n".join([f"- {i}" for i in self.instructions])
-        return (
-            f"# {self.name}\n\n"
-            f"## Ingredients\n{ingredients_md}\n\n"
-            f"## Instructions\n{instructions_md}\n"
-        )
+
+        result = f"# {self.name}\n\n"
+
+        if self.source:
+            result += f"**Source:** {self.source}\n\n"
+
+        result += f"## Ingredients\n{ingredients_md}\n\n"
+        result += f"## Instructions\n{instructions_md}\n"
+
+        return result
 
 
 class Recipe(RecipeBase, table=True):

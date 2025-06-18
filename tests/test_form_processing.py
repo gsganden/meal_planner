@@ -22,6 +22,7 @@ class TestParseRecipeFormData:
         parsed_data = parse_recipe_form_data(form_data)
         assert parsed_data == {
             "name": "Test Recipe",
+            "source": None,
             "ingredients": ["Ing 1", "Ing 2"],
             "instructions": ["Step 1", "Step 2"],
         }
@@ -39,6 +40,7 @@ class TestParseRecipeFormData:
         parsed_data = parse_recipe_form_data(form_data, prefix="original_")
         assert parsed_data == {
             "name": "Original Name",
+            "source": None,
             "ingredients": ["Orig Ing 1"],
             "instructions": ["Orig Step 1"],
         }
@@ -49,6 +51,7 @@ class TestParseRecipeFormData:
         parsed_data = parse_recipe_form_data(form_data)
         assert parsed_data == {
             "name": "Only Name",
+            "source": None,
             "ingredients": [],
             "instructions": [],
         }
@@ -68,6 +71,7 @@ class TestParseRecipeFormData:
         parsed_data = parse_recipe_form_data(form_data)
         assert parsed_data == {
             "name": "  Spaced Name  ",
+            "source": None,
             "ingredients": ["Real Ing"],
             "instructions": ["Real Step"],
         }
@@ -76,6 +80,65 @@ class TestParseRecipeFormData:
     def test_parse_empty_form(self):
         form_data = FormData([])
         parsed_data = parse_recipe_form_data(form_data)
-        assert parsed_data == {"name": "", "ingredients": [], "instructions": []}
+        assert parsed_data == {
+            "name": "",
+            "source": None,
+            "ingredients": [],
+            "instructions": [],
+        }
         with pytest.raises(ValidationError):
             RecipeBase(**parsed_data)
+
+    def test_parse_with_source_url(self):
+        form_data = FormData(
+            [
+                ("name", "Test Recipe"),
+                ("source", "https://example.com/recipe"),
+                ("ingredients", "Ing 1"),
+                ("instructions", "Step 1"),
+            ]
+        )
+        parsed_data = parse_recipe_form_data(form_data)
+        assert parsed_data == {
+            "name": "Test Recipe",
+            "source": "https://example.com/recipe",
+            "ingredients": ["Ing 1"],
+            "instructions": ["Step 1"],
+        }
+        RecipeBase(**parsed_data)
+
+    def test_parse_with_empty_source(self):
+        form_data = FormData(
+            [
+                ("name", "Test Recipe"),
+                ("source", ""),
+                ("ingredients", "Ing 1"),
+                ("instructions", "Step 1"),
+            ]
+        )
+        parsed_data = parse_recipe_form_data(form_data)
+        assert parsed_data == {
+            "name": "Test Recipe",
+            "source": None,
+            "ingredients": ["Ing 1"],
+            "instructions": ["Step 1"],
+        }
+        RecipeBase(**parsed_data)
+
+    def test_parse_with_whitespace_source(self):
+        form_data = FormData(
+            [
+                ("name", "Test Recipe"),
+                ("source", "   "),
+                ("ingredients", "Ing 1"),
+                ("instructions", "Step 1"),
+            ]
+        )
+        parsed_data = parse_recipe_form_data(form_data)
+        assert parsed_data == {
+            "name": "Test Recipe",
+            "source": None,
+            "ingredients": ["Ing 1"],
+            "instructions": ["Step 1"],
+        }
+        RecipeBase(**parsed_data)
