@@ -13,7 +13,11 @@ from meal_planner.core import (
     internal_api_client,
     rt,
 )
-from meal_planner.form_processing import parse_recipe_form_data
+from meal_planner.form_processing import (
+    extract_recipe_id,
+    generate_copy_name,
+    parse_recipe_form_data,
+)
 from meal_planner.models import RecipeBase
 from meal_planner.services.call_llm import (
     generate_modified_recipe,
@@ -31,14 +35,15 @@ logger = logging.getLogger(__name__)
 
 @rt("/recipes/save")
 async def post_save_recipe(request: Request):
-    """Handles saving a new recipe.
+    """Handles saving a recipe (new or updating existing).
 
     Parses recipe data from the form, validates it, and attempts to save it
-    by making a POST request to the internal `/api/v0/recipes` endpoint.
+    by making either a POST request (new recipe) or PUT request (update existing)
+    to the internal API endpoint based on recipe context.
 
     Args:
         request: The FastAPI request object, containing the form data for
-                 'name', 'ingredients', and 'instructions'.
+                 'name', 'ingredients', 'instructions', and optional 'recipe_id'.
 
     Returns:
         An `FtResponse` containing a `Span` with a success message and an
@@ -51,6 +56,7 @@ async def post_save_recipe(request: Request):
     try:
         parsed_data = parse_recipe_form_data(form_data)
         recipe_obj = RecipeBase(**parsed_data)
+        recipe_id = extract_recipe_id(form_data)
     except ValidationError as e:
         logger.warning("Validation error saving recipe: %s", e, exc_info=False)
         result = Span(
@@ -67,11 +73,25 @@ async def post_save_recipe(request: Request):
         )
     else:
         try:
-            response = await internal_api_client.post(
-                "/v0/recipes", json=recipe_obj.model_dump()
-            )
+            if recipe_id:
+                # Update existing recipe
+                response = await internal_api_client.put(
+                    f"/v0/recipes/{recipe_id}", json=recipe_obj.model_dump()
+                )
+                action_description = "updated"
+            else:
+                # Create new recipe
+                response = await internal_api_client.post(
+                    "/v0/recipes", json=recipe_obj.model_dump()
+                )
+                action_description = "created"
+
             response.raise_for_status()
-            logger.info("Saved recipe via API call from UI, Name: %s", recipe_obj.name)
+            logger.info(
+                "Recipe %s via API call from UI, Name: %s",
+                action_description,
+                recipe_obj.name,
+            )
         except httpx.HTTPStatusError as e:
             logger.error(
                 "API error saving recipe: Status %s, Response: %s",
@@ -128,7 +148,68 @@ async def post_save_recipe(request: Request):
                 id="save-button-container",
             )
         else:
-            user_final_message = "Current Recipe Saved!"
+            user_final_message = "Recipe Updated!" if recipe_id else "New Recipe Saved!"
+            css_class = CSS_SUCCESS_CLASS
+            result = FtResponse(
+                Span(user_final_message, id="save-button-container", cls=css_class),
+                headers={"HX-Trigger": "recipeListChanged"},
+            )
+
+    return result
+
+
+@rt("/recipes/save-as")
+async def post_save_as_recipe(request: Request):
+    """Handles saving a recipe as a new copy.
+
+    Parses recipe data from the form, generates a copy name, validates it,
+    and creates a new recipe via POST to the internal API endpoint.
+
+    Args:
+        request: The FastAPI request object, containing the form data for
+                 'name', 'ingredients', and 'instructions'.
+
+    Returns:
+        An `FtResponse` containing a `Span` with a success message and an
+        `HX-Trigger: recipeListChanged` header on successful save.
+        Otherwise, returns a `Span` with an appropriate error message.
+        All responses are targeted to the `save-button-container` an an
+        `innerHTML` swap.
+    """
+    form_data: FormData = await request.form()
+    try:
+        parsed_data = parse_recipe_form_data(form_data)
+        # Generate copy name for save-as functionality
+        parsed_data["name"] = generate_copy_name(parsed_data["name"])
+        recipe_obj = RecipeBase(**parsed_data)
+    except (ValidationError, Exception) as e:
+        logger.warning(
+            "Error processing recipe data for save-as: %s", e, exc_info=False
+        )
+        result = Span(
+            "Invalid recipe data. Please check the fields.",
+            cls=CSS_ERROR_CLASS,
+            id="save-button-container",
+        )
+    else:
+        try:
+            # Always create new recipe for save-as
+            response = await internal_api_client.post(
+                "/v0/recipes", json=recipe_obj.model_dump()
+            )
+            response.raise_for_status()
+            logger.info(
+                "Recipe copy created via API call from UI, Name: %s", recipe_obj.name
+            )
+        except Exception as e:
+            logger.error("Error saving recipe copy: %s", e, exc_info=True)
+            result = Span(
+                "Could not save recipe copy. Please try again.",
+                cls=CSS_ERROR_CLASS,
+                id="save-button-container",
+            )
+        else:
+            user_final_message = "New Recipe Copy Saved!"
             css_class = CSS_SUCCESS_CLASS
             result = FtResponse(
                 Span(user_final_message, id="save-button-container", cls=css_class),

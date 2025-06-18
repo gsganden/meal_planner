@@ -5,6 +5,7 @@ RECIPES_FETCH_TEXT_URL = "/recipes/fetch-text"
 RECIPES_EXTRACT_RUN_URL = "/recipes/extract/run"
 RECIPES_MODIFY_URL = "/recipes/modify"
 RECIPES_SAVE_URL = "/recipes/save"
+RECIPES_SAVE_AS_URL = "/recipes/save-as"
 RECIPES_DELETE_URL = "/recipes/delete"
 
 # Test Form Field Names
@@ -17,3 +18,4 @@ FIELD_MODIFICATION_PROMPT = "modification_prompt"
 FIELD_ORIGINAL_NAME = "original_name"
 FIELD_ORIGINAL_INGREDIENTS = "original_ingredients"
 FIELD_ORIGINAL_INSTRUCTIONS = "original_instructions"
+FIELD_RECIPE_ID = "recipe_id"

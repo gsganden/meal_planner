@@ -161,6 +161,7 @@ def build_edit_review_form(
     original_recipe: RecipeBase | None = None,
     modification_prompt_value: str | None = None,
     error_message_content: FT | None = None,
+    recipe_id: int | None = None,
 ):
     """Build the complete recipe editing interface with review section.
 
@@ -178,6 +179,7 @@ def build_edit_review_form(
             previous AI modification request, used to pre-fill the input.
         error_message_content: Optional FastHTML content (e.g., Div with error
             message) to display within the modification controls section.
+        recipe_id: Optional recipe ID for existing recipes (None for new recipes).
 
     Returns:
         Tuple containing:
@@ -192,8 +194,11 @@ def build_edit_review_form(
         modification_prompt_value, error_message_content
     )
     original_hidden_fields = _build_original_hidden_fields(diff_baseline_recipe)
+    recipe_id_field = _build_recipe_id_field(recipe_id)
     editable_section = _build_editable_section(current_recipe)
-    review_section = _build_review_section(diff_baseline_recipe, current_recipe)
+    review_section = _build_review_section(
+        diff_baseline_recipe, current_recipe, recipe_id
+    )
 
     combined_edit_section = Div(
         H2("Edit Recipe"),
@@ -215,6 +220,7 @@ def build_edit_review_form(
         Form(
             combined_edit_section,
             *original_hidden_fields,
+            recipe_id_field,
             id="edit-review-form",
         ),
         diff_style,
@@ -275,6 +281,14 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
             for inst in original_recipe.instructions
         ),
     )
+
+
+def _build_recipe_id_field(recipe_id: int | None):
+    """Builds the hidden recipe ID field if recipe_id is present."""
+    if recipe_id is not None:
+        return Input(type="hidden", name="recipe_id", value=str(recipe_id))
+    else:
+        return ""
 
 
 def _build_editable_section(current_recipe: RecipeBase):
@@ -468,7 +482,11 @@ def _build_instructions_section(instructions: list[str]):
     )
 
 
-def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBase):
+def _build_review_section(
+    original_recipe: RecipeBase,
+    current_recipe: RecipeBase,
+    recipe_id: int | None = None,
+):
     """Builds the 'Review Changes' section with the diff view."""
     before_component, after_component = build_diff_content_children(
         original_recipe, current_recipe.markdown
@@ -479,7 +497,7 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
         cls="flex space-x-4 mt-4",
         id="diff-content-wrapper",
     )
-    save_button_container = _build_save_button()
+    save_button_container = _build_save_buttons(recipe_id)
     return Card(
         Div(
             H2("Review Changes"),
@@ -490,10 +508,36 @@ def _build_review_section(original_recipe: RecipeBase, current_recipe: RecipeBas
     )
 
 
-def _build_save_button() -> FT:
-    """Builds the save button container."""
-    return Div(
-        Button(
+def _build_save_buttons(recipe_id: int | None = None) -> FT:
+    """Builds the save button container with context-aware buttons."""
+    if recipe_id is not None:
+        # Existing recipe: show "Save Changes" and "Save as New Recipe"
+        save_button = Button(
+            "Save Changes",
+            hx_post="/recipes/save",
+            hx_target="#save-button-container",
+            hx_swap="outerHTML",
+            hx_include="#edit-review-form",
+            hx_indicator="#save-indicator",
+            cls=ButtonT.primary,
+        )
+        save_as_button = Button(
+            "Save as New Recipe",
+            hx_post="/recipes/save-as",
+            hx_target="#save-button-container",
+            hx_swap="outerHTML",
+            hx_include="#edit-review-form",
+            hx_indicator="#save-indicator",
+            cls=ButtonT.secondary,
+        )
+        buttons = Div(
+            save_button,
+            save_as_button,
+            cls="flex gap-2",
+        )
+    else:
+        # New recipe: show single "Save Recipe" button
+        buttons = Button(
             "Save Recipe",
             hx_post="/recipes/save",
             hx_target="#save-button-container",
@@ -501,7 +545,10 @@ def _build_save_button() -> FT:
             hx_include="#edit-review-form",
             hx_indicator="#save-indicator",
             cls=ButtonT.primary,
-        ),
+        )
+
+    return Div(
+        buttons,
         create_loading_indicator("save-indicator"),
         id="save-button-container",
         cls="mt-6",
@@ -513,6 +560,7 @@ def build_modify_form_response(
     original_recipe: RecipeBase,
     modification_prompt_value: str,
     error_message_content: FT | None,
+    recipe_id: int | None = None,
 ) -> Div:
     """Build the complete form response for recipe modification requests.
 
@@ -525,6 +573,7 @@ def build_modify_form_response(
         original_recipe: Original recipe state for diff comparison.
         modification_prompt_value: AI modification prompt to display.
         error_message_content: Optional error message to show.
+        recipe_id: Optional recipe ID for existing recipes (None for new recipes).
 
     Returns:
         Div containing the edit form and OOB review section update.
@@ -534,6 +583,7 @@ def build_modify_form_response(
         original_recipe=original_recipe,
         modification_prompt_value=modification_prompt_value,
         error_message_content=error_message_content,
+        recipe_id=recipe_id,
     )
     return Div(
         edit_form_card,
