@@ -9,6 +9,10 @@ Refer to:
 
 Do **not** comment the code except where necessary to explain the rationale for an initially puzzling choice. Do NOT leave comments that simply restate what the code does. If the code is at a lower level of abstraction than its surroundings, place it in a helper function with a descriptive name rather than leaving a comment.
 
+## Style Guidance
+
+`fasthtml` and `monsterui` are designed to work with `import *`, so we want that pattern even though it is not recommended generally.
+
 ## Environment Configuration
 
 Requires a `GOOGLE_API_KEY` for Gemini AI access, stored in a `.env` file or environment variable.

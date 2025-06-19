@@ -60,10 +60,7 @@ class RecipeBase(SQLModel):
             and self.servings_min is not None
             and self.servings_max < self.servings_min
         ):
-            raise ValueError(
-                f"Maximum servings ({self.servings_max}) cannot be less than minimum "
-                f"servings ({self.servings_min})"
-            )
+            raise ServingsRangeError(self.servings_min, self.servings_max)
         return self
 
     @property
@@ -97,6 +94,16 @@ class RecipeBase(SQLModel):
             f"{servings_md}"
             f"## Ingredients\n{ingredients_md}\n\n"
             f"## Instructions\n{instructions_md}\n"
+        )
+
+
+class ServingsRangeError(ValueError):
+    """Raised when maximum servings is less than minimum servings."""
+
+    def __init__(self, min_servings: int, max_servings: int):
+        super().__init__(
+            f"Maximum servings ({max_servings}) cannot be less than minimum "
+            f"servings ({min_servings})"
         )
 
 

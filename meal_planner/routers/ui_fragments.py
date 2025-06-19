@@ -16,7 +16,7 @@ from meal_planner.services.extract_webpage_text import (
 )
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.edit_recipe import (
-    _build_servings_section,
+    build_servings_section,
     build_diff_content_children,
     render_ingredient_list_items,
     render_instruction_list_items,
@@ -270,7 +270,7 @@ async def update_diff(request: Request) -> FT:
             servings_min = current_data.get("servings_min")
             servings_max = current_data.get("servings_max")
 
-            servings_section_with_error = _build_servings_section(
+            servings_section_with_error = build_servings_section(
                 servings_min,
                 servings_max,
                 error_message="Max servings cannot be less than min servings",
@@ -534,7 +534,7 @@ async def adjust_servings(request: Request) -> FT:
             else:
                 servings_min = servings_max
 
-        updated_servings_section = _build_servings_section(servings_min, servings_max)
+        updated_servings_section = build_servings_section(servings_min, servings_max)
 
         current_data["servings_min"] = servings_min
         current_data["servings_max"] = servings_max
@@ -560,7 +560,7 @@ async def adjust_servings(request: Request) -> FT:
             "Validation error during servings adjustment: %s", e, exc_info=False
         )
         current_data = parse_recipe_form_data(form_data)
-        return _build_servings_section(
+        return build_servings_section(
             current_data.get("servings_min"),
             current_data.get("servings_max"),
             error_message="Please enter valid serving numbers",
@@ -568,6 +568,6 @@ async def adjust_servings(request: Request) -> FT:
     except Exception as e:
         logger.error("Error adjusting servings: %s", e, exc_info=True)
         current_data = parse_recipe_form_data(form_data)
-        return _build_servings_section(
+        return build_servings_section(
             current_data.get("servings_min"), current_data.get("servings_max")
         )

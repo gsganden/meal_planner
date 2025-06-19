@@ -319,7 +319,7 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
 def _build_editable_section(current_recipe: RecipeBase):
     """Builds the 'Edit Manually' section."""
     name_input = _build_name_input(current_recipe.name)
-    servings_section = _build_servings_section(
+    servings_section = build_servings_section(
         current_recipe.servings_min, current_recipe.servings_max
     )
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
@@ -350,7 +350,7 @@ def _build_name_input(name_value: str):
     )
 
 
-def _build_servings_section(
+def build_servings_section(
     servings_min: int | None, servings_max: int | None, error_message: str | None = None
 ):
     """Builds the servings input section with separate min/max fields."""
