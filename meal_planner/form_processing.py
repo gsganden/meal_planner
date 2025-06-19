@@ -45,7 +45,6 @@ def parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
         inst for inst in instructions_values if isinstance(inst, str) and inst.strip()
     ]
 
-    # Parse servings fields
     servings_min = None
     servings_min_value = form_data.get(f"{prefix}servings_min")
     if isinstance(servings_min_value, str) and servings_min_value.strip():
