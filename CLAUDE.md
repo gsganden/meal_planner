@@ -9,13 +9,13 @@ Refer to:
 
 Do **not** comment the code except where necessary to explain the rationale for an initially puzzling choice. Do NOT leave comments that simply restate what the code does. If the code is at a lower level of abstraction than its surroundings, place it in a helper function with a descriptive name rather than leaving a comment.
 
-### Environment Configuration
+## Environment Configuration
 
 Requires a `GOOGLE_API_KEY` for Gemini AI access, stored in a `.env` file or environment variable.
 
-### Git Worktree Management
+## Git Worktree Management
 
-It is helpful to use worktrees to manage multiple tasks in parallel:
+Use worktrees so we can easily work on multiple issues in parallel on a single machine:
 
 ```bash
 # Create branch
@@ -31,6 +31,10 @@ git worktree list
 # Remove a worktree when done
 git worktree remove ../meal_planner__wt-<branch-name>
 ```
+
+## Pull Requests
+
+Include `.github/PULL_REQUEST_TEMPLATE.md` in pull request descriptions.
 
 ## Testing Strategy
 
