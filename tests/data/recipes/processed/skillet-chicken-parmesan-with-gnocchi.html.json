@@ -23,5 +23,8 @@
         "Reduce heat to medium-low. Add **8 garlic cloves, finely chopped**, and **\u00bd tsp. crushed red pepper flakes** to skillet and cook, stirring constantly, until fragrant, about 1 minute. Add **one 28-oz. can whole peeled tomatoes**, crushing with your hands as you go, then add remaining **2\u00bc tsp. Diamond Crystal or 1\u00bc tsp. Morton kosher salt** and **1\u00bd tsp. sugar**. Bring to a simmer and cook, stirring occasionally, until sauce is slightly thickened, about 5 minutes. Add **one 17.5-oz. package shelf-stable potato gnocchi** and cook, stirring constantly, until gnocchi is barely tender, about 2 minutes. Remove from heat.",
         "Heat broiler. Arrange chicken in a single layer over gnocchi. Top chicken with **2 oz. Parmesan, finely grated**, followed by **8 oz. part-skim mozzarella, sliced \u00bc** \" **thick**. Transfer skillet to oven and broil until cheese is melted and browned, 5\u20138 minutes; watch closely to avoid burning.",
         "Serve chicken parm topped with **basil leaves** if desired."
-    ]
+    ],
+    "expected_makes_min": 4,
+    "expected_makes_max": 4,
+    "expected_makes_unit": null
 }

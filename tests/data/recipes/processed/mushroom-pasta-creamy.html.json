@@ -28,5 +28,8 @@
         "Add chicken stock mixture, season lightly with salt, and bring to a simmer. Reduce heat to medium-low, add fish sauce (if using), and cook, stirring occasionally, until mushroom mixture is thickened to a saucy consistency, about 5 minutes. Turn off heat.",
         "Meanwhile, in a pot of salted boiling water, cook pasta. If using dry pasta, cook until just shy of al dente (1 to 2 minutes less than the package directs). If using fresh pasta, cook until noodles are barely cooked through. Using either a spider skimmer (for short pasta) or tongs (for long fresh pasta), transfer pasta to pan with mushrooms along with 3/4 cup (180ml) pasta cooking water. Alternatively, drain pasta using a colander or fine-mesh strainer, making sure to reserve at least 2 cups (475ml) pasta cooking water.",
         "Heat sauce and pasta over high and cook, stirring and tossing rapidly, until pasta is al dente (fresh pasta will never be truly al dente) and sauce is thickened and coats noodles, 1 to 2 minutes, adding more pasta cooking water in 1/4 cup (60ml) increments as needed. At this point, the sauce should coat the pasta but still be loose enough to pool around the edges of the pan. Add butter, and stir and toss rapidly to melt and emulsify into the sauce. Remove from heat, add 3/4 of grated cheese and all of the parsley, and stir rapidly to incorporate. Season with salt to taste. Serve immediately, passing remaining grated cheese at the table."
-    ]
+    ],
+    "expected_makes_min": 4,
+    "expected_makes_max": 4,
+    "expected_makes_unit": null
 }

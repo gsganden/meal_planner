@@ -36,7 +36,7 @@ async def create_recipe(
 
     Args:
         recipe_data: Recipe information to create (name, ingredients, instructions,
-            servings).
+            makes).
         session: Database session from dependency injection.
 
     Returns:
@@ -162,7 +162,7 @@ async def update_recipe(
     Args:
         recipe_id: Unique identifier of the recipe to update.
         recipe_data: Recipe data to update (name, ingredients, instructions,
-            servings).
+            makes).
         session: Database session from dependency injection.
 
     Returns:
@@ -197,8 +197,9 @@ async def update_recipe(
     recipe.name = recipe_data.name
     recipe.ingredients = recipe_data.ingredients
     recipe.instructions = recipe_data.instructions
-    recipe.servings_min = recipe_data.servings_min
-    recipe.servings_max = recipe_data.servings_max
+    recipe.makes_min = recipe_data.makes_min
+    recipe.makes_max = recipe_data.makes_max
+    recipe.makes_unit = recipe_data.makes_unit
 
     recipe.updated_at = datetime.now(timezone.utc)
 

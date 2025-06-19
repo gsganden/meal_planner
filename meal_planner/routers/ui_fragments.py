@@ -16,8 +16,8 @@ from meal_planner.services.extract_webpage_text import (
 )
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.edit_recipe import (
-    build_servings_section,
     build_diff_content_children,
+    build_makes_section,
     render_ingredient_list_items,
     render_instruction_list_items,
 )
@@ -263,22 +263,24 @@ async def update_diff(request: Request) -> FT:
 
         error_str = str(e)
         if (
-            "Maximum servings" in error_str
-            and "cannot be less than minimum servings" in error_str
+            "Maximum quantity" in error_str
+            and "cannot be less than minimum quantity" in error_str
         ):
             current_data = parse_recipe_form_data(form_data)
-            servings_min = current_data.get("servings_min")
-            servings_max = current_data.get("servings_max")
+            makes_min = current_data.get("makes_min")
+            makes_max = current_data.get("makes_max")
+            makes_unit = current_data.get("makes_unit")
 
-            servings_section_with_error = build_servings_section(
-                servings_min,
-                servings_max,
-                error_message="Max servings cannot be less than min servings",
+            makes_section_with_error = build_makes_section(
+                makes_min,
+                makes_max,
+                makes_unit,
+                error_message="Max quantity cannot be less than min quantity",
             )
 
             return Group(
-                servings_section_with_error,
-                hx_swap_oob="outerHTML:#servings-section",
+                makes_section_with_error,
+                hx_swap_oob="outerHTML:#makes-section",
             )
 
         error_message = "Please check your recipe fields - there may be invalid values."
@@ -501,43 +503,41 @@ def _build_sortable_list_with_oob_diff(
     return Group(list_component, oob_diff_component)
 
 
-@rt("/recipes/ui/adjust-servings")
-async def adjust_servings(request: Request) -> FT:
-    """Adjust servings range to prevent invalid states and update diff.
+@rt("/recipes/ui/adjust-makes")
+async def adjust_makes(request: Request) -> FT:
+    """Adjust makes range to prevent invalid states and update diff.
 
-    When a user changes min or max servings, this endpoint automatically
+    When a user changes min or max makes, this endpoint automatically
     adjusts the other value if needed to maintain a valid range, then
-    returns the updated servings section with OOB diff update.
+    returns the updated makes section with OOB diff update.
 
     Args:
-        request: FastAPI request containing form data with servings values.
+        request: FastAPI request containing form data with makes values.
 
     Returns:
-        Updated servings section with adjusted values and OOB diff update.
+        Updated makes section with adjusted values and OOB diff update.
     """
     form_data = await request.form()
     try:
         current_data = parse_recipe_form_data(form_data)
-        servings_min = current_data.get("servings_min")
-        servings_max = current_data.get("servings_max")
+        makes_min = current_data.get("makes_min")
+        makes_max = current_data.get("makes_max")
+        makes_unit = current_data.get("makes_unit")
 
-        if (
-            servings_min is not None
-            and servings_max is not None
-            and servings_min > servings_max
-        ):
+        if makes_min is not None and makes_max is not None and makes_min > makes_max:
             original_data = parse_recipe_form_data(form_data, prefix="original_")
-            original_min = original_data.get("servings_min")
+            original_min = original_data.get("makes_min")
 
-            if original_min != servings_min:
-                servings_max = servings_min
+            if original_min != makes_min:
+                makes_max = makes_min
             else:
-                servings_min = servings_max
+                makes_min = makes_max
 
-        updated_servings_section = build_servings_section(servings_min, servings_max)
+        updated_makes_section = build_makes_section(makes_min, makes_max, makes_unit)
 
-        current_data["servings_min"] = servings_min
-        current_data["servings_max"] = servings_max
+        current_data["makes_min"] = makes_min
+        current_data["makes_max"] = makes_max
+        current_data["makes_unit"] = makes_unit
 
         original_data = parse_recipe_form_data(form_data, prefix="original_")
         current_recipe = RecipeBase(**current_data)
@@ -553,21 +553,24 @@ async def adjust_servings(request: Request) -> FT:
             hx_swap_oob="innerHTML:#diff-content-wrapper",
         )
 
-        return Group(updated_servings_section, oob_diff_component)
+        return Group(updated_makes_section, oob_diff_component)
 
     except ValidationError as e:
         logger.warning(
-            "Validation error during servings adjustment: %s", e, exc_info=False
+            "Validation error during makes adjustment: %s", e, exc_info=False
         )
         current_data = parse_recipe_form_data(form_data)
-        return build_servings_section(
-            current_data.get("servings_min"),
-            current_data.get("servings_max"),
-            error_message="Please enter valid serving numbers",
+        return build_makes_section(
+            current_data.get("makes_min"),
+            current_data.get("makes_max"),
+            current_data.get("makes_unit"),
+            error_message="Please enter valid makes numbers",
         )
     except Exception as e:
-        logger.error("Error adjusting servings: %s", e, exc_info=True)
+        logger.error("Error adjusting makes: %s", e, exc_info=True)
         current_data = parse_recipe_form_data(form_data)
-        return build_servings_section(
-            current_data.get("servings_min"), current_data.get("servings_max")
+        return build_makes_section(
+            current_data.get("makes_min"),
+            current_data.get("makes_max"),
+            current_data.get("makes_unit"),
         )

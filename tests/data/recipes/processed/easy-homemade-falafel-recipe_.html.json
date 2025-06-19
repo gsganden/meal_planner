@@ -24,5 +24,8 @@
         "Using a 1-oz. cookie scoop or 2 spoons, portion chickpea mixture into 1\" balls (about 2 Tbsp. each). Using clean hands, roll each ball, tossing between both hands and lightly squeezing to compress, until smooth and compact (mixture will feel wet). Arrange balls on a clean plate or parchment-lined baking sheet.",
         "Into a large heavy pot fitted with a deep-fry or candy thermometer, pour oil to a depth of 2\". Heat over high heat until thermometer registers 350\u00b0. Set a wire rack in a large baking sheet. Working 6 to 7 at a time, gently lower falafel into oil and fry, adjusting heat as needed, until deeply browned on all sides, 2 to 3 minutes.",
         "Remove from oil with a slotted spoon and transfer to prepared rack to cool. Serve warm with tahini sauce alongside."
-    ]
+    ],
+    "expected_makes_min": 20,
+    "expected_makes_max": 20,
+    "expected_makes_unit": "pieces"
 }

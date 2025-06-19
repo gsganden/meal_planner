@@ -30,7 +30,7 @@ recipes_data = load_all_test_data(TEST_DATA_DIR)
 
 
 @pytest.fixture(autouse=True)
-def ensure_real_llm_clients():
+async def ensure_real_llm_clients():
     """Ensure that this test module uses real LLM clients, not mocks from other
     tests."""
     # Stop any existing patches on instructor and AsyncOpenAI that might leak from
@@ -39,14 +39,18 @@ def ensure_real_llm_clients():
 
     # Clear any cached client to force re-initialization with real modules
     meal_planner.services.call_llm._aclient = None
+    meal_planner.services.call_llm._openai_client = None
 
     # Use patch.stopall() to ensure no patches from other tests are active
     patch.stopall()
 
     yield
 
-    # Clean up after test
+    # Clean up after test - properly close async clients
+    if meal_planner.services.call_llm._openai_client is not None:
+        await meal_planner.services.call_llm._openai_client.close()
     meal_planner.services.call_llm._aclient = None
+    meal_planner.services.call_llm._openai_client = None
 
 
 @pytest.fixture(
@@ -70,12 +74,12 @@ async def extracted_recipe_fixture(request, anyio_backend, ensure_real_llm_clien
 @pytest.mark.slow
 @pytest.mark.anyio
 async def test_extract_recipe(extracted_recipe_fixture):
-    """Tests the extracted recipe name, ingredients, and instructions.
+    """Tests the extracted recipe name, ingredients, instructions, and makes.
 
-    Note: We combine all three checks (name, ingredients, instructions) into a single
+    Note: We combine all checks (name, ingredients, instructions, makes) into a single
     test to enable efficient retry behavior. With function-scoped fixtures, each test
     function gets its own fixture execution. By having 1 test per HTML file instead of
-    3 separate tests, we maintain 1 LLM call per HTML file while allowing
+    multiple separate tests, we maintain 1 LLM call per HTML file while allowing
     pytest-rerunfailures to properly re-execute the fixture on retry.
     """
     extracted_recipe: RecipeBase
@@ -107,4 +111,20 @@ async def test_extract_recipe(extracted_recipe_fixture):
         f"Instructions don't match.\n"
         f"Expected: {expected_instructions}\n"
         f"Actual: {actual_instructions}"
+    )
+
+    # Test recipe makes
+    expected_makes_min = expected_data.get("expected_makes_min")
+    expected_makes_max = expected_data.get("expected_makes_max")
+    actual_makes_min = extracted_recipe.makes_min
+    actual_makes_max = extracted_recipe.makes_max
+    assert actual_makes_min == expected_makes_min, (
+        f"Makes min don't match.\n"
+        f"Expected: {expected_makes_min}\n"
+        f"Actual: {actual_makes_min}"
+    )
+    assert actual_makes_max == expected_makes_max, (
+        f"Makes max don't match.\n"
+        f"Expected: {expected_makes_max}\n"
+        f"Actual: {actual_makes_max}"
     )

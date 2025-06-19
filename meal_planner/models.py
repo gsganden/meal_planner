@@ -38,29 +38,37 @@ class RecipeBase(SQLModel):
         name: The recipe name, must be non-empty.
         ingredients: List of ingredient strings, must contain at least one item.
         instructions: List of cooking instruction steps.
-        servings_min: Optional minimum number of servings (positive integer).
-        servings_max: Optional maximum number of servings (positive integer).
+        makes_min: Optional minimum quantity that the recipe makes (positive integer).
+        makes_max: Optional maximum quantity that the recipe makes (positive integer).
+        makes_unit: Optional unit for quantity (e.g., "servings", "cookies", "pieces").
     """
 
     name: RecipeName
     ingredients: RecipeIngredients
     instructions: RecipeInstructions
-    servings_min: Optional[int] = Field(
-        default=None, description="Minimum number of servings", ge=1
+    makes_min: Optional[int] = Field(
+        default=None, description="Minimum quantity that the recipe makes", ge=1
     )
-    servings_max: Optional[int] = Field(
-        default=None, description="Maximum number of servings", ge=1
+    makes_max: Optional[int] = Field(
+        default=None, description="Maximum quantity that the recipe makes", ge=1
+    )
+    makes_unit: Optional[str] = Field(
+        default=None,
+        description="Unit for the quantity (e.g., servings, cookies, pieces)",
     )
 
     @model_validator(mode="after")
-    def validate_servings_range(self):
-        """Validate that servings_max is not less than servings_min."""
+    def validate_makes_range(self):
+        """Validate that makes_max is not less than makes_min."""
         if (
-            self.servings_max is not None
-            and self.servings_min is not None
-            and self.servings_max < self.servings_min
+            self.makes_max is not None
+            and self.makes_min is not None
+            and self.makes_max < self.makes_min
         ):
-            raise ServingsRangeError(self.servings_min, self.servings_max)
+            raise ValueError(
+                f"Maximum quantity ({self.makes_max}) cannot be less than minimum "
+                f"quantity ({self.makes_min})"
+            )
         return self
 
     @property
@@ -68,42 +76,33 @@ class RecipeBase(SQLModel):
         """Generate a markdown-formatted representation of the recipe.
 
         Creates a structured markdown document with the recipe name as a
-        header, followed by servings info (if available), ingredients and
+        header, followed by makes info (if available), ingredients and
         instructions in bulleted lists. This format is used for display
         and for LLM prompts.
 
         Returns:
-            A markdown string with H1 title, servings info, H2 sections for
+            A markdown string with H1 title, makes info, H2 sections for
             ingredients and instructions, each item as a bullet point.
         """
-        servings_md = ""
-        if self.servings_min is not None or self.servings_max is not None:
-            if self.servings_min == self.servings_max:
-                servings_md = f"**Serves:** {self.servings_min}\n\n"
-            elif self.servings_min is not None and self.servings_max is not None:
-                servings_md = f"**Serves:** {self.servings_min}-{self.servings_max}\n\n"
-            elif self.servings_min is not None:
-                servings_md = f"**Serves:** {self.servings_min}+\n\n"
-            elif self.servings_max is not None:
-                servings_md = f"**Serves:** up to {self.servings_max}\n\n"
+        makes_md = ""
+        if self.makes_min is not None or self.makes_max is not None:
+            unit = self.makes_unit or "servings"
+            if self.makes_min == self.makes_max:
+                makes_md = f"**Makes:** {self.makes_min} {unit}\n\n"
+            elif self.makes_min is not None and self.makes_max is not None:
+                makes_md = f"**Makes:** {self.makes_min}-{self.makes_max} {unit}\n\n"
+            elif self.makes_min is not None:
+                makes_md = f"**Makes:** {self.makes_min}+ {unit}\n\n"
+            elif self.makes_max is not None:
+                makes_md = f"**Makes:** up to {self.makes_max} {unit}\n\n"
 
         ingredients_md = "\n".join([f"- {i}" for i in self.ingredients])
         instructions_md = "\n".join([f"- {i}" for i in self.instructions])
         return (
             f"# {self.name}\n\n"
-            f"{servings_md}"
+            f"{makes_md}"
             f"## Ingredients\n{ingredients_md}\n\n"
             f"## Instructions\n{instructions_md}\n"
-        )
-
-
-class ServingsRangeError(ValueError):
-    """Raised when maximum servings is less than minimum servings."""
-
-    def __init__(self, min_servings: int, max_servings: int):
-        super().__init__(
-            f"Maximum servings ({max_servings}) cannot be less than minimum "
-            f"servings ({min_servings})"
         )
 
 
@@ -118,8 +117,9 @@ class Recipe(RecipeBase, table=True):
         name: Inherited from RecipeBase.
         ingredients: Inherited from RecipeBase, stored as JSON.
         instructions: Inherited from RecipeBase, stored as JSON.
-        servings_min: Inherited from RecipeBase, optional minimum servings.
-        servings_max: Inherited from RecipeBase, optional maximum servings.
+        makes_min: Inherited from RecipeBase, optional minimum quantity.
+        makes_max: Inherited from RecipeBase, optional maximum quantity.
+        makes_unit: Inherited from RecipeBase, optional unit for quantity.
         created_at: Timestamp of when the recipe was created (UTC).
             This is a database-managed field. It will be `None` in Python
             before an object is persisted but will always be populated for

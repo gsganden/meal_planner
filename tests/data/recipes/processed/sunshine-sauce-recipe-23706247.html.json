@@ -16,5 +16,8 @@
     "expected_instructions": [
         "Bring 1 tablespoon plus 1 teaspoon lemon juice and 1 tablespoon water to a simmer in a small skillet or saucepan over medium-low heat. Reduce the heat to low. Whisk in 1 stick cold unsalted butter a tablespoon at a time, whisking until each piece is almost melted before adding the next. Do not let the butter boil, or it will separate.",
         "Whisk in 1 teaspoon finely grated lemon zest, 1 tablespoon coarsely chopped fresh parsley leaves, 1 minced garlic clove, 1/4 teaspoon kosher salt, and 1/4 teaspoon black pepper. Taste and season with more kosher salt or black pepper as needed. Serve warm."
-    ]
+    ],
+    "expected_makes_min": 4,
+    "expected_makes_max": 6,
+    "expected_makes_unit": null
 }

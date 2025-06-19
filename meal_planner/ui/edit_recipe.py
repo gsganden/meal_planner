@@ -121,31 +121,32 @@ def build_recipe_display(recipe_data: dict) -> FT:
     """Build a formatted display card for a recipe.
 
     Creates a read-only view of recipe data with proper formatting
-    for ingredients and instructions in bulleted lists, and servings
+    for ingredients and instructions in bulleted lists, and makes
     information if available.
 
     Args:
         recipe_data: Dictionary containing 'name', 'ingredients', 'instructions'
-            and optionally 'servings_min', 'servings_max' fields from a recipe.
+            and optionally 'makes_min', 'makes_max', 'makes_unit' fields from a recipe.
 
     Returns:
         MonsterUI Card component with formatted recipe display.
     """
     components = [H3(recipe_data["name"])]
 
-    servings_min = recipe_data.get("servings_min")
-    servings_max = recipe_data.get("servings_max")
-    if servings_min is not None or servings_max is not None:
-        if servings_min == servings_max:
-            servings_text = f"Serves: {servings_min}"
-        elif servings_min is not None and servings_max is not None:
-            servings_text = f"Serves: {servings_min}-{servings_max}"
-        elif servings_min is not None:
-            servings_text = f"Serves: {servings_min}+"
-        elif servings_max is not None:
-            servings_text = f"Serves: up to {servings_max}"
+    makes_min = recipe_data.get("makes_min")
+    makes_max = recipe_data.get("makes_max")
+    makes_unit = recipe_data.get("makes_unit", "servings")
+    if makes_min is not None or makes_max is not None:
+        if makes_min == makes_max:
+            makes_text = f"Makes: {makes_min} {makes_unit}"
+        elif makes_min is not None and makes_max is not None:
+            makes_text = f"Makes: {makes_min}-{makes_max} {makes_unit}"
+        elif makes_min is not None:
+            makes_text = f"Makes: {makes_min}+ {makes_unit}"
+        elif makes_max is not None:
+            makes_text = f"Makes: up to {makes_max} {makes_unit}"
 
-        components.append(P(Strong(html.escape(servings_text)), cls="mb-4"))
+        components.append(P(Strong(html.escape(makes_text)), cls="mb-4"))
 
     components.extend(
         [
@@ -295,21 +296,29 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
         ),
     ]
 
-    # Add servings fields if they have values
-    if original_recipe.servings_min is not None:
+    # Add makes fields if they have values
+    if original_recipe.makes_min is not None:
         hidden_fields.append(
             Input(
                 type="hidden",
-                name="original_servings_min",
-                value=str(original_recipe.servings_min),
+                name="original_makes_min",
+                value=str(original_recipe.makes_min),
             )
         )
-    if original_recipe.servings_max is not None:
+    if original_recipe.makes_max is not None:
         hidden_fields.append(
             Input(
                 type="hidden",
-                name="original_servings_max",
-                value=str(original_recipe.servings_max),
+                name="original_makes_max",
+                value=str(original_recipe.makes_max),
+            )
+        )
+    if original_recipe.makes_unit is not None:
+        hidden_fields.append(
+            Input(
+                type="hidden",
+                name="original_makes_unit",
+                value=original_recipe.makes_unit,
             )
         )
 
@@ -319,8 +328,8 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
 def _build_editable_section(current_recipe: RecipeBase):
     """Builds the 'Edit Manually' section."""
     name_input = _build_name_input(current_recipe.name)
-    servings_section = build_servings_section(
-        current_recipe.servings_min, current_recipe.servings_max
+    makes_section = build_makes_section(
+        current_recipe.makes_min, current_recipe.makes_max, current_recipe.makes_unit
     )
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
@@ -328,7 +337,7 @@ def _build_editable_section(current_recipe: RecipeBase):
     return Div(
         H3("Edit Manually"),
         name_input,
-        servings_section,
+        makes_section,
         ingredients_section,
         instructions_section,
     )
@@ -350,56 +359,76 @@ def _build_name_input(name_value: str):
     )
 
 
-def build_servings_section(
-    servings_min: int | None, servings_max: int | None, error_message: str | None = None
+def build_makes_section(
+    makes_min: int | None,
+    makes_max: int | None,
+    makes_unit: str | None,
+    error_message: str | None = None,
 ):
-    """Builds the servings input section with separate min/max fields."""
-    servings_min_input = Input(
-        id="servings_min",
-        name="servings_min",
+    """Builds the makes input section with separate min/max fields and unit."""
+    makes_min_input = Input(
+        id="makes_min",
+        name="makes_min",
         label="Min",
         type="number",
-        value=str(servings_min) if servings_min is not None else "",
+        value=str(makes_min) if makes_min is not None else "",
         min="1",
-        hx_post="/recipes/ui/adjust-servings",
-        hx_target="#servings-section",
+        hx_post="/recipes/ui/adjust-makes",
+        hx_target="#makes-section",
         hx_swap="outerHTML",
         hx_trigger="input changed delay:200ms",
         hx_include="closest form",
     )
 
-    servings_max_input = Input(
-        id="servings_max",
-        name="servings_max",
+    makes_max_input = Input(
+        id="makes_max",
+        name="makes_max",
         label="Max",
         type="number",
-        value=str(servings_max) if servings_max is not None else "",
+        value=str(makes_max) if makes_max is not None else "",
         min="1",
-        hx_post="/recipes/ui/adjust-servings",
-        hx_target="#servings-section",
+        hx_post="/recipes/ui/adjust-makes",
+        hx_target="#makes-section",
         hx_swap="outerHTML",
         hx_trigger="input changed delay:200ms",
         hx_include="closest form",
     )
 
-    components = [H4("Servings Range")]
+    makes_unit_input = Input(
+        id="makes_unit",
+        name="makes_unit",
+        label="Unit",
+        type="text",
+        value=makes_unit or "",
+        placeholder="servings, cookies, pieces",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_trigger="change, keyup changed delay:500ms",
+        hx_include="closest form",
+    )
+
+    components = [H4("Makes")]
 
     if error_message:
         components.append(P(error_message, cls="text-red-600 text-sm mb-2"))
 
-    components.append(
-        Div(
-            Div(servings_min_input, style="width: 5rem;"),
-            P("\u00a0to\u00a0"),
-            Div(servings_max_input, style="width: 5rem;"),
-            cls="flex gap-3 items-end",
-        )
+    components.extend(
+        [
+            Div(
+                Div(makes_min_input, style="width: 5rem;"),
+                P("\u00a0to\u00a0"),
+                Div(makes_max_input, style="width: 5rem;"),
+                cls="flex gap-3 items-end mb-2",
+            ),
+            Div(makes_unit_input, style="width: 10rem;"),
+        ]
     )
 
     return Div(
         *components,
         cls="mb-4",
-        id="servings-section",
+        id="makes-section",
     )
 
 

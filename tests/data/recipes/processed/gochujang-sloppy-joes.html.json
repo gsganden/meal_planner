@@ -26,5 +26,8 @@
         "Heat **1 Tbsp. vegetable oil** in a large skillet over medium-high. Add **1 lb. ground beef (ideally 20% fat)**, spreading out in a single layer; sprinkle with **1 tsp. Diamond Crystal or \u00bd tsp. Morton kosher salt** and season with **freshly ground pepper**. Cook, undisturbed, until a light brown crust forms underneath, about 3 minutes. Continue to cook, breaking up with a wooden spoon, until almost completely brown all the way through, about 3 minutes more.",
         "Push meat to one side of pan. Reduce heat to medium and add **1 medium green bell pepper, ribs and seeds removed, chopped**, **1 medium onion, chopped**, **6\u20138 garlic cloves, finely grated**, and **\u00bd tsp. Diamond Crystal or \u00bc tsp. Morton kosher salt**; season with pepper. Cook, stirring often, until vegetables are softened, about 5 minutes. Stir in **3 Tbsp. gochujang**, **2 Tbsp. ketchup**, **1 Tbsp. soy sauce**, **1 Tbsp. Worcestershire sauce**, **1 Tbsp. dark brown sugar**, and **1 tsp. yellow mustard**, then add **one 15-oz. can tomato sauce** and \u00bc cup water and stir again to combine. Bring to a simmer and reduce heat to medium-low. Cook, stirring and scraping up any brown bits, until thick and saucy, 10\u201312 minutes. Remove beef mixture from heat and stir in **1 Tbsp. balsamic vinegar**; season with salt and pepper.",
         "Spoon beef mixture onto **4 potato rolls**. Serve with **kosher dill spears** and **potato chips** if desired."
-    ]
+    ],
+    "expected_makes_min": 4,
+    "expected_makes_max": 4,
+    "expected_makes_unit": null
 }
