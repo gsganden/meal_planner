@@ -6,24 +6,6 @@ Converts form data to Pydantic models with validation.
 from starlette.datastructures import FormData
 
 
-def normalize_servings_values(
-    servings_min: int | None, servings_max: int | None
-) -> tuple[int | None, int | None]:
-    """Return servings values as-is without auto-population.
-
-    Preserves user intent by not auto-populating empty values.
-    Users can intentionally leave one field empty or clear values.
-
-    Args:
-        servings_min: Optional minimum servings value
-        servings_max: Optional maximum servings value
-
-    Returns:
-        Tuple of (servings_min, servings_max) unchanged.
-    """
-    return servings_min, servings_max
-
-
 def parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
     """Parse recipe form data from multipart form submission.
 
@@ -79,9 +61,6 @@ def parse_recipe_form_data(form_data: FormData, prefix: str = "") -> dict:
             servings_max = int(servings_max_value.strip())
         except ValueError:
             servings_max = None
-
-    # Normalize servings values (if only one is provided, set both to that value)
-    servings_min, servings_max = normalize_servings_values(servings_min, servings_max)
 
     return {
         "name": name,

@@ -1,13 +1,10 @@
-"""Tests for the _parse_recipe_form_data() utility function from meal_planner.main."""
+"""Tests for form processing utilities."""
 
 import pytest
 from pydantic import ValidationError
 from starlette.datastructures import FormData
 
-from meal_planner.form_processing import (
-    normalize_servings_values,
-    parse_recipe_form_data,
-)
+from meal_planner.form_processing import parse_recipe_form_data
 from meal_planner.models import RecipeBase
 
 
@@ -194,25 +191,3 @@ class TestParseRecipeFormData:
             "servings_max": None,
         }
         RecipeBase(**parsed_data)
-
-
-class TestNormalizeServingsValues:
-    def test_both_values_provided(self):
-        result = normalize_servings_values(4, 6)
-        assert result == (4, 6)
-
-    def test_only_min_provided(self):
-        result = normalize_servings_values(4, None)
-        assert result == (4, None)  # No auto-population
-
-    def test_only_max_provided(self):
-        result = normalize_servings_values(None, 6)
-        assert result == (None, 6)  # No auto-population
-
-    def test_both_none(self):
-        result = normalize_servings_values(None, None)
-        assert result == (None, None)
-
-    def test_same_values(self):
-        result = normalize_servings_values(4, 4)
-        assert result == (4, 4)
