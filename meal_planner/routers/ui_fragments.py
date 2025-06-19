@@ -4,7 +4,7 @@ import logging
 
 import httpx
 from fastapi import Request
-from fasthtml.common import FT, Div, Group, P  # type: ignore
+from fasthtml.common import *
 from monsterui.all import TextArea
 from pydantic import ValidationError
 
@@ -164,7 +164,7 @@ async def _add_list_item(request: Request, item_type: str) -> FT:
     try:
         parsed_data = parse_recipe_form_data(form_data)
         current_items = parsed_data.get(item_type, [])
-        current_items.append("")  # Add an empty item
+        current_items.append("")
 
         parsed_data[item_type] = current_items
         new_current_recipe = RecipeBase(**parsed_data)
@@ -261,13 +261,11 @@ async def update_diff(request: Request) -> FT:
     except ValidationError as e:
         logger.warning("Validation error during diff update: %s", e, exc_info=False)
 
-        # Check if this is a servings validation error
         error_str = str(e)
         if (
             "Maximum servings" in error_str
             and "cannot be less than minimum servings" in error_str
         ):
-            # Extract servings values for display
             current_data = parse_recipe_form_data(form_data)
             servings_min = current_data.get("servings_min")
             servings_max = current_data.get("servings_max")
@@ -536,14 +534,11 @@ async def adjust_servings(request: Request) -> FT:
             else:
                 servings_min = servings_max
 
-        # Build updated servings section
         updated_servings_section = _build_servings_section(servings_min, servings_max)
 
-        # Update the form data with adjusted values for diff calculation
         current_data["servings_min"] = servings_min
         current_data["servings_max"] = servings_max
 
-        # Build diff update
         original_data = parse_recipe_form_data(form_data, prefix="original_")
         current_recipe = RecipeBase(**current_data)
         original_recipe = RecipeBase(**original_data)
@@ -564,7 +559,6 @@ async def adjust_servings(request: Request) -> FT:
         logger.warning(
             "Validation error during servings adjustment: %s", e, exc_info=False
         )
-        # Return servings section with error message
         current_data = parse_recipe_form_data(form_data)
         return _build_servings_section(
             current_data.get("servings_min"),
@@ -573,7 +567,6 @@ async def adjust_servings(request: Request) -> FT:
         )
     except Exception as e:
         logger.error("Error adjusting servings: %s", e, exc_info=True)
-        # Return basic servings section without adjustment
         current_data = parse_recipe_form_data(form_data)
         return _build_servings_section(
             current_data.get("servings_min"), current_data.get("servings_max")
