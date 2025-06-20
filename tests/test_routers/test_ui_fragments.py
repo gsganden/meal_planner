@@ -1284,6 +1284,42 @@ class TestAdjustMakesEndpoint:
         assert min_input and min_input.get("value") == "4"
         assert max_input and max_input.get("value") == "4"
 
+    async def test_adjust_makes_with_changed_min_parameter(self, client: AsyncClient):
+        """Test adjusting with explicit changed=min parameter."""
+        form_data = self._build_makes_form_data(
+            makes_min=8,
+            makes_max=5,
+        )
+
+        response = await client.post(
+            f"{self.ADJUST_MAKES_URL}?changed=min", data=form_data
+        )
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "8"
+        assert max_input and max_input.get("value") == "8"
+
+    async def test_adjust_makes_with_changed_max_parameter(self, client: AsyncClient):
+        """Test adjusting with explicit changed=max parameter."""
+        form_data = self._build_makes_form_data(
+            makes_min=8,
+            makes_max=5,
+        )
+
+        response = await client.post(
+            f"{self.ADJUST_MAKES_URL}?changed=max", data=form_data
+        )
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "5"
+        assert max_input and max_input.get("value") == "5"
+
     async def test_adjust_makes_valid_range_unchanged(self, client: AsyncClient):
         """Test that valid range is left unchanged."""
         form_data = self._build_makes_form_data(
