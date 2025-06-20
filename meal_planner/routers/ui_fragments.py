@@ -503,7 +503,7 @@ def _build_sortable_list_with_oob_diff(
 
 
 @rt("/recipes/ui/adjust-makes")
-async def adjust_makes(request: Request) -> FT:
+async def adjust_makes(request: Request, changed: str | None = None) -> FT:
     """Adjust makes range to prevent invalid states and update diff.
 
     When a user changes min or max makes, this endpoint automatically
@@ -512,6 +512,9 @@ async def adjust_makes(request: Request) -> FT:
 
     Args:
         request: FastAPI request containing form data with makes values.
+        changed: Which field was changed ('min' or 'max'). If not provided,
+            the function will infer which field changed by comparing with
+            original values for backward compatibility.
 
     Returns:
         Updated makes section with adjusted values and OOB diff update.
@@ -527,14 +530,19 @@ async def adjust_makes(request: Request) -> FT:
         makes_max = int(makes_max_str) if makes_max_str else None
 
         if makes_min is not None and makes_max is not None and makes_min > makes_max:
-            original_data = parse_recipe_form_data(form_data, prefix="original_")
-            original_min_str = original_data.get("makes_min")
-            original_min = int(original_min_str) if original_min_str else None
-
-            if original_min != makes_min:
+            if changed == "min":
                 makes_max = makes_min
-            else:
+            elif changed == "max":
                 makes_min = makes_max
+            else:
+                original_data = parse_recipe_form_data(form_data, prefix="original_")
+                original_min_str = original_data.get("makes_min")
+                original_min = int(original_min_str) if original_min_str else None
+
+                if original_min != makes_min:
+                    makes_max = makes_min
+                else:
+                    makes_min = makes_max
 
         updated_makes_section = build_makes_section(makes_min, makes_max, makes_unit)
 

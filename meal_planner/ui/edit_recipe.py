@@ -364,33 +364,52 @@ def build_makes_section(
     makes_unit: str | None,
     error_message: str | None = None,
 ):
-    """Builds the makes input section with separate min/max fields and unit."""
-    makes_min_input = Input(
-        id="makes_min",
-        name="makes_min",
-        label="Min",
-        type="number",
-        value=str(makes_min) if makes_min is not None else "",
-        min="1",
-        hx_post="/recipes/ui/adjust-makes",
-        hx_target="#makes-section",
-        hx_swap="outerHTML",
-        hx_trigger="input changed delay:200ms",
-        hx_include="closest form",
+    """Build the 'makes' section with min, max, and unit inputs.
+
+    Handles creation of form fields for specifying recipe yield, including
+    automatic adjustment logic via HTMX to ensure min <= max.
+
+    Args:
+        makes_min: Current minimum quantity.
+        makes_max: Current maximum quantity.
+        makes_unit: The unit of measurement (e.g., "servings", "cookies").
+        error_message: Optional validation error message to display.
+
+    Returns:
+        A FastHTML component group containing the makes input fields.
+    """
+    makes_min_input = Div(
+        FormLabel("Min", for_="makes_min"),
+        Input(
+            id="makes_min",
+            name="makes_min",
+            type="number",
+            value=makes_min if makes_min is not None else "",
+            min="1",
+            hx_post="/recipes/ui/adjust-makes?changed=min",
+            hx_target="#makes-section",
+            hx_swap="outerHTML",
+            hx_trigger="change",
+            hx_include="closest form",
+        ),
+        cls="w-full",
     )
 
-    makes_max_input = Input(
-        id="makes_max",
-        name="makes_max",
-        label="Max",
-        type="number",
-        value=str(makes_max) if makes_max is not None else "",
-        min="1",
-        hx_post="/recipes/ui/adjust-makes",
-        hx_target="#makes-section",
-        hx_swap="outerHTML",
-        hx_trigger="input changed delay:200ms",
-        hx_include="closest form",
+    makes_max_input = Div(
+        FormLabel("Max", for_="makes_max"),
+        Input(
+            id="makes_max",
+            name="makes_max",
+            type="number",
+            value=makes_max if makes_max is not None else "",
+            min="1",
+            hx_post="/recipes/ui/adjust-makes?changed=max",
+            hx_target="#makes-section",
+            hx_swap="outerHTML",
+            hx_trigger="change",
+            hx_include="closest form",
+        ),
+        cls="w-full",
     )
 
     makes_unit_input = Input(
@@ -418,9 +437,9 @@ def build_makes_section(
                 Div(makes_min_input, style="width: 5rem;"),
                 P("\u00a0to\u00a0"),
                 Div(makes_max_input, style="width: 5rem;"),
+                Div(makes_unit_input, style="flex: 1; margin-left: 0.75rem;"),
                 cls="flex gap-3 items-end mb-2",
             ),
-            Div(makes_unit_input, style="width: 10rem;"),
         ]
     )
 
