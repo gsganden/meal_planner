@@ -11,9 +11,10 @@ Recipe Name Guidelines:
 Ingredients Guidelines:
 - Extract each ingredient as a single string, including quantity and unit (e.g., "1 cup flour", "2 large eggs", "1/2 tsp salt").
 - If an explicit list of ingredients is given, use it exactly as given; do not try to infer ingredients from the instructions.
+- If ingredients are listed multiple times with different formatting, extract the version with the most formatting (bold, italics, etc.) as this is typically the main ingredient list.
 - Preserve original wording and details where possible.
 - Preserve comments in parentheses.
-- Discard formatting such as bolding or italics from the original text.
+- Preserve any formatting (like bolding or italics) from the original text, representing it using Markdown syntax (e.g., **bold**, *italic*).
 
 Recipe Instructions Guidelines:
 - Extract each instruction as a single string.
@@ -30,7 +31,7 @@ Makes Guidelines:
 - If a single number is found (e.g., "Makes 4 servings"), set both makes_min and makes_max to that number.
 - If a range is found (e.g., "Makes 4-6 servings", "Yields 12 to 15 cookies"), set makes_min to the lower number and makes_max to the higher number.
 - Extract the unit from the text (e.g., "servings", "cookies", "pieces", "portions", "cups", etc.).
-- If no unit is specified but quantity is given, default to "servings" for the unit.
+- If the text says "Serves", then the unit should be "servings".
 - If no explicit makes information is found, leave makes_min, makes_max, and makes_unit as null.
 - Only extract what is explicitly stated - do not guess or infer quantities.
 

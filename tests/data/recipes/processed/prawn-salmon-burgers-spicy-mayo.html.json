@@ -23,5 +23,5 @@
     ],
     "expected_makes_min": 4,
     "expected_makes_max": 4,
-    "expected_makes_unit": "servings"
+    "expected_makes_units": ["servings", "portions"]
 }

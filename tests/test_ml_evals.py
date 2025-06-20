@@ -128,3 +128,19 @@ async def test_extract_recipe(extracted_recipe_fixture):
         f"Expected: {expected_makes_max}\n"
         f"Actual: {actual_makes_max}"
     )
+
+    # Test recipe makes unit
+    expected_makes_units = expected_data.get("expected_makes_units")
+    actual_makes_unit = extracted_recipe.makes_unit
+    if expected_makes_units is None:
+        assert actual_makes_unit is None, (
+            f"Makes unit should be None.\n"
+            f"Expected: None\n"
+            f"Actual: {actual_makes_unit}"
+        )
+    else:
+        assert actual_makes_unit in expected_makes_units, (
+            f"Makes unit not in expected units.\n"
+            f"Expected one of: {expected_makes_units}\n"
+            f"Actual: {actual_makes_unit}"
+        )

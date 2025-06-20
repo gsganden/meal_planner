@@ -5,16 +5,16 @@
         "Homemade Falafel"
     ],
     "expected_ingredients": [
-        "1 cup dried chickpeas",
-        "1/2 small white onion, coarsely chopped",
-        "4 garlic cloves, coarsely chopped",
-        "1/4 cup fresh cilantro, coarsely chopped",
-        "1/4 cup fresh parsley, coarsely chopped",
-        "1 1/2 tsp. kosher salt",
-        "1 tsp. baking powder",
-        "1 tsp. ground coriander",
-        "1 tsp. ground cumin",
-        "1/4 cup all-purpose flour",
+        "**1** **cup** dried chickpeas",
+        "**1/2** small white onion, coarsely chopped",
+        "**4** garlic cloves, coarsely chopped",
+        "**1/4** **cup** fresh cilantro, coarsely chopped",
+        "**1/4** **cup** fresh parsley, coarsely chopped",
+        "**1** **1/2** **tsp.** kosher salt",
+        "**1** **tsp.** baking powder",
+        "**1** **tsp.** ground coriander",
+        "**1** **tsp.** ground cumin",
+        "**1/4** **cup** all-purpose flour",
         "Vegetable oil, for frying (6 to 8 cups)",
         "Tahini sauce, for serving"
     ],
@@ -27,5 +27,5 @@
     ],
     "expected_makes_min": 20,
     "expected_makes_max": 20,
-    "expected_makes_unit": "pieces"
+    "expected_makes_units": ["pieces", "falafel", "balls", "patties", "servings"]
 }
