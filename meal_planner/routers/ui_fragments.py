@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from meal_planner.core import rt
 from meal_planner.form_processing import parse_recipe_form_data
-from meal_planner.models import RecipeBase
+from meal_planner.models import MakesRangeValidationError, RecipeBase
 from meal_planner.services.extract_webpage_text import (
     fetch_and_clean_text_from_url,
 )
@@ -259,30 +259,27 @@ async def update_diff(request: Request) -> FT:
             id="diff-content-wrapper",
         )
     except ValidationError as e:
+        # Check if any of the validation errors is a makes range validation error
+        for error in e.errors():
+            if isinstance(error.get("ctx", {}).get("error"), MakesRangeValidationError):
+                current_data = parse_recipe_form_data(form_data)
+                makes_min = current_data.get("makes_min")
+                makes_max = current_data.get("makes_max")
+                makes_unit = current_data.get("makes_unit")
+
+                makes_section_with_error = build_makes_section(
+                    makes_min,
+                    makes_max,
+                    makes_unit,
+                    error_message="Max quantity cannot be less than min quantity",
+                )
+
+                return Group(
+                    makes_section_with_error,
+                    hx_swap_oob="outerHTML:#makes-section",
+                )
+
         logger.warning("Validation error during diff update: %s", e, exc_info=False)
-
-        error_str = str(e)
-        if (
-            "Maximum quantity" in error_str
-            and "cannot be less than minimum quantity" in error_str
-        ):
-            current_data = parse_recipe_form_data(form_data)
-            makes_min = current_data.get("makes_min")
-            makes_max = current_data.get("makes_max")
-            makes_unit = current_data.get("makes_unit")
-
-            makes_section_with_error = build_makes_section(
-                makes_min,
-                makes_max,
-                makes_unit,
-                error_message="Max quantity cannot be less than min quantity",
-            )
-
-            return Group(
-                makes_section_with_error,
-                hx_swap_oob="outerHTML:#makes-section",
-            )
-
         error_message = "Please check your recipe fields - there may be invalid values."
         return Div(error_message, cls=CSS_ERROR_CLASS)
     except Exception as e:
