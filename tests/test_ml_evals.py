@@ -134,9 +134,7 @@ async def test_extract_recipe(extracted_recipe_fixture):
     actual_makes_unit = extracted_recipe.makes_unit
     if expected_makes_units is None:
         assert actual_makes_unit is None, (
-            f"Makes unit should be None.\n"
-            f"Expected: None\n"
-            f"Actual: {actual_makes_unit}"
+            f"Makes unit should be None.\nExpected: None\nActual: {actual_makes_unit}"
         )
     else:
         assert actual_makes_unit in expected_makes_units, (
