@@ -16,13 +16,7 @@ from sqlmodel import Field, SQLModel
 class MakesRangeValidationError(ValueError):
     """Raised when makes_max is less than makes_min."""
 
-    def __init__(self, makes_min: int, makes_max: int):
-        self.makes_min = makes_min
-        self.makes_max = makes_max
-        super().__init__(
-            f"Maximum quantity ({makes_max}) cannot be less than minimum "
-            f"quantity ({makes_min})"
-        )
+    pass
 
 
 RecipeIngredients = Annotated[
@@ -78,7 +72,10 @@ class RecipeBase(SQLModel):
             and self.makes_min is not None
             and self.makes_max < self.makes_min
         ):
-            raise MakesRangeValidationError(self.makes_min, self.makes_max)
+            raise MakesRangeValidationError(
+                f"Maximum quantity ({self.makes_max}) cannot be less than minimum "
+                f"quantity ({self.makes_min})"
+            )
         return self
 
     @property

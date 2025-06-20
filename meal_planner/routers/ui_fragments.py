@@ -259,7 +259,6 @@ async def update_diff(request: Request) -> FT:
             id="diff-content-wrapper",
         )
     except ValidationError as e:
-        # Check if any of the validation errors is a makes range validation error
         for error in e.errors():
             if isinstance(error.get("ctx", {}).get("error"), MakesRangeValidationError):
                 current_data = parse_recipe_form_data(form_data)

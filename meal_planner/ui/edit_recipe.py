@@ -296,7 +296,6 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
         ),
     ]
 
-    # Add makes fields if they have values
     if original_recipe.makes_min is not None:
         hidden_fields.append(
             Input(
