@@ -262,9 +262,12 @@ async def update_diff(request: Request) -> FT:
         for error in e.errors():
             if isinstance(error.get("ctx", {}).get("error"), MakesRangeValidationError):
                 current_data = parse_recipe_form_data(form_data)
-                makes_min = current_data.get("makes_min")
-                makes_max = current_data.get("makes_max")
+                makes_min_str = current_data.get("makes_min")
+                makes_max_str = current_data.get("makes_max")
                 makes_unit = current_data.get("makes_unit")
+
+                makes_min = int(makes_min_str) if makes_min_str else None
+                makes_max = int(makes_max_str) if makes_max_str else None
 
                 makes_section_with_error = build_makes_section(
                     makes_min,
@@ -516,13 +519,17 @@ async def adjust_makes(request: Request) -> FT:
     form_data = await request.form()
     try:
         current_data = parse_recipe_form_data(form_data)
-        makes_min = current_data.get("makes_min")
-        makes_max = current_data.get("makes_max")
+        makes_min_str = current_data.get("makes_min")
+        makes_max_str = current_data.get("makes_max")
         makes_unit = current_data.get("makes_unit")
+
+        makes_min = int(makes_min_str) if makes_min_str else None
+        makes_max = int(makes_max_str) if makes_max_str else None
 
         if makes_min is not None and makes_max is not None and makes_min > makes_max:
             original_data = parse_recipe_form_data(form_data, prefix="original_")
-            original_min = original_data.get("makes_min")
+            original_min_str = original_data.get("makes_min")
+            original_min = int(original_min_str) if original_min_str else None
 
             if original_min != makes_min:
                 makes_max = makes_min
