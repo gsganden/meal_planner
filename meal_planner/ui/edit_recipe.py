@@ -121,23 +121,43 @@ def build_recipe_display(recipe_data: dict) -> FT:
     """Build a formatted display card for a recipe.
 
     Creates a read-only view of recipe data with proper formatting
-    for ingredients and instructions in bulleted lists.
+    for ingredients and instructions in bulleted lists, and makes
+    information if available.
 
     Args:
         recipe_data: Dictionary containing 'name', 'ingredients', 'instructions'
-            fields from a recipe.
+            and optionally 'makes_min', 'makes_max', 'makes_unit' fields from a recipe.
 
     Returns:
         MonsterUI Card component with formatted recipe display.
     """
-    components = [
-        H3(recipe_data["name"]),
-        H4("Ingredients"),
-        Ul(
-            *[Li(ing) for ing in recipe_data.get("ingredients", [])],
-            cls=ListT.bullet,
-        ),
-    ]
+    components = [H3(recipe_data["name"])]
+
+    makes_min = recipe_data.get("makes_min")
+    makes_max = recipe_data.get("makes_max")
+    makes_unit = recipe_data.get("makes_unit", "servings")
+    if makes_min is not None or makes_max is not None:
+        if makes_min == makes_max:
+            makes_text = f"Makes: {makes_min} {makes_unit}"
+        elif makes_min is not None and makes_max is not None:
+            makes_text = f"Makes: {makes_min}-{makes_max} {makes_unit}"
+        elif makes_min is not None:
+            makes_text = f"Makes: {makes_min}+ {makes_unit}"
+        elif makes_max is not None:
+            makes_text = f"Makes: up to {makes_max} {makes_unit}"
+
+        components.append(P(Strong(html.escape(makes_text)), cls="mb-4"))
+
+    components.extend(
+        [
+            H4("Ingredients"),
+            Ul(
+                *[Li(ing) for ing in recipe_data.get("ingredients", [])],
+                cls=ListT.bullet,
+            ),
+        ]
+    )
+
     instructions = recipe_data.get("instructions", [])
     if instructions:
         components.extend(
@@ -264,7 +284,7 @@ def _build_modification_controls(
 
 def _build_original_hidden_fields(original_recipe: RecipeBase):
     """Builds the hidden input fields for the original recipe data."""
-    return (
+    hidden_fields = [
         Input(type="hidden", name="original_name", value=original_recipe.name),
         *(
             Input(type="hidden", name="original_ingredients", value=ing)
@@ -274,21 +294,49 @@ def _build_original_hidden_fields(original_recipe: RecipeBase):
             Input(type="hidden", name="original_instructions", value=inst)
             for inst in original_recipe.instructions
         ),
-    )
+    ]
+
+    if original_recipe.makes_min is not None:
+        hidden_fields.append(
+            Input(
+                type="hidden",
+                name="original_makes_min",
+                value=str(original_recipe.makes_min),
+            )
+        )
+    if original_recipe.makes_max is not None:
+        hidden_fields.append(
+            Input(
+                type="hidden",
+                name="original_makes_max",
+                value=str(original_recipe.makes_max),
+            )
+        )
+    if original_recipe.makes_unit is not None:
+        hidden_fields.append(
+            Input(
+                type="hidden",
+                name="original_makes_unit",
+                value=original_recipe.makes_unit,
+            )
+        )
+
+    return tuple(hidden_fields)
 
 
 def _build_editable_section(current_recipe: RecipeBase):
-    """Builds the 'Edit Manually' section with inputs for name, ingredients.
-
-    and instructions.
-    """
+    """Builds the 'Edit Manually' section."""
     name_input = _build_name_input(current_recipe.name)
+    makes_section = build_makes_section(
+        current_recipe.makes_min, current_recipe.makes_max, current_recipe.makes_unit
+    )
     ingredients_section = _build_ingredients_section(current_recipe.ingredients)
     instructions_section = _build_instructions_section(current_recipe.instructions)
 
     return Div(
         H3("Edit Manually"),
         name_input,
+        makes_section,
         ingredients_section,
         instructions_section,
     )
@@ -307,6 +355,98 @@ def _build_name_input(name_value: str):
         hx_swap="innerHTML",
         hx_trigger="change, keyup changed delay:500ms",
         hx_include="closest form",
+    )
+
+
+def build_makes_section(
+    makes_min: int | None,
+    makes_max: int | None,
+    makes_unit: str | None,
+    error_message: str | None = None,
+):
+    """Build the 'makes' section with min, max, and unit inputs.
+
+    Handles creation of form fields for specifying recipe yield, including
+    automatic adjustment logic via HTMX to ensure min <= max.
+
+    Args:
+        makes_min: Current minimum quantity.
+        makes_max: Current maximum quantity.
+        makes_unit: The unit of measurement (e.g., "servings", "cookies").
+        error_message: Optional validation error message to display.
+
+    Returns:
+        A FastHTML component group containing the makes input fields.
+    """
+    makes_min_input = Div(
+        FormLabel("Min", for_="makes_min"),
+        Input(
+            id="makes_min",
+            name="makes_min",
+            type="number",
+            value=makes_min if makes_min is not None else "",
+            min="1",
+            hx_post="/recipes/ui/adjust-makes?changed=min",
+            hx_target="#makes-section",
+            hx_swap="outerHTML",
+            hx_trigger="change",
+            hx_include="closest form",
+        ),
+        cls="w-full",
+    )
+
+    makes_max_input = Div(
+        FormLabel("Max", for_="makes_max"),
+        Input(
+            id="makes_max",
+            name="makes_max",
+            type="number",
+            value=makes_max if makes_max is not None else "",
+            min="1",
+            hx_post="/recipes/ui/adjust-makes?changed=max",
+            hx_target="#makes-section",
+            hx_swap="outerHTML",
+            hx_trigger="change",
+            hx_include="closest form",
+        ),
+        cls="w-full",
+    )
+
+    makes_unit_input = Input(
+        id="makes_unit",
+        name="makes_unit",
+        label="Unit",
+        type="text",
+        value=makes_unit or "",
+        placeholder="servings, cookies, pieces",
+        hx_post="/recipes/ui/update-diff",
+        hx_target="#diff-content-wrapper",
+        hx_swap="innerHTML",
+        hx_trigger="change, keyup changed delay:500ms",
+        hx_include="closest form",
+    )
+
+    components = [H4("Makes")]
+
+    if error_message:
+        components.append(P(error_message, cls="text-red-600 text-sm mb-2"))
+
+    components.extend(
+        [
+            Div(
+                Div(makes_min_input, style="width: 5rem;"),
+                P("\u00a0to\u00a0"),
+                Div(makes_max_input, style="width: 5rem;"),
+                Div(makes_unit_input, style="flex: 1; margin-left: 0.75rem;"),
+                cls="flex gap-3 items-end mb-2",
+            ),
+        ]
+    )
+
+    return Div(
+        *components,
+        cls="mb-4",
+        id="makes-section",
     )
 
 

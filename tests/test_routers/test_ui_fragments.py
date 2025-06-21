@@ -164,7 +164,7 @@ class TestUpdateDiffEndpoint:
 
         assert response.status_code == 200
         html = response.text
-        assert "Recipe state invalid for diff. Please check all fields." in html
+        assert "Please check your recipe fields - there may be invalid values." in html
         assert "diff-content-wrapper" not in html
 
         mock_logger_warning.assert_called_once()
@@ -1211,3 +1211,408 @@ class TestGetHttpErrorMessage:
         """
         result = _get_http_error_message(403, perimeterx_response)
         assert "security measures that block automated access" in result
+
+
+@pytest.mark.anyio
+class TestAdjustMakesEndpoint:
+    """Test the /recipes/ui/adjust-makes endpoint."""
+
+    ADJUST_MAKES_URL = "/recipes/ui/adjust-makes"
+
+    def _build_makes_form_data(
+        self,
+        makes_min=None,
+        makes_max=None,
+        original_makes_min=None,
+        original_makes_max=None,
+        **kwargs,
+    ) -> dict:
+        """Build form data with makes fields."""
+        base_data = _build_ui_fragment_form_data(**kwargs)
+
+        if makes_min is not None:
+            base_data["makes_min"] = str(makes_min)
+        if makes_max is not None:
+            base_data["makes_max"] = str(makes_max)
+        if original_makes_min is not None:
+            base_data["original_makes_min"] = str(original_makes_min)
+        if original_makes_max is not None:
+            base_data["original_makes_max"] = str(original_makes_max)
+
+        return base_data
+
+    async def test_adjust_makes_min_greater_than_max_adjust_max(
+        self, client: AsyncClient
+    ):
+        """Test adjusting max when min is greater and min was changed."""
+        form_data = self._build_makes_form_data(
+            makes_min=6,
+            makes_max=4,
+            original_makes_min=2,  # min changed from 2 to 6
+            original_makes_max=4,  # max unchanged
+        )
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        makes_section = soup.find("div", id="makes-section")
+        assert makes_section
+
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "6"
+        assert max_input and max_input.get("value") == "6"
+
+    async def test_adjust_makes_min_greater_than_max_adjust_min(
+        self, client: AsyncClient
+    ):
+        """Test adjusting min when max is lower and max was changed."""
+        form_data = self._build_makes_form_data(
+            makes_min=6,
+            makes_max=4,
+            original_makes_min=6,  # min unchanged
+            original_makes_max=8,  # max changed from 8 to 4
+        )
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "4"
+        assert max_input and max_input.get("value") == "4"
+
+    async def test_adjust_makes_with_changed_min_parameter(self, client: AsyncClient):
+        """Test adjusting with explicit changed=min parameter."""
+        form_data = self._build_makes_form_data(
+            makes_min=8,
+            makes_max=5,
+        )
+
+        response = await client.post(
+            f"{self.ADJUST_MAKES_URL}?changed=min", data=form_data
+        )
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "8"
+        assert max_input and max_input.get("value") == "8"
+
+    async def test_adjust_makes_with_changed_max_parameter(self, client: AsyncClient):
+        """Test adjusting with explicit changed=max parameter."""
+        form_data = self._build_makes_form_data(
+            makes_min=8,
+            makes_max=5,
+        )
+
+        response = await client.post(
+            f"{self.ADJUST_MAKES_URL}?changed=max", data=form_data
+        )
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "5"
+        assert max_input and max_input.get("value") == "5"
+
+    async def test_adjust_makes_valid_range_unchanged(self, client: AsyncClient):
+        """Test that valid range is left unchanged."""
+        form_data = self._build_makes_form_data(
+            makes_min=4,
+            makes_max=6,
+        )
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "4"
+        assert max_input and max_input.get("value") == "6"
+
+    async def test_adjust_makes_includes_diff_update(self, client: AsyncClient):
+        """Test that adjust makes includes OOB diff update."""
+        form_data = self._build_makes_form_data(
+            makes_min=4,
+            makes_max=6,
+        )
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Check for makes section
+        makes_section = soup.find("div", id="makes-section")
+        assert makes_section
+
+        # Check for OOB diff update
+        oob_diff = soup.find("div", {"hx-swap-oob": "innerHTML:#diff-content-wrapper"})
+        assert oob_diff
+
+    @patch("meal_planner.routers.ui_fragments.logger.warning")
+    async def test_adjust_makes_validation_error(
+        self, mock_logger_warning, client: AsyncClient
+    ):
+        """Test adjust makes with validation error."""
+        # Create form data that will cause validation error (e.g., empty name)
+        form_data = self._build_makes_form_data(
+            makes_min=4,
+            makes_max=6,
+            name="",  # This will cause validation error
+        )
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        # Should return makes section with error message
+        soup = BeautifulSoup(response.text, "html.parser")
+        makes_section = soup.find("div", id="makes-section")
+        assert makes_section
+
+        mock_logger_warning.assert_called_once()
+
+    @patch("meal_planner.routers.ui_fragments.logger.error")
+    @patch("meal_planner.routers.ui_fragments.build_diff_content_children")
+    async def test_adjust_makes_general_exception(
+        self, mock_build_diff, mock_logger_error, client: AsyncClient
+    ):
+        """Test adjust makes with general exception."""
+        # Make build_diff_content_children raise an exception
+        mock_build_diff.side_effect = RuntimeError("Test error")
+
+        form_data = self._build_makes_form_data(makes_min=4, makes_max=6)
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        # Should return basic makes section without adjustment
+        soup = BeautifulSoup(response.text, "html.parser")
+        makes_section = soup.find("div", id="makes-section")
+        assert makes_section
+
+        mock_logger_error.assert_called_once()
+
+    async def test_adjust_makes_default_when_no_original(self, client: AsyncClient):
+        """Test adjustment logic when original values are not provided."""
+        form_data = self._build_makes_form_data(
+            makes_min=8,
+            makes_max=4,  # Invalid range
+            # No original values provided
+        )
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        # Should default to adjusting max when no original to compare
+        assert min_input and min_input.get("value") == "8"
+        assert max_input and max_input.get("value") == "8"
+
+    async def test_adjust_makes_empty_both_values(self, client: AsyncClient):
+        """Test adjust makes when both values are None/empty."""
+        form_data = self._build_makes_form_data(
+            # Both makes_min and makes_max are None
+        )
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        makes_section = soup.find("div", id="makes-section")
+        assert makes_section
+
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and (
+            min_input.get("value") is None or min_input.get("value") == ""
+        )
+        assert max_input and (
+            max_input.get("value") is None or max_input.get("value") == ""
+        )
+
+    async def test_adjust_makes_only_min_set_stays_empty(self, client: AsyncClient):
+        """Test that when only min is set, max stays empty (no auto-population)."""
+        form_data = {
+            "name": "Test Recipe",
+            "ingredients": ["ing1"],
+            "instructions": ["step1"],
+            "original_name": "Test Recipe",
+            "original_ingredients": ["ing1"],
+            "original_instructions": ["step1"],
+            "makes_min": "4",
+            # makes_max omitted - should stay empty
+        }
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "4"
+        assert max_input and (
+            max_input.get("value") is None or max_input.get("value") == ""
+        )
+
+    async def test_adjust_makes_only_max_set_stays_empty(self, client: AsyncClient):
+        """Test that when only max is set, min stays empty (no auto-population)."""
+        form_data = {
+            "name": "Test Recipe",
+            "ingredients": ["ing1"],
+            "instructions": ["step1"],
+            "original_name": "Test Recipe",
+            "original_ingredients": ["ing1"],
+            "original_instructions": ["step1"],
+            "makes_max": "6",
+            # makes_min omitted - should stay empty
+        }
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and (
+            min_input.get("value") is None or min_input.get("value") == ""
+        )
+        assert max_input and max_input.get("value") == "6"
+
+    async def test_adjust_makes_user_clears_value_stays_cleared(
+        self, client: AsyncClient
+    ):
+        """Test that if user clears a value, it stays cleared."""
+        form_data = {
+            "name": "Test Recipe",
+            "ingredients": ["ing1"],
+            "instructions": ["step1"],
+            "original_name": "Test Recipe",
+            "original_ingredients": ["ing1"],
+            "original_instructions": ["step1"],
+            "original_makes_min": "4",
+            "original_makes_max": "6",
+            "makes_min": "4",
+            # User cleared makes_max - should stay cleared
+        }
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        assert min_input and min_input.get("value") == "4"
+        assert max_input and (
+            max_input.get("value") is None or max_input.get("value") == ""
+        )
+
+    async def test_adjust_makes_parse_form_data_exception(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """Test adjust makes when parse_recipe_form_data raises exception."""
+        from meal_planner.routers import ui_fragments
+
+        def mock_parse_error(*args, **kwargs):
+            raise ValueError("Parse error")
+
+        monkeypatch.setattr(ui_fragments, "parse_recipe_form_data", mock_parse_error)
+
+        form_data = self._build_makes_form_data(makes_min=4, makes_max=6)
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        makes_section = soup.find("div", id="makes-section")
+        assert makes_section
+
+        # Should have empty inputs when parse fails
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        unit_input = soup.find("input", {"name": "makes_unit"})
+        assert min_input and (
+            min_input.get("value") is None or min_input.get("value") == ""
+        )
+        assert max_input and (
+            max_input.get("value") is None or max_input.get("value") == ""
+        )
+        assert unit_input and (
+            unit_input.get("value") is None or unit_input.get("value") == ""
+        )
+
+
+@pytest.mark.anyio
+class TestMakesValidationErrorHandling:
+    """Test makes validation error handling in update_diff endpoint."""
+
+    UPDATE_DIFF_URL = "/recipes/ui/update-diff"
+
+    def _build_makes_diff_form_data(
+        self,
+        makes_min=None,
+        makes_max=None,
+        original_makes_min=None,
+        original_makes_max=None,
+        **kwargs,
+    ) -> dict:
+        """Build form data for diff update with makes."""
+        base_data = _build_ui_fragment_form_data(**kwargs)
+
+        if makes_min is not None:
+            base_data["makes_min"] = str(makes_min)
+        if makes_max is not None:
+            base_data["makes_max"] = str(makes_max)
+        if original_makes_min is not None:
+            base_data["original_makes_min"] = str(original_makes_min)
+        if original_makes_max is not None:
+            base_data["original_makes_max"] = str(original_makes_max)
+
+        return base_data
+
+    async def test_update_diff_makes_validation_error_specific_handling(
+        self, client: AsyncClient
+    ):
+        """Test specific handling of makes validation errors in update_diff."""
+        form_data = self._build_makes_diff_form_data(
+            makes_min=6,
+            makes_max=4,  # Invalid: max < min
+            original_makes_min=4,
+            original_makes_max=6,
+        )
+
+        response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
+        assert response.status_code == 200
+
+        # Should return OOB makes section with specific error message
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Check for OOB swap to makes section
+        oob_makes = soup.find(attrs={"hx-swap-oob": "outerHTML:#makes-section"})
+        assert oob_makes is not None
+
+        # Should contain specific makes error message
+        error_text = soup.get_text()
+        assert "Max quantity cannot be less than min quantity" in error_text
+
+    async def test_update_diff_non_makes_validation_error(self, client: AsyncClient):
+        """Test that non-makes validation errors use generic handling."""
+        form_data = self._build_makes_diff_form_data(
+            name="",  # Empty name will cause validation error
+            makes_min=4,
+            makes_max=6,
+        )
+
+        response = await client.post(self.UPDATE_DIFF_URL, data=form_data)
+        assert response.status_code == 200
+
+        # Should return generic error message (not makes-specific)
+        assert "Please check your recipe fields" in response.text

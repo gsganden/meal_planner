@@ -69,17 +69,34 @@ Install pre-commit hooks:
 pre-commit install --hook-type pre-push -f
 ```
 
-## Run App Locally
+## Run App
+
+Run locally:
 
 ```bash
 uv run modal serve deploy.py
 ```
 
+Merging a PR into `main` triggers deployment as part of a CI/CD process. THat is our usual deployment flow but we can deploy directly from local in a pinch, e.g. for an urgent hotfix:
+
+```bash
+uv run modal deploy deploy.py
+```
+
 ## Run Database Migrations
+
+Run Alembic migrations:
 
 ```bash
 uv run modal run deploy.py::migrate_db
 ```
+
+You can also run Alembic CLI commands directly, e.g.:
+
+```bash
+uv run modal shell deploy.py::migrate_db -c "alembic current"
+```
+
 
 ## Run Tests
 

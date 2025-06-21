@@ -4,19 +4,21 @@ import logging
 
 import httpx
 from fastapi import Request
-from fasthtml.common import FT, Div, Group, P  # type: ignore
+from fasthtml.common import *
 from monsterui.all import TextArea
 from pydantic import ValidationError
+from starlette.datastructures import FormData
 
 from meal_planner.core import rt
 from meal_planner.form_processing import parse_recipe_form_data
-from meal_planner.models import RecipeBase
+from meal_planner.models import MakesRangeValidationError, RecipeBase
 from meal_planner.services.extract_webpage_text import (
     fetch_and_clean_text_from_url,
 )
 from meal_planner.ui.common import CSS_ERROR_CLASS
 from meal_planner.ui.edit_recipe import (
     build_diff_content_children,
+    build_makes_section,
     render_ingredient_list_items,
     render_instruction_list_items,
 )
@@ -163,7 +165,7 @@ async def _add_list_item(request: Request, item_type: str) -> FT:
     try:
         parsed_data = parse_recipe_form_data(form_data)
         current_items = parsed_data.get(item_type, [])
-        current_items.append("")  # Add an empty item
+        current_items.append("")
 
         parsed_data[item_type] = current_items
         new_current_recipe = RecipeBase(**parsed_data)
@@ -258,8 +260,30 @@ async def update_diff(request: Request) -> FT:
             id="diff-content-wrapper",
         )
     except ValidationError as e:
+        for error in e.errors():
+            if isinstance(error.get("ctx", {}).get("error"), MakesRangeValidationError):
+                current_data = parse_recipe_form_data(form_data)
+                makes_min_str = current_data.get("makes_min")
+                makes_max_str = current_data.get("makes_max")
+                makes_unit = current_data.get("makes_unit")
+
+                makes_min = int(makes_min_str) if makes_min_str else None
+                makes_max = int(makes_max_str) if makes_max_str else None
+
+                makes_section_with_error = build_makes_section(
+                    makes_min,
+                    makes_max,
+                    makes_unit,
+                    error_message="Max quantity cannot be less than min quantity",
+                )
+
+                return Group(
+                    makes_section_with_error,
+                    hx_swap_oob="outerHTML:#makes-section",
+                )
+
         logger.warning("Validation error during diff update: %s", e, exc_info=False)
-        error_message = "Recipe state invalid for diff. Please check all fields."
+        error_message = "Please check your recipe fields - there may be invalid values."
         return Div(error_message, cls=CSS_ERROR_CLASS)
     except Exception as e:
         logger.error("Error updating diff: %s", e, exc_info=True)
@@ -477,3 +501,108 @@ def _build_sortable_list_with_oob_diff(
         hx_swap_oob="innerHTML:#diff-content-wrapper",
     )
     return Group(list_component, oob_diff_component)
+
+
+def _adjust_makes_values(
+    makes_min: int | None,
+    makes_max: int | None,
+    changed: str | None,
+    form_data: FormData,
+) -> tuple[int | None, int | None]:
+    """Adjust min/max values to ensure valid range."""
+    if makes_min is None or makes_max is None or makes_min <= makes_max:
+        return makes_min, makes_max
+
+    if changed == "min":
+        return makes_min, makes_min
+    elif changed == "max":
+        return makes_max, makes_max
+    else:
+        original_data = parse_recipe_form_data(form_data, prefix="original_")
+        original_min_str = original_data.get("makes_min")
+        original_min = int(original_min_str) if original_min_str else None
+
+        if original_min != makes_min:
+            return makes_min, makes_min
+        else:
+            return makes_max, makes_max
+
+
+def _build_diff_oob_component(
+    original_recipe: RecipeBase, current_recipe: RecipeBase
+) -> FT:
+    """Build out-of-band diff component for HTMX updates."""
+    before_component, after_component = build_diff_content_children(
+        original_recipe, current_recipe.markdown
+    )
+    return Div(
+        before_component,
+        after_component,
+        cls="flex space-x-4 mt-4",
+        hx_swap_oob="innerHTML:#diff-content-wrapper",
+    )
+
+
+@rt("/recipes/ui/adjust-makes")
+async def adjust_makes(request: Request, changed: str | None = None) -> FT:
+    """Adjust makes range to prevent invalid states and update diff.
+
+    When a user changes min or max makes, this endpoint automatically
+    adjusts the other value if needed to maintain a valid range, then
+    returns the updated makes section with OOB diff update.
+
+    Args:
+        request: FastAPI request containing form data with makes values.
+        changed: Which field was changed ('min' or 'max'). If not provided,
+            the function will infer which field changed by comparing with
+            original values for backward compatibility.
+
+    Returns:
+        Updated makes section with adjusted values and OOB diff update.
+    """
+    form_data = await request.form()
+
+    try:
+        current_data = parse_recipe_form_data(form_data)
+    except Exception as e:
+        logger.error("Error parsing form data: %s", e, exc_info=True)
+        return build_makes_section(None, None, None)
+
+    makes_min_str = current_data.get("makes_min")
+    makes_max_str = current_data.get("makes_max")
+    makes_unit = current_data.get("makes_unit")
+
+    makes_min = int(makes_min_str) if makes_min_str else None
+    makes_max = int(makes_max_str) if makes_max_str else None
+
+    makes_min, makes_max = _adjust_makes_values(
+        makes_min, makes_max, changed, form_data
+    )
+
+    current_data["makes_min"] = makes_min
+    current_data["makes_max"] = makes_max
+    current_data["makes_unit"] = makes_unit
+
+    try:
+        original_data = parse_recipe_form_data(form_data, prefix="original_")
+        current_recipe = RecipeBase(**current_data)
+        original_recipe = RecipeBase(**original_data)
+    except ValidationError as e:
+        logger.warning(
+            "Validation error during makes adjustment: %s", e, exc_info=False
+        )
+        return build_makes_section(
+            makes_min,
+            makes_max,
+            makes_unit,
+            error_message="Please enter valid makes numbers",
+        )
+
+    updated_makes_section = build_makes_section(makes_min, makes_max, makes_unit)
+
+    try:
+        oob_diff_component = _build_diff_oob_component(original_recipe, current_recipe)
+        return Group(updated_makes_section, oob_diff_component)
+    except Exception as e:
+        logger.error("Error building diff component: %s", e, exc_info=True)
+        return updated_makes_section
