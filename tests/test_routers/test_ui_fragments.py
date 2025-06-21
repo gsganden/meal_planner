@@ -1154,6 +1154,7 @@ class TestFetchTextEndpoint:
             # Invalid hostname extraction
             ("http://[invalid-ipv6", "Invalid URL format"),
             ("http:///path-only", "Invalid URL: missing domain"),
+            ("http://:8080/path", "could not extract hostname"),
             # Multicast addresses
             ("http://224.0.0.1/test", "Multicast addresses are not allowed"),
         ],
