@@ -33,7 +33,7 @@ def create_extraction_form() -> Card:
             Div(
                 Button(
                     "Fetch Text from URL",
-                    hx_post="/recipes/fetch-text",
+                    hx_post="/recipes/ui/fetch-text",
                     hx_target="#recipe_text_container",
                     hx_swap="outerHTML",
                     hx_include="[name='input_url']",

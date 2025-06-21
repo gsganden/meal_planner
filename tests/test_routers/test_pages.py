@@ -104,7 +104,10 @@ class TestGetRecipeListPage:
         client: AsyncClient,
     ):
         mock_api_client.get.return_value = create_mock_api_response(
-            status_code=200, json_data=[{"id": 1, "name": "Recipe One"}]
+            status_code=200,
+            json_data=[
+                {"id": "7dfc4e17-5b0c-4e08-8de1-8db9e7321711", "name": "Recipe One"}
+            ],
         )
 
         response = await client.get(RECIPES_LIST_PATH)
@@ -113,7 +116,7 @@ class TestGetRecipeListPage:
         assert 'id="recipe-list-area"' in response.text
         assert '<ul id="recipe-list-ul">' in response.text
         assert "Recipe One" in response.text
-        assert 'id="recipe-item-1"' in response.text
+        assert 'id="recipe-item-7dfc4e17-5b0c-4e08-8de1-8db9e7321711"' in response.text
         mock_api_client.get.assert_called_once_with("/v0/recipes")
 
     @patch("meal_planner.routers.pages.internal_api_client", autospec=True)
@@ -124,7 +127,13 @@ class TestGetRecipeListPage:
     ):
         """Test successful recipe list retrieval via HTMX request."""
         mock_api_client.get.return_value = create_mock_api_response(
-            status_code=200, json_data=[{"id": 1, "name": "Recipe One HTMX"}]
+            status_code=200,
+            json_data=[
+                {
+                    "id": "7dfc4e17-5b0c-4e08-8de1-8db9e7321711",
+                    "name": "Recipe One HTMX",
+                }
+            ],
         )
 
         headers = {"HX-Request": "true"}
@@ -135,7 +144,7 @@ class TestGetRecipeListPage:
         assert 'id="recipe-list-area"' in response.text
         assert '<ul id="recipe-list-ul">' in response.text
         assert "Recipe One HTMX" in response.text
-        assert 'id="recipe-item-1"' in response.text
+        assert 'id="recipe-item-7dfc4e17-5b0c-4e08-8de1-8db9e7321711"' in response.text
         mock_api_client.get.assert_called_once_with("/v0/recipes")
 
     @patch("meal_planner.routers.pages.internal_api_client", autospec=True)
@@ -158,7 +167,7 @@ class TestGetRecipeListPage:
 
 @pytest.mark.anyio
 class TestGetSingleRecipePage:
-    RECIPE_ID = 123
+    RECIPE_ID = "12345678-1234-1234-1234-123456789012"
     API_URL = f"/v0/recipes/{RECIPE_ID}"
     PAGE_URL = f"/recipes/{RECIPE_ID}"
 
