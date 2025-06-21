@@ -1,9 +1,29 @@
-"""Tests specifically for makes functionality in models."""
+"""Tests for meal_planner.models module."""
 
 import pytest
 from pydantic import ValidationError
 
 from meal_planner.models import RecipeBase
+
+
+class TestRecipeBase:
+    """Test RecipeBase model functionality."""
+
+    def test_recipe_base_creation(self):
+        """Test basic RecipeBase creation."""
+        recipe = RecipeBase(
+            name="Test Recipe",
+            ingredients=["ingredient 1", "ingredient 2"],
+            instructions=["step 1", "step 2"],
+        )
+        assert recipe.name == "Test Recipe"
+        assert len(recipe.ingredients) == 2
+        assert len(recipe.instructions) == 2
+
+    def test_recipe_base_required_fields(self):
+        """Test that required fields are enforced."""
+        with pytest.raises(ValidationError):
+            RecipeBase(name="Test")  # Missing ingredients and instructions
 
 
 class TestRecipeMakesValidation:
