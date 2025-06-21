@@ -689,7 +689,7 @@ class TestUpdateRecipe:
         self, client: AsyncClient, updated_recipe_payload: dict
     ):
         """Test updating a non-existent recipe returns 404."""
-        non_existent_id = 99999
+        non_existent_id = "99999999-9999-9999-9999-999999999999"
         response = await client.put(
             f"/api/v0/recipes/{non_existent_id}", json=updated_recipe_payload
         )
@@ -749,7 +749,7 @@ class TestUpdateRecipe:
 
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error retrieving recipe"}
-            mock_get.assert_called_once_with(Recipe, recipe_id)
+            mock_get.assert_called_once_with(Recipe, UUID(recipe_id))
 
     async def test_update_recipe_db_commit_error(
         self, client: AsyncClient, created_recipe: dict, updated_recipe_payload: dict
@@ -779,7 +779,7 @@ class TestUpdateRecipe:
         recipe_id = created_recipe["id"]
 
         # Get original timestamps from database
-        original_recipe = dbsession.get(Recipe, recipe_id)
+        original_recipe = dbsession.get(Recipe, UUID(recipe_id))
         assert original_recipe is not None
         original_created_at = original_recipe.created_at
         original_updated_at = original_recipe.updated_at
@@ -797,7 +797,7 @@ class TestUpdateRecipe:
 
         # Fetch updated recipe from database
         dbsession.expire_all()  # Clear session cache
-        updated_recipe = dbsession.get(Recipe, recipe_id)
+        updated_recipe = dbsession.get(Recipe, UUID(recipe_id))
         assert updated_recipe is not None
 
         # Verify timestamp behavior

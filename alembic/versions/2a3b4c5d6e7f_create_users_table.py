@@ -22,21 +22,7 @@ def upgrade() -> None:
     """Upgrade schema."""
     op.create_table(
         "users",
-        sa.Column(
-            "id",
-            sa.String(32),
-            sa.CheckConstraint(
-                "LENGTH(id) = 32 AND id GLOB "
-                "'[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
-                "[0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
-                "[0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
-                "[0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
-                "[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]"
-                "[0-9a-f][0-9a-f][0-9a-f][0-9a-f]'",
-                name="ck_users_id_uuid_format",
-            ),
-            primary_key=True,
-        ),
+        sa.Column("id", sa.String(36), primary_key=True),
         sa.Column("username", sa.String(), nullable=False),
         sa.Column(
             "created_at",
@@ -58,7 +44,7 @@ def upgrade() -> None:
         """
         INSERT INTO users (id, username, created_at, updated_at)
         VALUES (
-            '7dfc4e175b0c4e088de18db9e7321711',
+            '7dfc4e17-5b0c-4e08-8de1-8db9e7321711',
             'demo_user',
             CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP

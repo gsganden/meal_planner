@@ -28,6 +28,9 @@ def upgrade() -> None:
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("ingredients", sa.JSON(), nullable=False),
         sa.Column("instructions", sa.JSON(), nullable=False),
+        sa.Column("makes_min", sa.Integer(), nullable=True),
+        sa.Column("makes_max", sa.Integer(), nullable=True),
+        sa.Column("makes_unit", sa.String(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -48,8 +51,8 @@ def upgrade() -> None:
     # Get all existing recipes
     recipes = connection.execute(
         sa.text(
-            "SELECT id, name, ingredients, instructions, "
-            "created_at, updated_at FROM recipes"
+            "SELECT id, name, ingredients, instructions, makes_min, makes_max, "
+            "makes_unit, created_at, updated_at FROM recipes"
         )
     ).fetchall()
 
@@ -59,10 +62,12 @@ def upgrade() -> None:
         connection.execute(
             sa.text("""
                 INSERT INTO recipes_new (
-                    id, name, ingredients, instructions, created_at, updated_at
+                    id, name, ingredients, instructions, makes_min, makes_max,
+                    makes_unit, created_at, updated_at
                 )
                 VALUES (
-                    :id, :name, :ingredients, :instructions, :created_at, :updated_at
+                    :id, :name, :ingredients, :instructions, :makes_min, :makes_max,
+                    :makes_unit, :created_at, :updated_at
                 )
             """),
             {
@@ -70,6 +75,9 @@ def upgrade() -> None:
                 "name": recipe.name,
                 "ingredients": recipe.ingredients,
                 "instructions": recipe.instructions,
+                "makes_min": recipe.makes_min,
+                "makes_max": recipe.makes_max,
+                "makes_unit": recipe.makes_unit,
                 "created_at": recipe.created_at,
                 "updated_at": recipe.updated_at,
             },

@@ -152,7 +152,7 @@ async def get_recipe_by_id(
 
 @API_ROUTER.put("/v0/recipes/{recipe_id}", response_model=Recipe)
 async def update_recipe(
-    recipe_id: int,
+    recipe_id: UUID,
     recipe_data: RecipeBase,
     session: Annotated[Session, Depends(get_session)],
 ):
