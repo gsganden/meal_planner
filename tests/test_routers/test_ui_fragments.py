@@ -1515,6 +1515,40 @@ class TestAdjustMakesEndpoint:
             max_input.get("value") is None or max_input.get("value") == ""
         )
 
+    async def test_adjust_makes_parse_form_data_exception(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """Test adjust makes when parse_recipe_form_data raises exception."""
+        from meal_planner.routers import ui_fragments
+
+        def mock_parse_error(*args, **kwargs):
+            raise ValueError("Parse error")
+
+        monkeypatch.setattr(ui_fragments, "parse_recipe_form_data", mock_parse_error)
+
+        form_data = self._build_makes_form_data(makes_min=4, makes_max=6)
+
+        response = await client.post(self.ADJUST_MAKES_URL, data=form_data)
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        makes_section = soup.find("div", id="makes-section")
+        assert makes_section
+
+        # Should have empty inputs when parse fails
+        min_input = soup.find("input", {"name": "makes_min"})
+        max_input = soup.find("input", {"name": "makes_max"})
+        unit_input = soup.find("input", {"name": "makes_unit"})
+        assert min_input and (
+            min_input.get("value") is None or min_input.get("value") == ""
+        )
+        assert max_input and (
+            max_input.get("value") is None or max_input.get("value") == ""
+        )
+        assert unit_input and (
+            unit_input.get("value") is None or unit_input.get("value") == ""
+        )
+
 
 @pytest.mark.anyio
 class TestMakesValidationErrorHandling:
