@@ -316,7 +316,7 @@ class TestGetRecipeById:
 
     async def test_get_recipe_not_found(self, client: AsyncClient):
         """Test GET /api/recipes/{recipe_id} returns 404 for a non-existent ID."""
-        non_existent_id = str(UUID("12345678-1234-1234-1234-123456789012"))
+        non_existent_id = "12345678-1234-1234-1234-123456789012"
         response = await client.get(f"/api/v0/recipes/{non_existent_id}")
         assert response.status_code == 404
         assert response.json() == {"detail": "Recipe not found"}
@@ -341,14 +341,14 @@ class TestDeleteRecipe:
     @pytest_asyncio.fixture()
     async def created_recipe_id(
         self, client: AsyncClient, valid_recipe_payload: dict
-    ) -> str:
+    ) -> UUID:
         """Creates a recipe and returns its ID."""
         response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
         assert response.status_code == 201
-        return response.json()["id"]
+        return UUID(response.json()["id"])
 
     async def test_delete_recipe_success(
-        self, client: AsyncClient, created_recipe_id: str
+        self, client: AsyncClient, created_recipe_id: UUID
     ):
         """Test successful deletion of an existing recipe."""
         delete_response = await client.delete(f"/api/v0/recipes/{created_recipe_id}")
@@ -359,13 +359,13 @@ class TestDeleteRecipe:
 
     async def test_delete_non_existent_recipe(self, client: AsyncClient):
         """Test deleting a recipe that does not exist."""
-        non_existent_id = str(UUID("12345678-1234-1234-1234-123456789012"))
+        non_existent_id = "12345678-1234-1234-1234-123456789012"
         response = await client.delete(f"/api/v0/recipes/{non_existent_id}")
         assert response.status_code == 404
         assert response.json() == {"detail": "Recipe not found"}
 
     async def test_delete_recipe_db_fetch_error(
-        self, client: AsyncClient, monkeypatch, created_recipe_id: str
+        self, client: AsyncClient, monkeypatch, created_recipe_id: UUID
     ):
         """Test handling of database errors when fetching a recipe for deletion."""
         with patch("sqlmodel.Session.get") as mock_get:
@@ -377,10 +377,10 @@ class TestDeleteRecipe:
             assert response.json() == {
                 "detail": "Database error fetching recipe for deletion"
             }
-            mock_get.assert_called_once_with(Recipe, UUID(created_recipe_id))
+            mock_get.assert_called_once_with(Recipe, created_recipe_id)
 
     async def test_delete_recipe_db_delete_error(
-        self, client: AsyncClient, monkeypatch, created_recipe_id: str
+        self, client: AsyncClient, monkeypatch, created_recipe_id: UUID
     ):
         """Test handling of database errors during the actual delete operation."""
         get_response = await client.get(f"/api/v0/recipes/{created_recipe_id}")
