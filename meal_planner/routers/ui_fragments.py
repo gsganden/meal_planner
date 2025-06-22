@@ -45,62 +45,63 @@ def _validate_url_for_ssrf(url: str) -> tuple[bool, str]:
     try:
         parsed = urlparse(url)
 
-        # Check for valid scheme
         if parsed.scheme not in ("http", "https"):
             return False, "Only HTTP and HTTPS URLs are allowed"
 
-        # Check for non-empty netloc (domain)
         if not parsed.netloc:
             return False, "Invalid URL: missing domain"
 
-        # Extract hostname (remove port if present)
         hostname = parsed.hostname
         if not hostname:
             return False, "Invalid URL: could not extract hostname"
 
-        # Check if hostname is an IP address
-        try:
-            ip = ipaddress.ip_address(hostname)
-
-            # Check specific IP types first (more specific checks before general ones)
-            # Block loopback addresses
+        ip = _try_parse_ip(hostname)
+        if ip:
             if ip.is_loopback:
                 return False, "Loopback addresses are not allowed"
 
-            # Block link-local addresses
             if ip.is_link_local:
                 return False, "Link-local addresses are not allowed"
 
-            # Block multicast addresses
             if ip.is_multicast:
                 return False, "Multicast addresses are not allowed"
 
-            # Block private IP ranges (after more specific checks)
             if ip.is_private:
                 return False, "Private IP addresses are not allowed"
-
-        except ValueError:
-            # Not an IP address, it's a domain name - this is fine
-            # Additional domain validation could go here if needed
-            pass
-
-        # Block common internal hostnames
-        internal_hostnames = {
-            "localhost",
-            "localhost.localdomain",
-            "metadata",
-            "metadata.google.internal",
-            "instance-data",
-            "link-local",
-        }
-        if hostname.lower() in internal_hostnames:
-            return False, "Internal hostnames are not allowed"
+        else:
+            internal_hostnames = {
+                "localhost",
+                "localhost.localdomain",
+                "metadata",
+                "metadata.google.internal",
+                "instance-data",
+                "link-local",
+            }
+            if hostname.lower() in internal_hostnames:
+                return False, "Internal hostnames are not allowed"
 
         return True, ""
 
     except Exception as e:
         logger.warning("URL validation error for %s: %s", url, e)
         return False, "Invalid URL format"
+
+
+def _try_parse_ip(
+    hostname: str,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Attempt to parse a hostname as an IP address.
+
+    Args:
+        hostname: The hostname string to parse.
+
+    Returns:
+        An ipaddress object if parsing succeeds, otherwise None.
+    """
+    try:
+        return ipaddress.ip_address(hostname)
+    except ValueError:
+        return None
 
 
 async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
