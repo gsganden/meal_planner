@@ -407,7 +407,6 @@ async def post_fetch_text(request: Request):
         logger.error("Fetch text called without URL.")
         return _prepare_error_response("Please provide a Recipe URL to fetch.")
 
-    # Validate URL to prevent SSRF attacks
     is_valid, error_message = _validate_url_for_ssrf(input_url)
     if not is_valid:
         logger.warning(
