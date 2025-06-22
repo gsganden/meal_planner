@@ -1163,18 +1163,18 @@ class TestFetchTextEndpoint:
         self, client: AsyncClient, invalid_url: str, expected_error_fragment: str
     ):
         """Test that URL validation blocks potentially unsafe URLs."""
-        response = await client.post(
-            RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: invalid_url}
-        )
-
-        assert response.status_code == 200
-        assert f"Invalid URL: {expected_error_fragment}" in response.text
-        assert f'class="{CSS_ERROR_CLASS}"' in response.text
-
-        # Ensure fetch_and_clean_text_from_url was never called
+        # Ensure fetch_and_clean_text_from_url is never called
         with patch(
             "meal_planner.routers.ui_fragments.fetch_and_clean_text_from_url"
         ) as mock_fetch:
+            response = await client.post(
+                RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: invalid_url}
+            )
+
+            assert response.status_code == 200
+            assert f"Invalid URL: {expected_error_fragment}" in response.text
+            assert f'class="{CSS_ERROR_CLASS}"' in response.text
+
             mock_fetch.assert_not_called()
 
     @pytest.mark.parametrize(
