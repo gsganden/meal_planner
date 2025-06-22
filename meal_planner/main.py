@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/api", api_app)
 
-# Need to import routers here to register them with the app
 from meal_planner.routers import (  # noqa: E402
     actions,  # noqa: F401
     pages,  # noqa: F401
