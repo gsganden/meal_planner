@@ -60,3 +60,16 @@ def alembic_env():
     CONTAINER_DB_FULL_PATH.parent.mkdir(parents=True, exist_ok=True)
     # Environment is now ready for alembic commands via shell
     logging.info("Alembic environment ready for commands.")
+
+
+@app.function(
+    image=base_image,
+    secrets=[create_google_api_key_secret()],
+    volumes={str(CONTAINER_DATA_DIR): volume},
+)
+@modal.asgi_app()
+def web():
+    """Deploy the web application."""
+    from meal_planner.main import app as fasthtml_app
+
+    return fasthtml_app
