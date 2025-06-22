@@ -10,7 +10,6 @@ from httpx import ASGITransport
 from monsterui.all import Theme
 
 from meal_planner.api.recipes import API_ROUTER as RECIPES_API_ROUTER
-from meal_planner.api.users import API_ROUTER as USERS_API_ROUTER
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,6 @@ rt = app.route
 
 api_app = FastAPI()
 api_app.include_router(RECIPES_API_ROUTER)
-api_app.include_router(USERS_API_ROUTER)
 
 internal_client = httpx.AsyncClient(
     transport=ASGITransport(app=app),
