@@ -83,20 +83,13 @@ Merging a PR into `main` triggers deployment as part of a CI/CD process. THat is
 uv run modal deploy deploy.py
 ```
 
-## Run Database Migrations
+## Run Alembic Commands
 
-Run Alembic migrations:
-
-```bash
-uv run modal run deploy.py::migrate_db
-```
-
-You can also run Alembic CLI commands directly, e.g.:
+The app's database is in the Modal environment, so we need to run Alembic CLI commands through Modal like so:
 
 ```bash
-uv run modal shell deploy.py::migrate_db -c "alembic current"
+uv run modal shell deploy.py::alembic_env -c "alembic history"
 ```
-
 
 ## Run Tests
 
