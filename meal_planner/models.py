@@ -4,12 +4,12 @@ This module defines the core data models used throughout the application,
 including both database models (SQLModel) and API request/response models.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 from uuid import uuid4
 
 from pydantic import model_validator
-from sqlalchemy import Column, func
+from sqlalchemy import Column
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
 
@@ -35,29 +35,25 @@ RecipeName = Annotated[
 ]
 
 CreatedAt = Annotated[
-    Optional[datetime],
+    datetime,
     Field(
-        default=None,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp of when the record was created (UTC)",
-        sa_column_kwargs={"nullable": False, "server_default": func.now()},
+        sa_column_kwargs={"nullable": False},
     ),
 ]
 
 UpdatedAt = Annotated[
-    Optional[datetime],
+    datetime,
     Field(
-        default=None,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp of when the record was last updated (UTC)",
-        sa_column_kwargs={
-            "nullable": False,
-            "server_default": func.now(),
-            "onupdate": func.now(),
-        },
+        sa_column_kwargs={"nullable": False},
     ),
 ]
 
 EntityId = Annotated[
-    Optional[str],
+    str,
     Field(
         default_factory=lambda: str(uuid4()),
         primary_key=True,
@@ -160,13 +156,10 @@ class Recipe(RecipeBase, table=True):
         makes_max: Inherited from RecipeBase, optional maximum quantity.
         makes_unit: Inherited from RecipeBase, optional unit for quantity.
         created_at: Timestamp of when the recipe was created (UTC).
-            This is a database-managed field. It will be `None` in Python
-            before an object is persisted but will always be populated for
-            records retrieved from the database.
+            Set automatically when the object is created in Python.
         updated_at: Timestamp of when the recipe was last updated (UTC).
-            This is a database-managed field. It will be `None` in Python
-            before an object is persisted but will always be populated for
-            records retrieved from the database.
+            Set automatically when the object is created and updated manually
+            when the recipe is modified.
     """
 
     __tablename__ = "recipes"  # type: ignore[assignment]
@@ -198,13 +191,10 @@ class User(UserBase, table=True):
         id: Primary key UUID, automatically generated on creation.
         username: Unique username for the user, indexed for fast lookups.
         created_at: Timestamp of when the user was created (UTC).
-            This is a database-managed field. It will be `None` in Python
-            before an object is persisted but will always be populated for
-            records retrieved from the database.
+            Set automatically when the object is created in Python.
         updated_at: Timestamp of when the user was last updated (UTC).
-            This is a database-managed field. It will be `None` in Python
-            before an object is persisted but will always be populated for
-            records retrieved from the database.
+            Set automatically when the object is created and updated manually
+            when the user is modified.
     """
 
     __tablename__ = "users"  # type: ignore[assignment]
