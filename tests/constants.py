@@ -1,7 +1,7 @@
 # Test URLs
 RECIPES_LIST_PATH = "/recipes"
 RECIPES_EXTRACT_URL = "/recipes/extract"
-RECIPES_FETCH_TEXT_URL = "/recipes/fetch-text"
+RECIPES_FETCH_TEXT_URL = "/recipes/ui/fetch-text"
 RECIPES_EXTRACT_RUN_URL = "/recipes/extract/run"
 RECIPES_MODIFY_URL = "/recipes/modify"
 RECIPES_SAVE_URL = "/recipes/save"

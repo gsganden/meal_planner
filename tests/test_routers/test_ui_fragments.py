@@ -1129,6 +1129,84 @@ class TestFetchTextEndpoint:
         assert "security measures that block automated access" in error_text
         assert "copy and paste the recipe text below" in error_text
 
+    @pytest.mark.parametrize(
+        "invalid_url, expected_error_fragment",
+        [
+            # Invalid schemes
+            ("ftp://example.com/recipe", "Only HTTP and HTTPS URLs are allowed"),
+            ("file:///etc/passwd", "Only HTTP and HTTPS URLs are allowed"),
+            ("javascript:alert(1)", "Only HTTP and HTTPS URLs are allowed"),
+            # Missing domain
+            ("http://", "Invalid URL: missing domain"),
+            ("https://", "Invalid URL: missing domain"),
+            # Private IP ranges
+            ("http://127.0.0.1/admin", "Loopback addresses are not allowed"),
+            ("https://localhost/metadata", "Internal hostnames are not allowed"),
+            ("http://10.0.0.1/internal", "Private IP addresses are not allowed"),
+            ("http://192.168.1.1/router", "Private IP addresses are not allowed"),
+            ("http://172.16.0.1/service", "Private IP addresses are not allowed"),
+            # Cloud metadata endpoints
+            ("http://169.254.169.254/metadata", "Link-local addresses are not allowed"),
+            ("http://metadata.google.internal/", "Internal hostnames are not allowed"),
+            # Malformed URLs
+            ("not-a-url", "Only HTTP and HTTPS URLs are allowed"),
+            ("://invalid", "Only HTTP and HTTPS URLs are allowed"),
+            # Invalid hostname extraction
+            ("http://[invalid-ipv6", "Invalid URL format"),
+            ("http:///path-only", "Invalid URL: missing domain"),
+            ("http://:8080/path", "could not extract hostname"),
+            # Multicast addresses
+            ("http://224.0.0.1/test", "Multicast addresses are not allowed"),
+        ],
+    )
+    async def test_url_validation_blocks_unsafe_urls(
+        self, client: AsyncClient, invalid_url: str, expected_error_fragment: str
+    ):
+        """Test that URL validation blocks potentially unsafe URLs."""
+        # Ensure fetch_and_clean_text_from_url is never called
+        with patch(
+            "meal_planner.routers.ui_fragments.fetch_and_clean_text_from_url"
+        ) as mock_fetch:
+            response = await client.post(
+                RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: invalid_url}
+            )
+
+            assert response.status_code == 200
+            assert f"Invalid URL: {expected_error_fragment}" in response.text
+            assert f'class="{CSS_ERROR_CLASS}"' in response.text
+
+            mock_fetch.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "safe_url",
+        [
+            "http://example.com/recipe",
+            "https://www.allrecipes.com/recipe/123",
+            "https://food.com/recipe/amazing-pasta",
+            "http://cooking.nytimes.com/recipes/456",
+            "https://epicurious.com/recipes/food/views/789",
+        ],
+    )
+    async def test_url_validation_allows_safe_urls(
+        self, client: AsyncClient, safe_url: str
+    ):
+        """Test that URL validation allows legitimate recipe URLs."""
+        mock_text = "Fetched recipe content"
+
+        with patch(
+            "meal_planner.routers.ui_fragments.fetch_and_clean_text_from_url",
+            new_callable=AsyncMock,
+        ) as mock_fetch:
+            mock_fetch.return_value = mock_text
+
+            response = await client.post(
+                RECIPES_FETCH_TEXT_URL, data={FIELD_RECIPE_URL: safe_url}
+            )
+
+            assert response.status_code == 200
+            mock_fetch.assert_called_once_with(safe_url)
+            assert mock_text in response.text
+
 
 class TestGetHttpErrorMessage:
     """Test the _get_http_error_message helper function."""

@@ -25,6 +25,7 @@ class TestFetchPageText:
 
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
         mock_client.get = AsyncMock(return_value=mock_response)
 
         with patch("httpx.AsyncClient", return_value=mock_client) as mock_cm:

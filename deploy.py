@@ -5,15 +5,12 @@ import os
 
 import modal
 
-from alembic import command
-from alembic.config import Config
 from meal_planner.config import (
     ALEMBIC_DIR_NAME,
     ALEMBIC_DIR_PATH_IN_CONTAINER,
     ALEMBIC_INI_PATH_IN_CONTAINER,
     CONTAINER_DATA_DIR,
     CONTAINER_DB_FULL_PATH,
-    CONTAINER_MAIN_DATABASE_URL,
 )
 
 app = modal.App("meal-planner")
@@ -29,6 +26,7 @@ def create_base_image() -> modal.Image:
     return (
         modal.Image.debian_slim(python_version="3.12")
         .pip_install_from_pyproject("pyproject.toml")
+        .workdir("/root")
         .add_local_python_source("meal_planner")
         .add_local_dir("meal_planner/static", remote_path="/root/meal_planner/static")
         .add_local_dir("prompt_templates", remote_path="/root/prompt_templates")
@@ -57,14 +55,11 @@ volume = get_volume()
     ).add_local_dir(ALEMBIC_DIR_NAME, remote_path=str(ALEMBIC_DIR_PATH_IN_CONTAINER)),
     volumes={str(CONTAINER_DATA_DIR): volume},
 )
-def migrate_db():
-    """Run database migrations."""
+def alembic_env():
+    """Set up alembic environment for running commands via Modal shell."""
     CONTAINER_DB_FULL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    alembic_cfg = Config(str(ALEMBIC_INI_PATH_IN_CONTAINER))
-    alembic_cfg.set_main_option("script_location", str(ALEMBIC_DIR_PATH_IN_CONTAINER))
-    alembic_cfg.set_main_option("sqlalchemy.url", CONTAINER_MAIN_DATABASE_URL)
-    command.upgrade(alembic_cfg, "head")
-    logging.info("Database migrations applied.")
+    # Environment is now ready for alembic commands via shell
+    logging.info("Alembic environment ready for commands.")
 
 
 @app.function(

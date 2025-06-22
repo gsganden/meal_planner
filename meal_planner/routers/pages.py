@@ -110,8 +110,8 @@ async def get_recipe_list_page(request: Request):
     )
 
 
-@rt("/recipes/{recipe_id:int}")
-async def get_single_recipe_page(recipe_id: int):
+@rt("/recipes/{recipe_id}")
+async def get_single_recipe_page(recipe_id: str):
     """Display a single recipe's details page.
 
     Fetches a specific recipe by ID and renders its full details
@@ -119,7 +119,7 @@ async def get_single_recipe_page(recipe_id: int):
     editing or deletion.
 
     Args:
-        recipe_id: Database ID of the recipe to display.
+        recipe_id: Database UUID of the recipe to display.
 
     Returns:
         HTML page with recipe details or appropriate error message

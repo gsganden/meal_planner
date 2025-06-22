@@ -1,6 +1,8 @@
 """Routers for generating and returning HTML UI fragments, often for HTMX swaps."""
 
+import ipaddress
 import logging
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import Request
@@ -24,6 +26,82 @@ from meal_planner.ui.edit_recipe import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_url_for_ssrf(url: str) -> tuple[bool, str]:
+    """Validate URL to prevent SSRF attacks.
+
+    Checks for:
+    - Valid HTTP/HTTPS scheme
+    - Non-empty domain
+    - Blocks private IP ranges and localhost
+
+    Args:
+        url: The URL to validate
+
+    Returns:
+        Tuple of (is_valid: bool, error_message: str)
+    """
+    try:
+        parsed = urlparse(url)
+
+        if parsed.scheme not in ("http", "https"):
+            return False, "Only HTTP and HTTPS URLs are allowed"
+
+        if not parsed.netloc:
+            return False, "Invalid URL: missing domain"
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "Invalid URL: could not extract hostname"
+
+        ip = _try_parse_ip(hostname)
+        if ip:
+            if ip.is_loopback:
+                return False, "Loopback addresses are not allowed"
+
+            if ip.is_link_local:
+                return False, "Link-local addresses are not allowed"
+
+            if ip.is_multicast:
+                return False, "Multicast addresses are not allowed"
+
+            if ip.is_private:
+                return False, "Private IP addresses are not allowed"
+        else:
+            internal_hostnames = {
+                "localhost",
+                "localhost.localdomain",
+                "metadata",
+                "metadata.google.internal",
+                "instance-data",
+                "link-local",
+            }
+            if hostname.lower() in internal_hostnames:
+                return False, "Internal hostnames are not allowed"
+
+        return True, ""
+
+    except Exception as e:
+        logger.warning("URL validation error for %s: %s", url, e)
+        return False, "Invalid URL format"
+
+
+def _try_parse_ip(
+    hostname: str,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Attempt to parse a hostname as an IP address.
+
+    Args:
+        hostname: The hostname string to parse.
+
+    Returns:
+        An ipaddress object if parsing succeeds, otherwise None.
+    """
+    try:
+        return ipaddress.ip_address(hostname)
+    except ValueError:
+        return None
 
 
 async def _delete_list_item(request: Request, index: int, item_type: str) -> FT:
@@ -290,20 +368,22 @@ async def update_diff(request: Request) -> FT:
         return Div("Error updating diff view.", cls=CSS_ERROR_CLASS)
 
 
-@rt("/recipes/fetch-text")
-async def post_fetch_text(input_url: str | None = None):
+@rt("/recipes/ui/fetch-text")
+async def post_fetch_text(request: Request):
     """Fetch and clean text content from a recipe URL.
 
     HTMX endpoint that retrieves webpage content, cleans it, and populates
     the recipe text area. Handles various error cases with appropriate messages.
 
     Args:
-        input_url: URL to fetch recipe content from.
+        request: FastAPI request containing form data with input_url.
 
     Returns:
         Group containing updated textarea with fetched content and
         error/success messages via OOB swap.
     """
+    form_data = await request.form()
+    input_url = form_data.get("input_url")
 
     def _prepare_error_response(error_message_str: str):
         """Prepare error response with textarea and error message."""
@@ -326,6 +406,13 @@ async def post_fetch_text(input_url: str | None = None):
     if not input_url:
         logger.error("Fetch text called without URL.")
         return _prepare_error_response("Please provide a Recipe URL to fetch.")
+
+    is_valid, error_message = _validate_url_for_ssrf(input_url)
+    if not is_valid:
+        logger.warning(
+            "Blocked potentially unsafe URL: %s - %s", input_url, error_message
+        )
+        return _prepare_error_response(f"Invalid URL: {error_message}")
 
     try:
         logger.info("Fetching and cleaning text from URL: %s", input_url)
