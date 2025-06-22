@@ -68,63 +68,70 @@ def alembic_env():
 )
 def fix_null_recipe_ids():
     """Fix the NULL recipe ID that's causing validation errors."""
-    from meal_planner.database import get_session
-    from sqlalchemy import text
     from uuid import uuid4
-    
+
+    from sqlalchemy import text
+
+    from meal_planner.database import get_session
+
     session_gen = get_session()
     session = next(session_gen)
-    
+
     try:
         # Check for NULL recipe IDs
         result = session.execute(text("SELECT COUNT(*) FROM recipes WHERE id IS NULL"))
         null_id_count = result.scalar()
         print(f"Found {null_id_count} recipes with NULL ids")
-        
+
         if null_id_count == 0:
             print("No NULL recipe IDs found - database is already fixed")
             return
-            
+
         # Get records with NULL ids to see what we're dealing with
-        result = session.execute(text("SELECT name, created_at FROM recipes WHERE id IS NULL"))
+        result = session.execute(
+            text("SELECT name, created_at FROM recipes WHERE id IS NULL")
+        )
         null_records = result.fetchall()
-        print(f"Records with NULL ids:")
+        print("Records with NULL ids:")
         for record in null_records:
             print(f"  - {record[0][:50]}... (created: {record[1]})")
-        
+
         # Option 1: Delete records with NULL ids (if they're duplicates or corrupted)
         # Option 2: Assign new UUIDs to NULL id records
-        
+
         print("\nFixing NULL recipe IDs by assigning new UUIDs...")
-        
+
         # For each NULL id record, assign a new UUID
         count = 0
         while True:
-            result = session.execute(text("SELECT rowid FROM recipes WHERE id IS NULL LIMIT 1"))
+            result = session.execute(
+                text("SELECT rowid FROM recipes WHERE id IS NULL LIMIT 1")
+            )
             row = result.fetchone()
             if not row:
                 break
-                
+
             new_uuid = str(uuid4())
             session.execute(
                 text("UPDATE recipes SET id = :new_id WHERE rowid = :rowid"),
-                {"new_id": new_uuid, "rowid": row[0]}
+                {"new_id": new_uuid, "rowid": row[0]},
             )
             count += 1
             print(f"Assigned UUID {new_uuid} to record {count}")
-            
+
         session.commit()
         print(f"Successfully fixed {count} records with NULL IDs")
-        
+
         # Verify the fix
         result = session.execute(text("SELECT COUNT(*) FROM recipes WHERE id IS NULL"))
         remaining_null = result.scalar()
         print(f"Remaining NULL IDs: {remaining_null}")
-        
+
     except Exception as e:
         session.rollback()
         print(f"❌ Error fixing NULL recipe IDs: {e}")
         import traceback
+
         traceback.print_exc()
         raise
     finally:
