@@ -1,6 +1,6 @@
 from datetime import datetime
 from unittest.mock import patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -13,10 +13,9 @@ from meal_planner.models import User, UserBase
 @pytest.mark.anyio
 class TestGetUserById:
     @pytest.fixture
-    def setup_user(self, dbsession: SQLModelSession) -> UUID:
+    def setup_user(self, dbsession: SQLModelSession) -> str:
         """Inserts a user into the test database and returns their ID."""
         test_user = User(
-            id=uuid4(),
             username="test_user",
         )
         dbsession.add(test_user)
@@ -25,7 +24,7 @@ class TestGetUserById:
         assert test_user.id is not None
         return test_user.id
 
-    async def test_get_user_by_id_success(self, client: AsyncClient, setup_user: UUID):
+    async def test_get_user_by_id_success(self, client: AsyncClient, setup_user: str):
         """Test GET /api/v0/users/{user_id} returns the correct user."""
         user_id = setup_user
         response = await client.get(f"/api/v0/users/{user_id}")
@@ -48,24 +47,24 @@ class TestGetUserById:
         assert response.status_code == 404
         assert response.json() == {"detail": "User not found"}
 
-    async def test_get_user_invalid_uuid(self, client: AsyncClient):
-        """Test GET /api/v0/users/{user_id} returns 422 for invalid UUID."""
-        invalid_uuid = "not-a-uuid"
-        response = await client.get(f"/api/v0/users/{invalid_uuid}")
-        assert response.status_code == 422
-        assert "detail" in response.json()
+    async def test_get_user_invalid_id(self, client: AsyncClient):
+        """Test GET /api/v0/users/{user_id} returns 404 for invalid ID."""
+        invalid_id = "not-a-uuid"
+        response = await client.get(f"/api/v0/users/{invalid_id}")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "User not found"}
 
-    async def test_get_user_db_fetch_error(self, client: AsyncClient, setup_user: UUID):
+    async def test_get_user_db_fetch_error(self, client: AsyncClient, setup_user: str):
         """Test handling of database errors during GET /api/v0/users/{user_id}."""
-        with patch("sqlmodel.Session.get") as mock_get:
-            mock_get.side_effect = Exception("Database fetch error")
+        with patch("sqlmodel.Session.exec") as mock_exec:
+            mock_exec.side_effect = Exception("Database fetch error")
 
             user_id = setup_user
             response = await client.get(f"/api/v0/users/{user_id}")
 
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error retrieving user"}
-            mock_get.assert_called_once_with(User, user_id)
+            mock_exec.assert_called_once()
 
 
 class TestDemoUserMigration:
@@ -73,15 +72,14 @@ class TestDemoUserMigration:
 
     def test_demo_user_migration_format(self):
         """Test that demo user can be created with expected format."""
-        from uuid import UUID
 
         # This tests the structure expected by the migration
         demo_user = User(
-            id=UUID("7dfc4e17-5b0c-4e08-8de1-8db9e7321711"), username="demo_user"
+            id="7dfc4e17-5b0c-4e08-8de1-8db9e7321711", username="demo_user"
         )
 
         # Verify the model accepts the expected values
-        assert demo_user.id == UUID("7dfc4e17-5b0c-4e08-8de1-8db9e7321711")
+        assert demo_user.id == "7dfc4e17-5b0c-4e08-8de1-8db9e7321711"
         assert demo_user.username == "demo_user"
         assert demo_user.created_at is None  # Will be set by database
         assert demo_user.updated_at is None  # Will be set by database
@@ -96,7 +94,7 @@ class TestUserModel:
 
         # Verify default values
         assert user.id is not None  # Should be auto-generated
-        assert isinstance(user.id, UUID)
+        assert isinstance(user.id, str)
         assert user.username == "model_test_user"
         assert user.created_at is None  # Will be set by database
         assert user.updated_at is None  # Will be set by database

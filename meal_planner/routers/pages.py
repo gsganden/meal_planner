@@ -1,7 +1,6 @@
 """Routers for user-facing HTML pages that render full page layouts."""
 
 import logging
-from uuid import UUID
 
 import httpx
 from fastapi import Request
@@ -112,7 +111,7 @@ async def get_recipe_list_page(request: Request):
 
 
 @rt("/recipes/{recipe_id}")
-async def get_single_recipe_page(recipe_id: UUID):
+async def get_single_recipe_page(recipe_id: str):
     """Display a single recipe's details page.
 
     Fetches a specific recipe by ID and renders its full details

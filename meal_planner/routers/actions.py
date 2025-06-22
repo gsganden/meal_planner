@@ -1,7 +1,6 @@
 """Routers for actions that process data or perform operations, often via POST."""
 
 import logging
-from uuid import UUID
 
 import httpx
 from fastapi import Request, Response
@@ -414,7 +413,7 @@ async def post_extract_recipe_run(
 
 
 @rt("/recipes/delete")
-async def post_delete_recipe(recipe_id: UUID):
+async def post_delete_recipe(recipe_id: str):
     """Handles recipe deletion requests, typically initiated from the UI.
 
     This endpoint attempts to delete a recipe by its ID using an internal API call.

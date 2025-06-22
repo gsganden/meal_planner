@@ -3,7 +3,6 @@
 import logging
 from datetime import datetime, timezone
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
@@ -113,7 +112,7 @@ async def get_all_recipes(session: Annotated[Session, Depends(get_session)]):
 
 @API_ROUTER.get("/v0/recipes/{recipe_id}", response_model=Recipe)
 async def get_recipe_by_id(
-    recipe_id: UUID, session: Annotated[Session, Depends(get_session)]
+    recipe_id: str, session: Annotated[Session, Depends(get_session)]
 ):
     """Retrieve a specific recipe by its ID.
 
@@ -131,7 +130,8 @@ async def get_recipe_by_id(
         HTTPException: 404 if recipe not found, 500 if database error.
     """
     try:
-        recipe = session.get(Recipe, recipe_id)
+        statement = select(Recipe).where(Recipe.id == recipe_id)
+        recipe = session.exec(statement).first()
     except Exception as e:
         logger.error(
             "Database error fetching recipe ID %s: %s", recipe_id, e, exc_info=True
@@ -152,7 +152,7 @@ async def get_recipe_by_id(
 
 @API_ROUTER.put("/v0/recipes/{recipe_id}", response_model=Recipe)
 async def update_recipe(
-    recipe_id: UUID,
+    recipe_id: str,
     recipe_data: RecipeBase,
     session: Annotated[Session, Depends(get_session)],
 ):
@@ -236,7 +236,7 @@ async def update_recipe(
 
 @API_ROUTER.delete("/v0/recipes/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_recipe(
-    recipe_id: UUID, session: Annotated[Session, Depends(get_session)]
+    recipe_id: str, session: Annotated[Session, Depends(get_session)]
 ):
     """Delete a recipe from the database.
 

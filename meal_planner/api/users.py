@@ -2,10 +2,9 @@
 
 import logging
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from meal_planner.database import get_session
 from meal_planner.models import User
@@ -17,7 +16,7 @@ API_ROUTER = APIRouter()
 
 @API_ROUTER.get("/v0/users/{user_id}", response_model=User)
 async def get_user_by_id(
-    user_id: UUID, session: Annotated[Session, Depends(get_session)]
+    user_id: str, session: Annotated[Session, Depends(get_session)]
 ):
     """Retrieve a specific user by their ID.
 
@@ -35,7 +34,8 @@ async def get_user_by_id(
         HTTPException: 404 if user not found, 500 if database error.
     """
     try:
-        user = session.get(User, user_id)
+        statement = select(User).where(User.id == user_id)
+        user = session.exec(statement).first()
     except Exception as e:
         logger.error(
             "Database error fetching user ID %s: %s", user_id, e, exc_info=True

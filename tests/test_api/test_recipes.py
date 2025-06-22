@@ -1,6 +1,5 @@
 from datetime import datetime
 from unittest.mock import patch
-from uuid import UUID
 
 import pytest
 import pytest_asyncio
@@ -46,7 +45,10 @@ class TestCreateRecipeSuccess:
         response_json = create_recipe_response.json()
         assert "id" in response_json
         recipe_id_from_body = response_json["id"]
-        UUID(recipe_id_from_body)
+        # Verify it's a valid UUID string format
+        import uuid
+
+        uuid.UUID(recipe_id_from_body)  # Should not raise exception
 
     async def test_create_recipe_response_contains_payload_data(
         self, create_recipe_response: Response, valid_recipe_payload: dict
@@ -281,7 +283,7 @@ class TestGetRecipes:
 @pytest.mark.anyio
 class TestGetRecipeById:
     @pytest.fixture
-    def setup_recipe(self, dbsession: SQLModelSession) -> UUID:
+    def setup_recipe(self, dbsession: SQLModelSession) -> str:
         """Inserts a recipe into the test database and returns its ID."""
         test_recipe = Recipe(
             name="Detailed Test Recipe",
@@ -295,7 +297,7 @@ class TestGetRecipeById:
         return test_recipe.id
 
     async def test_get_recipe_by_id_success(
-        self, client: AsyncClient, setup_recipe: UUID
+        self, client: AsyncClient, setup_recipe: str
     ):
         """Test GET /api/recipes/{recipe_id} returns the correct recipe."""
         recipe_id = setup_recipe
@@ -322,18 +324,18 @@ class TestGetRecipeById:
         assert response.json() == {"detail": "Recipe not found"}
 
     async def test_get_recipe_db_fetch_error(
-        self, client: AsyncClient, monkeypatch, setup_recipe: UUID
+        self, client: AsyncClient, monkeypatch, setup_recipe: str
     ):
         """Test handling of database errors during GET /api/recipes/{recipe_id}."""
-        with patch("sqlmodel.Session.get") as mock_get:
-            mock_get.side_effect = Exception("Database fetch error")
+        with patch("sqlmodel.Session.exec") as mock_exec:
+            mock_exec.side_effect = Exception("Database fetch error")
 
             recipe_id = setup_recipe
             response = await client.get(f"/api/v0/recipes/{recipe_id}")
 
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error retrieving recipe"}
-            mock_get.assert_called_once_with(Recipe, recipe_id)
+            mock_exec.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -341,14 +343,14 @@ class TestDeleteRecipe:
     @pytest_asyncio.fixture()
     async def created_recipe_id(
         self, client: AsyncClient, valid_recipe_payload: dict
-    ) -> UUID:
+    ) -> str:
         """Creates a recipe and returns its ID."""
         response = await client.post("/api/v0/recipes", json=valid_recipe_payload)
         assert response.status_code == 201
-        return UUID(response.json()["id"])
+        return response.json()["id"]
 
     async def test_delete_recipe_success(
-        self, client: AsyncClient, created_recipe_id: UUID
+        self, client: AsyncClient, created_recipe_id: str
     ):
         """Test successful deletion of an existing recipe."""
         delete_response = await client.delete(f"/api/v0/recipes/{created_recipe_id}")
@@ -365,7 +367,7 @@ class TestDeleteRecipe:
         assert response.json() == {"detail": "Recipe not found"}
 
     async def test_delete_recipe_db_fetch_error(
-        self, client: AsyncClient, monkeypatch, created_recipe_id: UUID
+        self, client: AsyncClient, monkeypatch, created_recipe_id: str
     ):
         """Test handling of database errors when fetching a recipe for deletion."""
         with patch("sqlmodel.Session.get") as mock_get:
@@ -380,7 +382,7 @@ class TestDeleteRecipe:
             mock_get.assert_called_once_with(Recipe, created_recipe_id)
 
     async def test_delete_recipe_db_delete_error(
-        self, client: AsyncClient, monkeypatch, created_recipe_id: UUID
+        self, client: AsyncClient, monkeypatch, created_recipe_id: str
     ):
         """Test handling of database errors during the actual delete operation."""
         get_response = await client.get(f"/api/v0/recipes/{created_recipe_id}")
@@ -444,7 +446,7 @@ class TestRecipeTimestamps:
         recipe_id = response.json()["id"]
 
         # Fetch the recipe directly from database
-        db_recipe = dbsession.get(Recipe, UUID(recipe_id))
+        db_recipe = dbsession.get(Recipe, recipe_id)
         assert db_recipe is not None
 
         # Verify timestamps are populated in database
@@ -749,7 +751,7 @@ class TestUpdateRecipe:
 
             assert response.status_code == 500
             assert response.json() == {"detail": "Database error retrieving recipe"}
-            mock_get.assert_called_once_with(Recipe, UUID(recipe_id))
+            mock_get.assert_called_once_with(Recipe, recipe_id)
 
     async def test_update_recipe_db_commit_error(
         self, client: AsyncClient, created_recipe: dict, updated_recipe_payload: dict
@@ -779,7 +781,7 @@ class TestUpdateRecipe:
         recipe_id = created_recipe["id"]
 
         # Get original timestamps from database
-        original_recipe = dbsession.get(Recipe, UUID(recipe_id))
+        original_recipe = dbsession.get(Recipe, recipe_id)
         assert original_recipe is not None
         original_created_at = original_recipe.created_at
         original_updated_at = original_recipe.updated_at
@@ -797,7 +799,7 @@ class TestUpdateRecipe:
 
         # Fetch updated recipe from database
         dbsession.expire_all()  # Clear session cache
-        updated_recipe = dbsession.get(Recipe, UUID(recipe_id))
+        updated_recipe = dbsession.get(Recipe, recipe_id)
         assert updated_recipe is not None
 
         # Verify timestamp behavior

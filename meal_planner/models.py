@@ -6,7 +6,7 @@ including both database models (SQLModel) and API request/response models.
 
 from datetime import datetime
 from typing import Annotated, Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import model_validator
 from sqlalchemy import Column, func
@@ -57,9 +57,9 @@ UpdatedAt = Annotated[
 ]
 
 EntityId = Annotated[
-    Optional[UUID],
+    Optional[str],
     Field(
-        default_factory=uuid4,
+        default_factory=lambda: str(uuid4()),
         primary_key=True,
         description="Unique identifier for the entity",
     ),
