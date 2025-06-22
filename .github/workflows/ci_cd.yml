@@ -94,8 +94,3 @@ jobs:
         run: |
           source .venv/bin/activate
           modal deploy deploy.py
-
-      - name: Run Database Migrations
-        run: |
-          source .venv/bin/activate
-          modal run deploy.py::migrate_db
