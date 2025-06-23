@@ -15,6 +15,7 @@ dependencies = [
     "pydantic",
     "python-fasthtml",
     "html2text",
+    "markdown",
     "pyyaml>=6.0.2",
     "modal>=0.74.29",
     "fastlite>=0.1.3",

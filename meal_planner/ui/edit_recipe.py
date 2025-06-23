@@ -3,6 +3,7 @@
 import difflib
 import html
 
+import markdown
 from fasthtml.common import *
 from monsterui.all import *
 
@@ -18,48 +19,71 @@ from meal_planner.ui.common import (
 def generate_diff_html(
     before_text: str, after_text: str
 ) -> tuple[list[str | FT], list[str | FT]]:
-    """Generate HTML-safe diff components for before/after text comparison.
+    """Generate HTML-safe diff components with proper markdown rendering.
 
-    Create a line-by-line comparison, with proper HTML escaping to prevent XSS attacks.
-    Differences are marked with Del/Ins FastHTML components for styling.
+    Convert full markdown to HTML first, then apply diff logic.
+    This gives cleaner rendering without extra spacing.
 
     Args:
-        before_text: Original text for comparison.
-        after_text: Modified text to compare against original.
+        before_text: Original markdown text for comparison.
+        after_text: Modified markdown text to compare against original.
 
     Returns:
         Tuple of (before_items, after_items) where each is a list of
-        FastHTML components and strings representing the diff view.
+        FastHTML components representing the diff view with markdown rendering.
     """
+    # Convert entire markdown to HTML first
+    md = markdown.Markdown()
+    before_html = md.convert(before_text)
+    after_html = md.convert(after_text)
+
+    # If content is the same, return as-is
+    if before_text.strip() == after_text.strip():
+        return [NotStr(before_html)], [NotStr(after_html)]
+
+    # For different content, do line-by-line diff on original markdown
     before_lines = before_text.splitlines()
     after_lines = after_text.splitlines()
+
+    # Filter out empty lines to reduce spacing
+    before_lines = [line for line in before_lines if line.strip()]
+    after_lines = [line for line in after_lines if line.strip()]
+
     matcher = difflib.SequenceMatcher(None, before_lines, after_lines)
     before_items = []
     after_items = []
 
+    def process_line(line: str) -> str:
+        """Convert markdown line to clean HTML."""
+        line_html = md.convert(line).strip()
+        if line_html.startswith("<p>") and line_html.endswith("</p>"):
+            line_html = line_html[3:-4]
+        return line_html
+
+    def add_line(items_list: list, line: str, wrapper=None):
+        """Add a processed line to the items list."""
+        html = process_line(line)
+        component = NotStr(html)
+        if wrapper:
+            component = wrapper(component)
+        items_list.append(component)
+
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             for line in before_lines[i1:i2]:
-                # Escape HTML entities to prevent XSS attacks
-                escaped_line = html.escape(line)
-                before_items.extend([escaped_line, "\n"])
-                after_items.extend([escaped_line, "\n"])
+                add_line(before_items, line)
+                add_line(after_items, line)
         elif tag == "replace":
             for line in before_lines[i1:i2]:
-                before_items.extend([Del(html.escape(line)), "\n"])
+                add_line(before_items, line, Del)
             for line in after_lines[j1:j2]:
-                after_items.extend([Ins(html.escape(line)), "\n"])
+                add_line(after_items, line, Ins)
         elif tag == "delete":
             for line in before_lines[i1:i2]:
-                before_items.extend([Del(html.escape(line)), "\n"])
+                add_line(before_items, line, Del)
         elif tag == "insert":
             for line in after_lines[j1:j2]:
-                after_items.extend([Ins(html.escape(line)), "\n"])
-
-    if before_items and before_items[-1] == "\n":
-        before_items.pop()
-    if after_items and after_items[-1] == "\n":
-        after_items.pop()
+                add_line(after_items, line, Ins)
 
     return before_items, after_items
 
@@ -89,12 +113,48 @@ def build_diff_content_children(
         """Build a single pane (before or after) for the recipe diff view."""
         return Card(
             Strong(title),
-            Pre(
+            Div(
+                Style("""
+                    .diff-content h1 {
+                        font-size: 1.5rem;
+                        font-weight: bold;
+                        margin: 0;
+                        line-height: 1.0;
+                    }
+                    .diff-content h2 {
+                        font-size: 1.25rem;
+                        font-weight: 600;
+                        margin: 0;
+                        line-height: 1.0;
+                    }
+                    .diff-content h3 {
+                        font-size: 1.1rem;
+                        font-weight: 600;
+                        margin: 0 0 0.1rem 0;
+                        line-height: 1.0;
+                    }
+                    .diff-content strong { font-weight: bold; }
+                    .diff-content em { font-style: italic; }
+                    .diff-content ul {
+                        margin: 0;
+                        padding-left: 1.5rem;
+                        list-style-type: disc;
+                    }
+                    .diff-content li {
+                        margin: 0;
+                        display: list-item;
+                        line-height: 1.3;
+                    }
+                    .diff-content p { margin: 0; line-height: 1.3; }
+                    .diff-content ul p { margin: 0; }
+                    .diff-content li p { margin: 0; display: inline; }
+                """),
                 *diff_items,
                 id=pre_id,
-                cls="border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 overflow-auto"
-                "text-xs",
-                style="white-space: pre-wrap; overflow-wrap: break-word;",
+                cls="border p-2 rounded bg-gray-100 dark:bg-gray-700 mt-1 "
+                "overflow-auto text-sm diff-content",
+                style="white-space: pre-wrap; overflow-wrap: break-word; "
+                "font-family: monospace;",
             ),
             cls=CardT.secondary,
         )
