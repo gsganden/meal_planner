@@ -57,7 +57,7 @@ def sidebar():
     return Div(nav, cls="space-y-4 p-4 w-full md:w-full")
 
 
-def with_layout(title: str, *content):
+def with_layout(title: str, *content, show_title: bool = True):
     """Wrap content in the standard application layout.
 
     Provides consistent page structure with sidebar navigation, header,
@@ -65,9 +65,11 @@ def with_layout(title: str, *content):
     application's standard layout components.
 
     Args:
-        title: Page title to display in browser tab and header.
+        title: Page title to display in browser tab and optionally as H1 header.
         *content: Variable number of FastHTML components to render
             in the main content area.
+        show_title: Whether to display the title as H1 in the content area.
+            Defaults to True for backward compatibility.
 
     Returns:
         Complete HTML page with layout wrapper and provided content.
@@ -116,7 +118,7 @@ def with_layout(title: str, *content):
         Div(cls="flex flex-col md:flex-row w-full")(
             Div(sidebar(), cls="hidden md:block w-1/5 max-w-52"),
             Div(
-                H1(title, cls="text-3xl font-bold mb-6"),
+                H1(title, cls="text-3xl font-bold mb-6") if show_title else None,
                 *content,
                 cls="md:w-4/5 w-full p-4",
                 id="content",

@@ -163,4 +163,4 @@ async def get_single_recipe_page(recipe_id: str):
         title = recipe_data["name"]
         content = build_recipe_display(recipe_data)
 
-    return with_layout(title, content)
+    return with_layout(title, content, show_title=False)
