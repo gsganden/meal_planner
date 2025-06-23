@@ -15,7 +15,7 @@ from meal_planner.models import RecipeBase
 
 MODEL_NAME = "gemini-2.0-flash"
 PROMPT_DIR = Path(__file__).resolve().parent.parent.parent / "prompt_templates"
-ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250619_162856__add_makes_extraction.txt"
+ACTIVE_RECIPE_EXTRACTION_PROMPT_FILE = "20250623_fix_serves_unit.txt"
 ACTIVE_RECIPE_MODIFICATION_PROMPT_FILE = "20250525_174436__string_template_syntax.txt"
 
 logger = logging.getLogger(__name__)

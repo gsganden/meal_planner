@@ -1,0 +1,42 @@
+Please extract the recipe name, ingredients, instructions, and makes information from the following text.
+
+Recipe Name Guidelines:
+- Focus on extracting the primary dish name itself.
+- Avoid including prefixes like 'Quick:', 'Easy:', 'Healthy Dinner:', etc.
+- Avoid including instructional phrases like 'How to Make', 'How to', 'Ways to', etc.
+- Avoid numbers unless part of the dish name (e.g., '5-Spice Chicken').
+- The name MUST be extracted exactly as it appears in the core title,
+    after excluding any such prefixes.
+- Do NOT include the word 'recipe' in the name.
+
+Ingredients Guidelines:
+- Extract each ingredient as a single string, including quantity and unit (e.g., "1 cup flour", "2 large eggs", "1/2 tsp salt").
+- If an explicit list of ingredients is given, use it exactly as given; do not try to infer ingredients from the instructions.
+- If ingredients are listed multiple times with different formatting, extract the version with the most formatting (bold, italics, etc.) as this is typically the main ingredient list.
+- Preserve original wording and details where possible.
+- Preserve comments in parentheses.
+- Preserve any formatting (like bolding or italics) from the original text, representing it using Markdown syntax (e.g., **bold**, *italic*).
+
+Recipe Instructions Guidelines:
+- Extract each instruction as a single string.
+- Preserve the original wording and structure of each instruction step.
+- Preserve all punctuation, including terminal periods.
+- Preserve any formatting (like bolding or italics) from the original text,
+    representing it using Markdown syntax (e.g., **bold**, *italic*).
+- Do NOT include step numbers or prefixes like "Step 1:", "Step 2:", etc.
+- Ensure the instructions are in the correct order.
+
+Makes Guidelines:
+- Extract information about what the recipe makes, including both quantity and unit.
+- Look for phrases like "Makes 4 servings", "Serves 4", "Yields 12 cookies", "Makes 20 pieces", etc.
+- If a single number is found (e.g., "Makes 4 servings"), set both makes_min and makes_max to that number.
+- If a range is found (e.g., "Makes 4-6 servings", "Yields 12 to 15 cookies"), set makes_min to the lower number and makes_max to the higher number.
+- Extract the unit from the text (e.g., "servings", "cookies", "pieces", "portions", "cups", etc.).
+- When the text says "Serves" (e.g., "Serves 4" or "Serves 2-3"), set the unit to "servings", NEVER "serves".
+  Example: "Serves 4" → makes_min: 4, makes_max: 4, makes_unit: "servings"
+  Example: "Serves 2-3" → makes_min: 2, makes_max: 3, makes_unit: "servings"
+- If no explicit makes information is found, leave makes_min, makes_max, and makes_unit as null.
+- Only extract what is explicitly stated - do not guess or infer quantities.
+
+Text:
+$page_text 
